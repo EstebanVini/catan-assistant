@@ -1,0 +1,306 @@
+import { useEffect, useRef, useState } from 'react';
+import { useStore } from '../store';
+import { ColorChip } from './ColorChip';
+import { playerHex } from '../lib/playerColors';
+import type { PlayerColor } from '../types';
+
+// Banner + cola visual + control "Saltar" para fase de Construcción Especial
+// (brief Fase 2 §4.2-§4.5).
+//
+// Reglas clave:
+//  - Sólo se renderiza si `phase === 'specialBuild'`.
+//  - "Saltar a X" sólo visible para host o bank manager.
+//  - "Saltar" aparece tras 30 s ininterrumpidos del mismo jugador #0, o
+//    inmediatamente si el jugador #0 está desconectado.
+//  - Confirmación inline (no modal pesado) para no presionar al usuario.
+
+const SKIP_DELAY_MS = 30_000;
+
+export function SpecialBuildBanner(): JSX.Element | null {
+  const view = useStore((s) => s.view);
+  const specialBuildSkip = useStore((s) => s.specialBuildSkip);
+  const [now, setNow] = useState(() => Date.now());
+  const [confirmSkip, setConfirmSkip] = useState(false);
+  // Timestamp en el que el jugador #0 actual tomó turno (cliente local).
+  // Cambia cuando cambia el id de la cabeza de la cola.
+  const queueHeadRef = useRef<{ id: string | null; since: number }>({
+    id: null,
+    since: Date.now(),
+  });
+
+  // Refresca `now` cada 5 s para evaluar el umbral de 30 s.
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 5_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const headId =
+    view && view.state.phase === 'specialBuild'
+      ? (view.state.specialBuildQueue[0] ?? null)
+      : null;
+
+  // Reset del timestamp local cuando cambia el head, y cierre de la
+  // confirmación pendiente. En useEffect para no mutar estado durante render.
+  useEffect(() => {
+    if (queueHeadRef.current.id !== headId) {
+      queueHeadRef.current = { id: headId, since: Date.now() };
+      setConfirmSkip(false);
+    }
+  }, [headId]);
+
+  if (!view || !view.me) return null;
+  const { state, me } = view;
+  if (state.phase !== 'specialBuild') return null;
+
+  const queue = state.specialBuildQueue
+    .map((id) => state.players.find((p) => p.id === id))
+    .filter((p): p is NonNullable<typeof p> => !!p);
+  if (queue.length === 0) return null;
+
+  const head = queue[0];
+  const next = queue[1] ?? null;
+  const later = queue.slice(2);
+  const myPosition = state.specialBuildQueue.indexOf(me.id);
+  const isMyTurn = head.id === me.id;
+  const canSkip = me.id === state.hostId || me.id === state.bankManagerId;
+  const meAlreadyPassed = myPosition === -1 && head.id !== me.id;
+
+  const elapsedHead = now - queueHeadRef.current.since;
+  const showSkip =
+    canSkip && (!head.connected || elapsedHead >= SKIP_DELAY_MS);
+
+  // Cabecera + subtítulo separados para jerarquía visual y de copy.
+  let headerText: string;
+  let subtitleText: string | null;
+  if (isMyTurn) {
+    headerText = 'Construcción especial — es tu turno';
+    subtitleText =
+      'Construye o compra una carta de desarrollo. No puedes intercambiar ni jugar cartas en esta fase.';
+  } else {
+    headerText = `Construcción especial — turno de ${head.name}`;
+    if (meAlreadyPassed) {
+      subtitleText = 'Ya pasaste tu turno.';
+    } else if (myPosition === 1) {
+      subtitleText = 'Eres siguiente.';
+    } else if (myPosition > 1) {
+      subtitleText = `Vas en ${myPosition}.`;
+    } else {
+      subtitleText = null;
+    }
+  }
+
+  // "Después: A, B (+N más)" — sólo se muestra si hay alguien tras el #0.
+  const afterHeadNames = queue.slice(1).map((p) => p.name);
+  const afterShown = afterHeadNames.slice(0, 2);
+  const afterExtra = afterHeadNames.length - afterShown.length;
+  const afterLine =
+    afterShown.length > 0
+      ? `Después: ${afterShown.join(', ')}${afterExtra > 0 ? ` (+${afterExtra} más)` : ''}`
+      : null;
+
+  return (
+    <section
+      role="status"
+      aria-live="polite"
+      className="anim-slide-down mx-3 mt-2 rounded-lg border border-sky-400/40 bg-sky-500/[0.08] px-3 py-2.5 text-sky-50"
+    >
+      {/* Banner principal: header + subtítulo */}
+      <div className="flex items-start gap-2 leading-snug">
+        <ConstructionIcon className="mt-0.5 flex-shrink-0" />
+        <span
+          className="mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-sky-300"
+          aria-hidden
+        />
+        <div className="flex-1">
+          <p className="text-sm font-semibold">{headerText}</p>
+          {subtitleText ? (
+            <p className="mt-0.5 text-[11px] leading-snug text-sky-100/85">
+              {subtitleText}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Mini cola visual */}
+      <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        <QueueItem
+          player={head}
+          state="head"
+          isMe={head.id === me.id}
+        />
+        {next ? (
+          <>
+            <QueueArrow />
+            <QueueItem player={next} state="next" isMe={next.id === me.id} />
+          </>
+        ) : null}
+        {later.length > 0 ? (
+          <>
+            <QueueArrow />
+            <QueueItem
+              player={later[0]}
+              state="later"
+              isMe={later[0].id === me.id}
+            />
+            {later.length > 1 ? (
+              <span className="nums ml-1 flex-shrink-0 text-[10px] font-medium text-sky-200/70">
+                +{later.length - 1} más
+              </span>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+
+      {/* Línea textual "Después: …" (resumen accesible bajo la cola). */}
+      {afterLine ? (
+        <p className="mt-1 text-[10px] text-sky-100/70">{afterLine}</p>
+      ) : null}
+
+      {/* Control de salto */}
+      {showSkip ? (
+        <div className="anim-fade-in mt-2 flex items-center justify-end">
+          {!confirmSkip ? (
+            <button
+              type="button"
+              onClick={() => setConfirmSkip(true)}
+              className="min-h-[40px] rounded-md border border-white/15 bg-white/[0.06] px-3 py-2 text-xs font-medium text-sky-50 transition-colors active:bg-white/[0.10]"
+            >
+              {!head.connected
+                ? `${head.name} está desconectado. Saltar su turno.`
+                : `Saltar a ${head.name}`}
+            </button>
+          ) : (
+            <div className="flex w-full items-center justify-end gap-1.5">
+              <span className="mr-auto text-xs text-sky-100">
+                Saltar este turno: {head.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => setConfirmSkip(false)}
+                className="min-h-[36px] rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-neutral-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  specialBuildSkip(head.id);
+                  setConfirmSkip(false);
+                }}
+                className="min-h-[36px] rounded-md bg-amber-400 px-3 py-1.5 text-xs font-bold text-neutral-950 shadow-cta-amber active:bg-amber-300"
+              >
+                Confirmar saltar
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function QueueItem({
+  player,
+  state,
+  isMe,
+}: {
+  player: {
+    id: string;
+    name: string;
+    color: PlayerColor | null;
+    connected: boolean;
+  };
+  state: 'head' | 'next' | 'later';
+  isMe: boolean;
+}): JSX.Element {
+  const truncated =
+    player.name.length > 16 ? player.name.slice(0, 14) + '…' : player.name;
+  const opacity =
+    state === 'head' ? 'opacity-100' : state === 'next' ? 'opacity-100' : 'opacity-55';
+  const ring =
+    state === 'head'
+      ? 'border-2 border-sky-300 shadow-soft'
+      : state === 'next'
+        ? 'border border-sky-300/40'
+        : 'border border-white/10';
+  const padding = state === 'head' ? 'px-2 py-1' : 'px-1.5 py-0.5';
+  const fontSize = state === 'head' ? 'text-[12px]' : 'text-[11px]';
+  return (
+    <span
+      className={
+        'inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-neutral-900/60 ' +
+        opacity +
+        ' ' +
+        ring +
+        ' ' +
+        padding
+      }
+      style={{
+        boxShadow:
+          state === 'head'
+            ? `inset 3px 0 0 0 ${playerHex(player.color)}`
+            : undefined,
+      }}
+      title={player.name + (!player.connected ? ' (desconectado)' : '')}
+    >
+      {isMe && state === 'head' ? (
+        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-200">
+          Tú →
+        </span>
+      ) : null}
+      <ColorChip color={player.color} size={10} />
+      <span className={'truncate font-medium text-neutral-100 ' + fontSize}>
+        {truncated}
+      </span>
+      {!player.connected ? (
+        <span className="rounded-sm bg-white/10 px-1 text-[9px] uppercase tracking-wide text-neutral-300">
+          Desc.
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function QueueArrow(): JSX.Element {
+  return (
+    <span className="flex-shrink-0 text-sky-300/40" aria-hidden>
+      <svg width="10" height="10" viewBox="0 0 10 10">
+        <path
+          d="M2 5 L7 5 M5 2 L8 5 L5 8"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
+function ConstructionIcon({ className }: { className?: string }): JSX.Element {
+  // Cono de construcción con franjas blancas. Sin emoji.
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      className={className}
+      aria-hidden
+    >
+      {/* Base */}
+      <rect x="3" y="19.5" width="18" height="2" rx="0.5" fill="#fbbf24" />
+      {/* Cono */}
+      <path
+        d="M12 4 L17 19.5 L7 19.5 Z"
+        fill="#fb923c"
+        stroke="#7c2d12"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
+      {/* Franjas */}
+      <rect x="8.7" y="11" width="6.6" height="1.6" fill="#fef3c7" />
+      <rect x="9.6" y="14.5" width="4.8" height="1.6" fill="#fef3c7" />
+    </svg>
+  );
+}

@@ -1,0 +1,280 @@
+import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useStore } from '../store';
+import { PublicPlayer } from '../types';
+import { ColorChip } from './ColorChip';
+import { portLabel } from '../lib/spanish';
+import { playerHex } from '../lib/playerColors';
+import { BadgeChip } from './BadgeIcon';
+
+// Estado público por jugador. Manos ajenas nunca se muestran (privacidad).
+export function PublicPlayersPanel(): JSX.Element | null {
+  const view = useStore((s) => s.view);
+  const setLongestRoad = useStore((s) => s.setLongestRoad);
+  const [collapsed, setCollapsed] = useState(false);
+  const [editingLongest, setEditingLongest] = useState(false);
+  // Flash de confirmación inline tras asignar el Camino más largo.
+  // Texto efímero (≈1 s) en lugar de toast global para mantener el foco
+  // visual sobre la cards de jugadores.
+  const [longestFlash, setLongestFlash] = useState<string | null>(null);
+  useEffect(() => {
+    if (!longestFlash) return;
+    const t = window.setTimeout(() => setLongestFlash(null), 1100);
+    return () => window.clearTimeout(t);
+  }, [longestFlash]);
+
+  // Tracking de cardCount por jugador para disparar un `pulse-scale` cuando
+  // cambia (sin mostrar +/-, privacidad). `pulseTick` se incrementa por
+  // jugador en cada cambio: usado en el `key` para forzar el re-mount del
+  // card y reiniciar la animación CSS.
+  const prevCardCountsRef = useRef<Map<string, number>>(new Map());
+  const [pulseTick, setPulseTick] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    if (!view) return;
+    const prev = prevCardCountsRef.current;
+    let changed = false;
+    const nextTicks = new Map(pulseTick);
+    for (const p of view.state.players) {
+      const before = prev.get(p.id);
+      if (before !== undefined && before !== p.cardCount) {
+        nextTicks.set(p.id, (nextTicks.get(p.id) ?? 0) + 1);
+        changed = true;
+      }
+      prev.set(p.id, p.cardCount);
+    }
+    if (changed) setPulseTick(nextTicks);
+    // Solo nos interesa cuando cambia la lista de players o sus cardCounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.state.players]);
+
+  if (!view) return null;
+  const { state, me } = view;
+
+  const ordered = state.turnOrder
+    .map((id) => state.players.find((p) => p.id === id))
+    .filter((p): p is PublicPlayer => !!p);
+  const canEditLongest = !!me && (me.id === state.bankManagerId || me.id === state.hostId);
+  const activeId = state.turnOrder[state.currentTurnIndex];
+
+  return (
+    <section className="mx-3 mt-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] shadow-soft">
+      <button
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        aria-expanded={!collapsed}
+        aria-controls="players-list"
+        className="flex w-full items-center justify-between rounded-t-xl px-3 py-3 transition-colors active:bg-white/[0.04]"
+      >
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-300">
+          Jugadores
+        </span>
+        <span className="text-xs text-neutral-500">{collapsed ? '+' : '−'}</span>
+      </button>
+      {!collapsed ? (
+        <div id="players-list" className="space-y-2 border-t border-white/10 p-3">
+          {ordered.map((p) => {
+            const isActive = p.id === activeId;
+            const vpVisible =
+              p.victoryPoints.settlements +
+              p.victoryPoints.cities * 2 +
+              (p.victoryPoints.longestRoad ? 2 : 0) +
+              (p.victoryPoints.largestArmy ? 2 : 0) +
+              (me?.id === p.id ? p.victoryPoints.hiddenVP : 0);
+            // El tick > 0 indica que hubo al menos un cambio: aplicamos la
+            // clase de pulso. El `key` con tick fuerza re-mount cada cambio
+            // para que la animación CSS se reinicie. La animación corre
+            // una sola vez (320 ms) y luego queda estable.
+            const tick = pulseTick.get(p.id) ?? 0;
+            return (
+              <div
+                key={p.id + ':' + tick}
+                className={
+                  'flex items-stretch gap-0 overflow-hidden rounded-lg border bg-neutral-900/50 transition-colors ' +
+                  (isActive
+                    ? 'border-emerald-500/45 shadow-[0_0_0_1px_rgba(16,185,129,0.15)] '
+                    : 'border-white/10 ') +
+                  (tick > 0 ? 'anim-pulse-scale' : '')
+                }
+              >
+                <div
+                  className={(isActive ? 'w-2 ' : 'w-1.5 ') + 'self-stretch'}
+                  style={{
+                    backgroundColor: playerHex(p.color),
+                    boxShadow: 'inset -1px 0 0 rgba(0,0,0,0.25)',
+                  }}
+                />
+                <div className="flex-1 px-2.5 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-semibold text-neutral-100">
+                      {p.name}
+                    </span>
+                    {p.id === state.hostId ? (
+                      <Badge>Anfitrión</Badge>
+                    ) : null}
+                    {p.id === state.bankManagerId ? (
+                      <Badge>Banco</Badge>
+                    ) : null}
+                    {!p.connected ? (
+                      <Badge tone="muted">Desconectado</Badge>
+                    ) : null}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-400">
+                    <span>
+                      Mano:{' '}
+                      <span className="nums font-semibold text-neutral-100">
+                        {p.cardCount}
+                      </span>
+                    </span>
+                    <Sep />
+                    <span>
+                      Desarrollo:{' '}
+                      <span className="nums font-semibold text-neutral-100">
+                        {p.devCardsCount}
+                      </span>
+                    </span>
+                    <Sep />
+                    <span>
+                      Caballeros:{' '}
+                      <span className="nums font-semibold text-neutral-100">
+                        {p.knightsPlayed}
+                      </span>
+                    </span>
+                    <Sep />
+                    <span>
+                      Puntos:{' '}
+                      <span className="nums font-semibold text-neutral-100">
+                        {vpVisible}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    {p.victoryPoints.largestArmy ? (
+                      <BadgeChip
+                        variant="army"
+                        label={`Ejército más grande (2 pts)`}
+                      />
+                    ) : null}
+                    {p.victoryPoints.longestRoad ? (
+                      <BadgeChip
+                        variant="road"
+                        label={`Camino más largo (2 pts)`}
+                      />
+                    ) : null}
+                    {p.ports.map((port) => (
+                      <Badge key={port} tone="muted">
+                        {portLabel(port)}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <ColorChip color={p.color} size={18} className="mr-2" />
+              </div>
+            );
+          })}
+          {canEditLongest ? (
+            <div className="mt-2">
+              {longestFlash ? (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="anim-fade-in rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-100"
+                >
+                  {longestFlash}
+                </div>
+              ) : !editingLongest ? (
+                <button
+                  type="button"
+                  onClick={() => setEditingLongest(true)}
+                  className="min-h-[44px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-neutral-200 active:bg-white/10"
+                >
+                  {(() => {
+                    const holder = ordered.find(
+                      (p) => p.victoryPoints.longestRoad
+                    );
+                    return holder
+                      ? `Cambiar Camino más largo (actual: ${holder.name})`
+                      : 'Asignar Camino más largo';
+                  })()}
+                </button>
+              ) : (
+                <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+                  <p className="mb-1 text-[11px] font-semibold text-neutral-100">
+                    Camino más largo
+                  </p>
+                  <p className="mb-2 text-[10px] text-neutral-400">
+                    Elige al nuevo titular o déjalo sin dueño.
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLongestRoad(null);
+                        setEditingLongest(false);
+                        setLongestFlash('Camino más largo: sin dueño.');
+                      }}
+                      className="min-h-[36px] rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs"
+                    >
+                      Sin dueño
+                    </button>
+                    {ordered.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setLongestRoad(p.id);
+                          setEditingLongest(false);
+                          setLongestFlash(`Camino más largo: ${p.name}.`);
+                        }}
+                        className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs"
+                      >
+                        <ColorChip color={p.color} size={10} />
+                        {p.name}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setEditingLongest(false)}
+                      className="ml-auto min-h-[36px] rounded-md border border-white/10 bg-transparent px-2 py-1.5 text-xs text-neutral-400"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function Badge({
+  children,
+  tone,
+}: {
+  children: ReactNode;
+  tone?: 'muted' | 'warn';
+}): JSX.Element {
+  const cls =
+    tone === 'muted'
+      ? 'bg-white/5 text-neutral-300 border-white/10'
+      : tone === 'warn'
+        ? 'bg-amber-500/15 text-amber-200 border-amber-500/30'
+        : 'bg-sky-500/15 text-sky-200 border-sky-500/30';
+  return (
+    <span
+      className={
+        'inline-block rounded-full border px-1.5 py-0.5 text-[10px] leading-none ' +
+        cls
+      }
+    >
+      {children}
+    </span>
+  );
+}
+
+function Sep(): JSX.Element {
+  return <span className="text-neutral-700" aria-hidden>·</span>;
+}

@@ -1,0 +1,293 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+
+  /*
+   * Safe areas iOS: cada layout aplica su propio padding-bottom respetando
+   * `env(safe-area-inset-bottom)` (ver GameScreen, LobbyScreen sticky CTA y
+   * EndedScreen). Aplicarlo aquí en body duplicaba el inset y dejaba un hueco
+   * notable bajo los CTAs en dispositivos con notch.
+   */
+
+  /* Inputs en móvil: tamaño legible para no provocar zoom en iOS. */
+  input,
+  textarea,
+  select,
+  button {
+    font-size: 16px;
+  }
+
+  /* Accesibilidad: focus-visible global suave. Componentes pueden override. */
+  :where(button, a, input, textarea, select, [role='button']):focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px rgb(15 17 21),
+      0 0 0 4px rgba(110, 168, 254, 0.85);
+    border-radius: 0.5rem;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  /* Conteos: tabular-nums + sin ligaturas para que +1 / 12 / 3 no se muevan. */
+  .nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1, 'lnum' 1;
+  }
+}
+
+/*
+ * Motion system. Reglas:
+ *  - Solo animamos `transform` y `opacity` (nunca width/height/top/left).
+ *  - Duraciones 150–400 ms para feedback funcional; deltas efímeros hasta ~1400 ms.
+ *  - Easing: cubic-bezier(0.2, 0.7, 0.2, 1) para entradas (decel suave) y
+ *    cubic-bezier(0.4, 0, 0.2, 1) para presses / pulsos.
+ *  - `prefers-reduced-motion: reduce` desactiva o cambia a opacity corta.
+ */
+
+@layer utilities {
+  @keyframes pulse-scale {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.08);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes slide-down {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, -8px, 0);
+    }
+    100% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes slide-up {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, 8px, 0);
+    }
+    100% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes fade-in {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes scale-in {
+    0% {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes delta-pop-up {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, 6px, 0) scale(0.9);
+    }
+    20% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    80% {
+      opacity: 1;
+      transform: translate3d(0, -8px, 0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(0, -14px, 0) scale(0.95);
+    }
+  }
+
+  @keyframes delta-pop-down {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, -6px, 0) scale(0.9);
+    }
+    20% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    80% {
+      opacity: 1;
+      transform: translate3d(0, 8px, 0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(0, 14px, 0) scale(0.95);
+    }
+  }
+
+  @keyframes breathe {
+    0% {
+      transform: scale(1);
+      opacity: 0.6;
+    }
+    50% {
+      transform: scale(1.08);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 0.6;
+    }
+  }
+
+  @keyframes shake-x {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0);
+    }
+    15% {
+      transform: translate3d(-4px, 0, 0);
+    }
+    30% {
+      transform: translate3d(4px, 0, 0);
+    }
+    45% {
+      transform: translate3d(-3px, 0, 0);
+    }
+    60% {
+      transform: translate3d(3px, 0, 0);
+    }
+    75% {
+      transform: translate3d(-2px, 0, 0);
+    }
+    90% {
+      transform: translate3d(2px, 0, 0);
+    }
+  }
+
+  @keyframes badge-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.12);
+      opacity: 0.85;
+    }
+  }
+
+  /* Utilidades reutilizables. Todas usan transform/opacity exclusivamente. */
+
+  .anim-slide-down {
+    animation: slide-down 240ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .anim-slide-up {
+    animation: slide-up 240ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .anim-fade-in {
+    animation: fade-in 200ms ease-out both;
+  }
+
+  .anim-scale-in {
+    animation: scale-in 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .anim-pulse-scale {
+    animation: pulse-scale 320ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .anim-delta-up {
+    animation: delta-pop-up 1300ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .anim-delta-down {
+    animation: delta-pop-down 1300ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .anim-breathe {
+    animation: breathe 1400ms ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  .anim-shake {
+    animation: shake-x 320ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .anim-badge-pulse {
+    animation: badge-pulse 1200ms ease-in-out infinite;
+    transform-origin: center;
+  }
+}
+
+/*
+ * Reduced motion: desactiva o reduce a una transición de opacidad corta.
+ * Mantenemos `fade-in` (200 ms opacity) porque cumple la guía WCAG: la
+ * desaparición/aparición sin desplazamiento no provoca vestibular distress.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Mantener entradas perceptibles, pero solo como opacidad corta. */
+  .anim-slide-down,
+  .anim-slide-up,
+  .anim-scale-in,
+  .anim-fade-in {
+    animation: fade-in 120ms ease-out both !important;
+  }
+
+  /* Pulsos y respiración: sin animación. El estado se comunica por color. */
+  .anim-pulse-scale,
+  .anim-breathe,
+  .anim-badge-pulse,
+  .anim-shake {
+    animation: none !important;
+  }
+
+  /* Deltas efímeros: opacidad simple, sin desplazamiento. */
+  .anim-delta-up,
+  .anim-delta-down {
+    animation: fade-in 120ms ease-out both !important;
+  }
+}
