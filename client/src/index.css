@@ -197,6 +197,30 @@
     }
   }
 
+  @keyframes scale-y-top {
+    0% {
+      transform: scaleY(0);
+    }
+    100% {
+      transform: scaleY(1);
+    }
+  }
+
+  /* Crecimiento de barra desde la base. Sólo `transform` (scaleY) — la altura
+     final ya está aplicada por `style.height`, por eso `transform-origin` debe
+     ser `bottom` para que parezca que "sube" desde la línea base. Usado por
+     `DiceStats` (variant default/expanded) con stagger 30 ms entre barras. */
+  @keyframes bar-grow {
+    0% {
+      transform: scaleY(0);
+      opacity: 0;
+    }
+    100% {
+      transform: scaleY(1);
+      opacity: 1;
+    }
+  }
+
   @keyframes badge-pulse {
     0%,
     100% {
@@ -252,6 +276,19 @@
     animation: badge-pulse 1200ms ease-in-out infinite;
     transform-origin: center;
   }
+
+  /* Acento lateral (barra de color del ganador) entrando de 0 a 1 desde
+     arriba. Sólo `transform`, sin animar dimensiones. */
+  .anim-scale-y-top {
+    animation: scale-y-top 360ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    transform-origin: top center;
+  }
+
+  /* Crecimiento de barra de histograma. `transform-origin: bottom` debe ir
+     en el elemento (usar la clase Tailwind `origin-bottom`). */
+  .anim-bar-grow {
+    animation: bar-grow 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
 }
 
 /*
@@ -273,6 +310,8 @@
   .anim-slide-down,
   .anim-slide-up,
   .anim-scale-in,
+  .anim-scale-y-top,
+  .anim-bar-grow,
   .anim-fade-in {
     animation: fade-in 120ms ease-out both !important;
   }

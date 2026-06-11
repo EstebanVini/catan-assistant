@@ -99,11 +99,11 @@ export function YearOfPlentyPickerModal({ onClose }: Props): JSX.Element | null 
         aria-labelledby="yop-title"
         aria-describedby="yop-desc"
         onClick={(e) => e.stopPropagation()}
-        className="anim-scale-in w-full max-w-sm rounded-2xl border border-white/10 bg-neutral-900 p-4 shadow-2xl ring-1 ring-white/5"
+        className="anim-scale-in w-full max-w-sm rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card ring-1 ring-white/5"
       >
         <h2
           id="yop-title"
-          className="text-base font-semibold tracking-tight text-neutral-50"
+          className="text-[17px] font-semibold tracking-tight text-neutral-50"
         >
           Año de la abundancia
         </h2>
@@ -152,7 +152,8 @@ export function YearOfPlentyPickerModal({ onClose }: Props): JSX.Element | null 
           onClick={handleConfirm}
           disabled={!canConfirm || submitting}
           className={
-            'nums mt-3 min-h-[56px] w-full rounded-xl px-3 py-3 text-base font-bold tracking-tight transition-all active:scale-[0.99] ' +
+            // Tap feedback consistente con los selectores (97 % scale).
+            'nums mt-3 min-h-[56px] w-full rounded-xl px-3 py-3 text-base font-bold tracking-tight transition-all active:scale-[0.97] ' +
             (canConfirm && !submitting
               ? 'bg-emerald-500 text-neutral-950 shadow-cta active:bg-emerald-400'
               : 'cursor-not-allowed border border-white/10 bg-white/[0.04] text-neutral-500')
@@ -165,7 +166,7 @@ export function YearOfPlentyPickerModal({ onClose }: Props): JSX.Element | null 
           type="button"
           onClick={onClose}
           disabled={submitting}
-          className="mt-2 min-h-[44px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-neutral-200 disabled:opacity-50"
+          className="mt-2 min-h-[44px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-neutral-200 transition-transform active:scale-[0.97] disabled:opacity-50"
         >
           Cancelar
         </button>
@@ -173,6 +174,19 @@ export function YearOfPlentyPickerModal({ onClose }: Props): JSX.Element | null 
     </div>
   );
 }
+
+// Tonos por recurso, replicados aquí para evitar re-importes. Las clases son
+// literales para que la JIT de Tailwind las detecte.
+const YOP_TONE: Record<
+  Resource,
+  { border: string; bg: string; label: string }
+> = {
+  brick:  { border: 'border-resource-brick',  bg: 'bg-resource-brick/[0.10]',  label: 'text-resource-brick' },
+  lumber: { border: 'border-resource-lumber', bg: 'bg-resource-lumber/[0.12]', label: 'text-resource-lumber' },
+  wool:   { border: 'border-resource-wool',   bg: 'bg-resource-wool/[0.10]',   label: 'text-resource-wool' },
+  grain:  { border: 'border-resource-grain',  bg: 'bg-resource-grain/[0.12]',  label: 'text-resource-grain' },
+  ore:    { border: 'border-resource-ore',    bg: 'bg-resource-ore/[0.18]',    label: 'text-neutral-100' },
+};
 
 function SelectorRow({
   label,
@@ -189,7 +203,7 @@ function SelectorRow({
 }): JSX.Element {
   return (
     <div className="mt-3">
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
+      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
         {label}
       </p>
       <div className="grid grid-cols-5 gap-1.5">
@@ -198,6 +212,7 @@ function SelectorRow({
           const isSel = selected === r;
           const stock = bank[r];
           const disabled = !avail.ok && !isSel;
+          const tone = YOP_TONE[r];
           return (
             <button
               key={r}
@@ -207,20 +222,28 @@ function SelectorRow({
               disabled={disabled}
               onClick={() => onPick(r)}
               className={
-                'flex min-h-[72px] flex-col items-center justify-center gap-0.5 rounded-lg border-2 px-1 py-1 transition-all ' +
+                // Cambios de border/bg con `transition-colors duration-180`
+                // para que la selección no sea abrupta. `active:scale-[0.97]`
+                // como tap feedback (target ≥80 px alto).
+                'flex min-h-[80px] flex-col items-center justify-center gap-1 rounded-lg border-2 px-1 py-1.5 transition-colors duration-[180ms] ease-out ' +
                 (isSel
-                  ? 'border-emerald-400 bg-emerald-500/[0.10]'
+                  ? `${tone.border} ${tone.bg} shadow-soft`
                   : disabled
-                    ? 'cursor-not-allowed border-white/[0.06] bg-white/[0.02] opacity-50'
-                    : 'border-white/12 bg-white/[0.04] active:scale-[0.97] active:bg-white/[0.08]')
+                    ? 'cursor-not-allowed border-white/[0.06] bg-white/[0.02] opacity-55'
+                    : 'border-white/[0.10] bg-white/[0.035] active:scale-[0.97] active:bg-white/[0.08]')
               }
             >
-              <ResourceIcon resource={r} size={24} />
-              <span className="nums text-[10px] font-semibold text-neutral-300">
+              <ResourceIcon resource={r} size={26} />
+              <span
+                className={
+                  'nums text-[10px] font-semibold ' +
+                  (isSel ? tone.label : 'text-neutral-300')
+                }
+              >
                 {stock}
               </span>
               {disabled && avail.reason ? (
-                <span className="text-[9px] leading-none text-neutral-500">
+                <span className="text-[9px] leading-tight text-neutral-500">
                   {avail.reason}
                 </span>
               ) : null}

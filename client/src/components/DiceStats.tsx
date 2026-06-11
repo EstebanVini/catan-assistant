@@ -7,14 +7,15 @@ import { useEffect, useRef, useState } from 'react';
 //  - `compact`:  altura barra 28px (uso interno en `BankPanel`).
 //  - `default`:  altura barra 40px (uso standalone colapsable en `GameScreen`).
 //  - `expanded`: altura barra 56px + etiqueta de probabilidad teórica
-//                (uso en pantalla de ganador).
+//                (uso en pantalla de ganador y modal de estadísticas).
 //
 // Reglas visuales:
-//  - El 7 se pinta rojo apagado para no confundirse con números normales.
-//  - La barra del último número salido (`lastRolledNumber`) recibe un anillo
-//    y un pulso corto al cambiar.
-//  - Conteo encima (oculto si 0).
-//  - Entrada con stagger 30 ms para "render decorativo" en `expanded`.
+//  - El 7 se pinta rojo apagado (no confundir con números normales).
+//  - Los hot numbers 6 y 8 reciben más saturación + un dot superior en
+//    `default`/`expanded` para que el ojo los encuentre primero.
+//  - La barra del último número salido recibe un anillo y un pulso corto.
+//  - Conteo encima (oculto si 0) con `.nums` para tabular-nums consistente.
+//  - Probabilidad teórica en gris muy tenue debajo del número (solo expanded).
 
 interface Props {
   stats: Record<number, number>;
@@ -40,6 +41,10 @@ const PROBABILITY: Record<number, number> = {
   11: 6,
   12: 3,
 };
+
+// Los hot numbers (6 y 8) son los más probables con dos dados (sin contar 7).
+// Reciben tono más saturado y un dot superior en variantes != compact.
+const HOT_NUMBERS = new Set<number>([6, 8]);
 
 export function DiceStats({
   stats,
@@ -77,24 +82,34 @@ export function DiceStats({
           const count = stats[n] ?? 0;
           const h = count > 0 ? Math.max(2, Math.round((count / max) * maxHeight)) : 0;
           const isSeven = n === 7;
+          const isHot = HOT_NUMBERS.has(n);
           const isLast = lastRolledNumber === n;
-          const barColor = isSeven ? 'bg-red-400/85' : 'bg-amber-400/85';
+          // Saturación: 7 rojo apagado; hot numbers ámbar fuerte; el resto
+          // ámbar suave para crear jerarquía sin gritar.
+          const barColor = isSeven
+            ? 'bg-red-400/85'
+            : isHot
+              ? 'bg-amber-300'
+              : 'bg-amber-400/60';
           const lastRing = isLast
             ? ' ring-2 ring-amber-200 ring-offset-1 ring-offset-neutral-950'
             : '';
-          // Stagger: en `expanded`, las barras entran en cascada. Sin stagger
-          // en compact/default para no distraer en uso continuo.
+          // Stagger: cuando se pide `animateOnMount` (default o expanded),
+          // las barras entran en cascada con 30 ms entre cada una. La altura
+          // final viene del style; sólo animamos `transform` (`anim-slide-up`)
+          // con `transform-origin: bottom` para que parezca que "crecen".
           const staggerStyle =
-            animateOnMount && variant === 'expanded'
+            animateOnMount && variant !== 'compact'
               ? { animationDelay: `${idx * 30}ms` }
               : undefined;
+          const showHotDot = isHot && variant !== 'compact';
           return (
             <div
               key={n}
               className="flex flex-col items-center gap-0.5"
               style={{ minWidth: 0 }}
             >
-              {/* Conteo encima de la barra. Oculto en compact si es 0. */}
+              {/* Conteo encima de la barra (oculto si 0). */}
               <span
                 className={
                   'nums text-[10px] font-semibold leading-none ' +
@@ -107,18 +122,28 @@ export function DiceStats({
               </span>
               {/* Contenedor de la barra: alinea desde abajo. */}
               <div
-                className="flex w-full items-end justify-center"
+                className="relative flex w-full items-end justify-center"
                 style={{ height: maxHeight + 2 }}
               >
+                {/* Dot de hot number (6/8). Marcador discreto encima del tope.
+                    `anim-breathe` muy sutil para señalizar que son los
+                    números "buenos" sin convertirse en ruido. Solo `transform`
+                    + `opacity`; reduced-motion lo desactiva. */}
+                {showHotDot ? (
+                  <span
+                    aria-hidden
+                    className="anim-breathe absolute left-1/2 top-0 h-1 w-1 -translate-x-1/2 rounded-full bg-amber-200"
+                  />
+                ) : null}
                 <div
                   key={isLast ? 'last-' + pulseKey : 'bar-' + n}
                   className={
-                    'w-full rounded-sm ' +
+                    'w-full origin-bottom rounded-sm ' +
                     barColor +
                     lastRing +
                     (isLast && pulseKey > 0 ? ' anim-pulse-scale' : '') +
-                    (animateOnMount && variant === 'expanded'
-                      ? ' anim-slide-up'
+                    (animateOnMount && variant !== 'compact'
+                      ? ' anim-bar-grow'
                       : '')
                   }
                   style={{
@@ -129,13 +154,20 @@ export function DiceStats({
                 />
               </div>
               {/* Número del dado debajo. */}
-              <span className="nums text-[10px] font-medium text-neutral-400">
+              <span
+                className={
+                  'nums text-[10px] font-medium ' +
+                  (isHot && variant !== 'compact'
+                    ? 'text-amber-200'
+                    : 'text-neutral-400')
+                }
+              >
                 {n}
               </span>
-              {/* Probabilidad teórica sólo en `expanded`. */}
+              {/* Probabilidad teórica sólo en `expanded`. Tono muy tenue. */}
               {variant === 'expanded' ? (
                 <span
-                  className="nums text-[9px] font-medium text-neutral-500"
+                  className="nums text-[9px] font-medium leading-none text-neutral-600"
                   title={`Probabilidad teórica del ${n}: ${PROBABILITY[n]}%`}
                   aria-label={`Probabilidad teórica del ${n}: ${PROBABILITY[n]}%`}
                 >

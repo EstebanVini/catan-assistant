@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { BUILD_COSTS, BuildType, Resource, totalVictoryPoints } from '../types';
 import { buildTypeLabel, RESOURCE_NAMES_LOWER, joinList } from '../lib/spanish';
@@ -17,6 +17,38 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
   const declareWin = useStore((s) => s.declareWin);
   const pushToast = useStore((s) => s.pushToast);
   const [tradeOpen, setTradeOpen] = useState(false);
+  // Detecta transición "antes no podía declarar → ahora sí" para añadir un
+  // pulso único al CTA (encima del `anim-slide-down` de entrada). El flag
+  // se resetea cuando el CTA deja de ser elegible, así un nuevo subir-de-VP
+  // en otro turno vuelve a disparar el efecto.
+  const wasDeclarableRef = useRef(false);
+  const [declarePulseKey, setDeclarePulseKey] = useState(0);
+
+  // Cálculos derivados (necesarios para el efecto; se replican abajo cuando
+  // ya sabemos que `view.me` existe). Mantenemos la lógica simple para no
+  // duplicar lecturas costosas.
+  const canDeclareForEffect = (() => {
+    if (!view || !view.me) return false;
+    const s = view.state;
+    const meId = view.me.id;
+    const activeId = s.turnOrder[s.currentTurnIndex];
+    if (activeId !== meId || s.phase !== 'main' || s.status !== 'playing')
+      return false;
+    const mp = s.players.find((p) => p.id === meId);
+    if (!mp) return false;
+    return totalVictoryPoints(mp.victoryPoints) >= 10;
+  })();
+
+  useEffect(() => {
+    if (canDeclareForEffect && !wasDeclarableRef.current) {
+      wasDeclarableRef.current = true;
+      // Nuevo `key` para forzar re-mount del CTA y disparar pulse-scale.
+      setDeclarePulseKey((k) => k + 1);
+    } else if (!canDeclareForEffect) {
+      wasDeclarableRef.current = false;
+    }
+  }, [canDeclareForEffect]);
+
   if (!view || !view.me) return null;
   const { state, me } = view;
 
@@ -165,10 +197,15 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
         {/* CTA "Declarar victoria" sobre "Terminar turno" cuando aplica
             (brief Fase 2 §2.4). Se añade, no reemplaza. */}
         {canDeclare ? (
+          // `key` ligado al `declarePulseKey` para que el primer mount tras
+          // pasar a declarable reinicie las animaciones. Combinamos
+          // `anim-slide-down` (entrada) con `anim-pulse-scale` (acuse único)
+          // — ambos se cancelan correctamente en reduced-motion.
           <button
+            key={`declare-${declarePulseKey}`}
             type="button"
             onClick={() => declareWin()}
-            className="nums anim-slide-down min-h-[56px] w-full rounded-xl bg-amber-400 px-3 py-3 text-base font-bold tracking-tight text-neutral-950 shadow-cta-amber transition-all active:scale-[0.99] active:bg-amber-300"
+            className="nums anim-slide-down anim-pulse-scale min-h-[60px] w-full rounded-xl bg-amber-400 px-3 py-3 text-[17px] font-bold tracking-tight text-neutral-950 shadow-cta-amber ring-1 ring-amber-300/60 transition-all active:scale-[0.99] active:bg-amber-300"
           >
             Declarar victoria con {myVP} puntos
           </button>

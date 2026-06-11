@@ -219,26 +219,26 @@ function ExpandedStatsDialog({
         aria-labelledby="stats-title"
         aria-describedby="stats-desc"
         onClick={(e) => e.stopPropagation()}
-        className="anim-scale-in w-full max-w-md rounded-2xl border border-white/10 bg-neutral-900 p-4 shadow-2xl ring-1 ring-white/5"
+        className="anim-scale-in w-full max-w-md rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card ring-1 ring-white/5"
       >
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-baseline justify-between gap-3">
           <h3
             id="stats-title"
-            className="text-base font-semibold tracking-tight text-neutral-50"
+            className="text-[19px] font-semibold tracking-tight text-neutral-50"
           >
             Estadísticas de dados
           </h3>
-          <span className="nums text-[11px] text-neutral-400">
+          <span className="nums text-[11px] font-medium text-neutral-400">
             {total} {total === 1 ? 'tirada' : 'tiradas'}
           </span>
         </div>
         <p
           id="stats-desc"
-          className="mt-1 text-[11px] leading-snug text-neutral-400"
+          className="mt-1 text-[12px] leading-snug text-neutral-400"
         >
           Cuántas veces salió cada número durante la partida.
         </p>
-        <div className="mt-3">
+        <div className="mt-4 flex justify-center">
           <DiceStats
             stats={stats}
             variant="expanded"
@@ -249,7 +249,7 @@ function ExpandedStatsDialog({
         <button
           type="button"
           onClick={onClose}
-          className="mt-4 min-h-[44px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+          className="mt-5 min-h-[44px] w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-neutral-200 transition-colors active:bg-white/[0.08]"
         >
           Cerrar
         </button>

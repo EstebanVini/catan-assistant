@@ -20,14 +20,14 @@ export function WinnerScreen(): JSX.Element | null {
   const forgetSession = useStore((s) => s.forgetSession);
   const vibratedRef = useRef(false);
 
-  // Vibración corta sólo al dueño del dispositivo si él ganó. Una sola vez.
+  // Vibración corta al montar: 120 ms si soy ganador, 60 ms si no
+  // (acuse sutil de "se acabó"). Una sola vez por sesión de pantalla.
   useEffect(() => {
     if (!view || !view.me) return;
     if (view.state.status !== 'ended') return;
-    if (view.state.winnerId !== view.me.id) return;
     if (vibratedRef.current) return;
     vibratedRef.current = true;
-    safeVibrate(150);
+    safeVibrate(view.state.winnerId === view.me.id ? 120 : 60);
   }, [view]);
 
   if (!view) return null;
@@ -78,70 +78,88 @@ export function WinnerScreen(): JSX.Element | null {
       aria-labelledby="winner-title"
       className="anim-fade-in fixed inset-0 z-50 flex min-h-[100dvh] flex-col bg-neutral-950"
     >
-      {/* Banda superior con color del ganador (~25% de la pantalla) */}
+      {/* Accent bar superior. El color del ganador como un trazo fino que
+          enmarca la pantalla — no toma el fondo. Pantalla sobria. */}
       <div
-        className="anim-scale-in relative px-5 pt-8 pb-6"
-        style={{
-          background: `linear-gradient(180deg, ${accent} 0%, ${accent}cc 35%, rgba(15,17,21,0) 100%)`,
-        }}
-      >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-950/85">
+        aria-hidden
+        className="h-1 w-full flex-shrink-0"
+        style={{ backgroundColor: accent }}
+      />
+
+      {/* Hero: eyebrow + nombre display + subtítulo. Fondo neutro. El acento
+          aparece sólo en la banda lateral del bloque "winner" debajo.
+          Stagger inicial de hero (0 ms) sobre desglose (120 ms) y métricas
+          (200 ms) — el motion engineer arma una llegada en cascada. */}
+      <header className="anim-slide-up px-5 pt-7 pb-5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-500">
           Fin de la partida
         </p>
-        <div className="mt-2 flex items-center gap-3">
-          <ColorChip color={winner.color} size={36} />
-          <h1
-            id="winner-title"
-            className="text-[40px] font-bold leading-none tracking-tight text-neutral-950"
-          >
-            {iWon ? `Ganaste, ${winner.name}` : `Ganó ${winner.name}`}
-          </h1>
+        <div className="mt-3 flex items-center gap-3">
+          {/* Barra lateral del color del ganador: scale-y desde 0 a 1 con
+              origen arriba, 360 ms. Solo `transform`, sin afectar layout. */}
+          <div
+            aria-hidden
+            className="anim-scale-y-top h-12 w-1 flex-shrink-0 rounded-full"
+            style={{ backgroundColor: accent }}
+          />
+          <div className="flex flex-1 items-center gap-2.5">
+            <ColorChip color={winner.color} size={28} />
+            <h1
+              id="winner-title"
+              className="text-[34px] font-bold leading-[1.05] tracking-tight text-neutral-50"
+            >
+              {iWon ? `Ganaste, ${winner.name}` : `Ganó ${winner.name}`}
+            </h1>
+          </div>
         </div>
-        <p className="nums mt-2 text-sm font-semibold text-neutral-950/85">
-          {total} {total === 1 ? 'punto' : 'puntos'} · {state.turnsPlayed}{' '}
+        <p className="nums mt-3 text-sm font-medium text-neutral-300">
+          <span className="font-bold text-neutral-100">{total}</span>{' '}
+          {total === 1 ? 'punto' : 'puntos'} ·{' '}
+          <span className="font-bold text-neutral-100">{state.turnsPlayed}</span>{' '}
           {state.turnsPlayed === 1 ? 'turno' : 'turnos'}
         </p>
         {me ? (
-          <p className="mt-2 text-[12px] font-medium text-neutral-950/75">
+          <p className="mt-1 text-[12px] font-medium text-neutral-400">
             {iWon
               ? 'Bien jugado.'
               : myTotal !== null
-                ? `Mejor suerte la próxima. Quedaste con ${myTotal} ${
+                ? `Quedaste con ${myTotal} ${
                     myTotal === 1 ? 'punto' : 'puntos'
                   }.`
                 : 'Mejor suerte la próxima.'}
           </p>
         ) : null}
-      </div>
+      </header>
 
       {/* Cuerpo scrolleable */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        {/* Bloque 2 — Desglose */}
+      <div className="flex-1 overflow-y-auto px-4 pt-1 pb-4">
+        {/* Bloque 2 — Desglose. Tabular-nums grandes a la derecha, total
+            destacado con el color del ganador como acento. */}
         <section
-          className="anim-slide-up rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-card"
+          className="anim-slide-up rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card"
           style={{ animationDelay: '120ms' }}
         >
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
-            Desglose
+          <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+            Desglose de puntos
           </h2>
-          <ul className="mt-2 divide-y divide-white/5">
+          <ul className="mt-2 divide-y divide-white/[0.06]">
             <BreakdownRow
               icon={<DotIcon color="#86efac" />}
               label="Poblados"
-              detail={`${vp.settlements} (${settlementsPts} ${settlementsPts === 1 ? 'pt' : 'pts'})`}
+              detail={`${vp.settlements} × 1`}
               value={settlementsPts}
             />
             <BreakdownRow
               icon={<DotIcon color="#fcd34d" />}
               label="Ciudades"
-              detail={`${vp.cities} (${vp.cities} × 2 = ${citiesPts} ${citiesPts === 1 ? 'pt' : 'pts'})`}
+              detail={`${vp.cities} × 2`}
               value={citiesPts}
             />
             {vp.longestRoad ? (
               <BreakdownRow
                 icon={<BadgeIcon variant="road" size={14} />}
                 label="Camino más largo"
-                detail="2 pts"
+                detail="Insignia"
                 value={longestRoadPts}
               />
             ) : null}
@@ -149,25 +167,27 @@ export function WinnerScreen(): JSX.Element | null {
               <BreakdownRow
                 icon={<BadgeIcon variant="army" size={14} />}
                 label="Ejército más grande"
-                detail="2 pts"
+                detail="Insignia"
                 value={largestArmyPts}
               />
             ) : null}
             {hiddenPts > 0 ? (
               <BreakdownRow
                 icon={<DotIcon color="#fbbf24" />}
-                label="Cartas de victoria ocultas"
-                detail={`${hiddenPts} ${hiddenPts === 1 ? 'pt' : 'pts'}`}
+                label="Puntos de victoria ocultos"
+                detail="Revelados al final"
                 value={hiddenPts}
               />
             ) : null}
-            <li className="flex items-center justify-between py-2">
-              <span className="text-sm font-bold uppercase tracking-wide text-neutral-100">
+            <li className="mt-1 flex items-center justify-between pt-3">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-300">
                 Total
               </span>
+              {/* Total grande con `anim-pulse-scale` único al montar para
+                  marcar el cierre numérico. transform-origin centro. */}
               <span
-                className="nums text-2xl font-bold tracking-tight"
-                style={{ color: accent }}
+                className="nums anim-pulse-scale inline-block text-[32px] font-bold leading-none tracking-tight"
+                style={{ color: accent, transformOrigin: 'center' }}
               >
                 {total}
               </span>
@@ -175,53 +195,59 @@ export function WinnerScreen(): JSX.Element | null {
           </ul>
         </section>
 
-        {/* Bloque 3 — Resumen */}
+        {/* Bloque 3 — Resumen. Tres mini cards uniformes (turnos / robos /
+            tiradas). El histograma queda dentro de su propia card debajo. */}
         <section
-          className="anim-slide-up mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 shadow-card"
-          style={{ animationDelay: '220ms' }}
+          className="anim-slide-up mt-3 grid grid-cols-3 gap-2"
+          style={{ animationDelay: '200ms' }}
         >
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
-            Resumen de la partida
-          </h2>
-
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <MetricCard label="Turnos" value={state.turnsPlayed} />
+          {topStealPlayer ? (
             <MetricCard
-              label="Turnos jugados"
-              value={state.turnsPlayed}
+              label="Más robos"
+              value={topStealPlayer.name}
+              sub={`${topSteal!.n} ${topSteal!.n === 1 ? 'robo' : 'robos'}`}
             />
-            {topStealPlayer ? (
-              <MetricCard
-                label="Más robos"
-                value={topStealPlayer.name}
-                sub={`${topSteal!.n} ${topSteal!.n === 1 ? 'robo' : 'robos'}`}
-              />
-            ) : (
-              <MetricCard label="Más robos" value="—" sub="Nadie robó este partido" />
+          ) : (
+            <MetricCard label="Más robos" value="—" sub="Nadie robó" />
+          )}
+          <MetricCard
+            label="Tiradas"
+            value={Object.values(state.diceStats).reduce(
+              (a, b) => a + (b ?? 0),
+              0
             )}
-          </div>
+          />
+        </section>
 
-          <div className="mt-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
-              Estadísticas de dados
-            </p>
-            <p className="mb-2 mt-0.5 text-[10px] text-neutral-500">
-              Cuántas veces salió cada número durante la partida.
-            </p>
-            <DiceStats
-              stats={state.diceStats}
-              variant="expanded"
-              lastRolledNumber={state.lastRolledNumber}
-              animateOnMount
-            />
-          </div>
+        <section
+          className="anim-slide-up mt-3 rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card"
+          style={{ animationDelay: '260ms' }}
+        >
+          <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+            Estadísticas de dados
+          </h2>
+          <p className="mb-3 mt-0.5 text-[10px] leading-snug text-neutral-500">
+            Cuántas veces salió cada número durante la partida.
+          </p>
+          <DiceStats
+            stats={state.diceStats}
+            variant="expanded"
+            lastRolledNumber={state.lastRolledNumber}
+            animateOnMount
+          />
         </section>
 
         {/* Aire al final para que el CTA sticky no tape la última fila */}
         <div className="h-24" aria-hidden />
       </div>
 
-      {/* CTA sticky */}
-      <div className="sticky bottom-0 border-t border-white/10 bg-neutral-950/95 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur">
+      {/* CTA sticky. Entrada con `anim-fade-in` retrasada 320 ms para
+          que aterrice después del desglose y las métricas. */}
+      <div
+        className="anim-fade-in sticky bottom-0 border-t border-white/10 bg-neutral-950/95 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur"
+        style={{ animationDelay: '320ms' }}
+      >
         <button
           type="button"
           onClick={() => forgetSession()}
@@ -258,7 +284,7 @@ function BreakdownRow({
   muted?: boolean;
 }): JSX.Element {
   return (
-    <li className="flex items-center justify-between py-2">
+    <li className="flex items-center justify-between py-2.5">
       <div className="flex items-center gap-2.5">
         <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center">
           {icon}
@@ -266,18 +292,18 @@ function BreakdownRow({
         <div className="flex flex-col leading-tight">
           <span
             className={
-              'text-sm font-semibold ' +
+              'text-sm font-semibold tracking-tight ' +
               (muted ? 'text-neutral-400' : 'text-neutral-100')
             }
           >
             {label}
           </span>
-          <span className="text-[10px] text-neutral-500">{detail}</span>
+          <span className="mt-0.5 text-[10px] text-neutral-500">{detail}</span>
         </div>
       </div>
       <span
         className={
-          'nums text-base font-bold tracking-tight ' +
+          'nums text-lg font-bold tracking-tight ' +
           (muted ? 'text-neutral-500' : 'text-neutral-50')
         }
       >
@@ -297,15 +323,18 @@ function MetricCard({
   sub?: string;
 }): JSX.Element {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
+    <div className="rounded-xl border border-white/10 bg-surface-1 p-3 shadow-soft">
+      <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-400">
         {label}
       </p>
-      <p className="nums mt-1 text-lg font-bold tracking-tight text-neutral-50">
+      <p
+        className="nums mt-1.5 truncate text-[20px] font-bold leading-none tracking-tight text-neutral-50"
+        title={typeof value === 'string' ? value : undefined}
+      >
         {value}
       </p>
       {sub ? (
-        <p className="mt-0.5 text-[11px] text-neutral-400">{sub}</p>
+        <p className="mt-1 truncate text-[10px] text-neutral-400">{sub}</p>
       ) : null}
     </div>
   );

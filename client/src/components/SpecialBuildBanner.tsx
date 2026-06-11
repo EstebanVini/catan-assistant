@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { ColorChip } from './ColorChip';
 import { playerHex } from '../lib/playerColors';
+import { safeVibrate } from '../lib/motion';
 import type { PlayerColor } from '../types';
 
 // Banner + cola visual + control "Saltar" para fase de Construcción Especial
@@ -27,6 +28,12 @@ export function SpecialBuildBanner(): JSX.Element | null {
     id: null,
     since: Date.now(),
   });
+  // `headPulseKey` se incrementa al cambiar la cabeza de la cola. Sirve para
+  // remountar el QueueItem #0 y disparar un `anim-pulse-scale` único cuando
+  // la cola avanza (brief Fase 2 §9).
+  const [headPulseKey, setHeadPulseKey] = useState(0);
+  const myIdRef = useRef<string | null>(null);
+  const lastHeadIdRef = useRef<string | null>(null);
 
   // Refresca `now` cada 5 s para evaluar el umbral de 30 s.
   useEffect(() => {
@@ -41,15 +48,34 @@ export function SpecialBuildBanner(): JSX.Element | null {
 
   // Reset del timestamp local cuando cambia el head, y cierre de la
   // confirmación pendiente. En useEffect para no mutar estado durante render.
+  // Además: dispara `headPulseKey` (pulso visual del nuevo head) y vibración
+  // corta (80 ms) si el nuevo head soy yo, una sola vez por cambio.
   useEffect(() => {
     if (queueHeadRef.current.id !== headId) {
+      const prevHeadId = queueHeadRef.current.id;
       queueHeadRef.current = { id: headId, since: Date.now() };
       setConfirmSkip(false);
+      // Sólo pulsar si ya había un head anterior distinto: en la primera
+      // entrada a `specialBuild` el banner ya tiene su propia entrada.
+      if (prevHeadId !== null && headId !== null && prevHeadId !== headId) {
+        setHeadPulseKey((k) => k + 1);
+      }
+      lastHeadIdRef.current = headId;
+      // Vibración si me convertí en el nuevo head (no dispara en el primer
+      // render del banner cuando aún no había head registrado).
+      if (
+        prevHeadId !== null &&
+        headId !== null &&
+        myIdRef.current === headId
+      ) {
+        safeVibrate(80);
+      }
     }
   }, [headId]);
 
   if (!view || !view.me) return null;
   const { state, me } = view;
+  myIdRef.current = me.id;
   if (state.phase !== 'specialBuild') return null;
 
   const queue = state.specialBuildQueue
@@ -102,19 +128,19 @@ export function SpecialBuildBanner(): JSX.Element | null {
     <section
       role="status"
       aria-live="polite"
-      className="anim-slide-down mx-3 mt-2 rounded-lg border border-sky-400/40 bg-sky-500/[0.08] px-3 py-2.5 text-sky-50"
+      className="anim-slide-down mx-3 mt-2 rounded-lg border border-sky-400/25 bg-sky-500/[0.06] px-3 py-2 text-sky-50"
     >
-      {/* Banner principal: header + subtítulo */}
+      {/* Banner principal: icono + header + subtítulo.
+          Icono pequeño a la izquierda, texto compacto. Sin dot redundante:
+          el icono ya marca la fase. */}
       <div className="flex items-start gap-2 leading-snug">
         <ConstructionIcon className="mt-0.5 flex-shrink-0" />
-        <span
-          className="mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-sky-300"
-          aria-hidden
-        />
         <div className="flex-1">
-          <p className="text-sm font-semibold">{headerText}</p>
+          <p className="text-sm font-semibold tracking-tight text-sky-50">
+            {headerText}
+          </p>
           {subtitleText ? (
-            <p className="mt-0.5 text-[11px] leading-snug text-sky-100/85">
+            <p className="mt-0.5 text-[11px] leading-snug text-sky-100/80">
               {subtitleText}
             </p>
           ) : null}
@@ -124,9 +150,11 @@ export function SpecialBuildBanner(): JSX.Element | null {
       {/* Mini cola visual */}
       <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
         <QueueItem
+          key={`head-${head.id}-${headPulseKey}`}
           player={head}
           state="head"
           isMe={head.id === me.id}
+          pulse={headPulseKey > 0}
         />
         {next ? (
           <>
@@ -203,6 +231,7 @@ function QueueItem({
   player,
   state,
   isMe,
+  pulse = false,
 }: {
   player: {
     id: string;
@@ -212,6 +241,9 @@ function QueueItem({
   };
   state: 'head' | 'next' | 'later';
   isMe: boolean;
+  // Si true y state === 'head', el item entra con `anim-pulse-scale` una vez
+  // para señalar que la cola avanzó.
+  pulse?: boolean;
 }): JSX.Element {
   const truncated =
     player.name.length > 16 ? player.name.slice(0, 14) + '…' : player.name;
@@ -219,9 +251,9 @@ function QueueItem({
     state === 'head' ? 'opacity-100' : state === 'next' ? 'opacity-100' : 'opacity-55';
   const ring =
     state === 'head'
-      ? 'border-2 border-sky-300 shadow-soft'
+      ? 'border border-sky-300/70 shadow-soft'
       : state === 'next'
-        ? 'border border-sky-300/40'
+        ? 'border border-sky-300/30'
         : 'border border-white/10';
   const padding = state === 'head' ? 'px-2 py-1' : 'px-1.5 py-0.5';
   const fontSize = state === 'head' ? 'text-[12px]' : 'text-[11px]';

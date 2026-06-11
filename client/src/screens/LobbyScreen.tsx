@@ -312,7 +312,7 @@ export function LobbyScreen(): JSX.Element | null {
                 ) : null}
                 {showNewBadge ? (
                   <span
-                    className="anim-fade-in absolute -right-1.5 -top-1.5 rounded-full bg-emerald-500 px-1.5 py-[1px] text-[9px] font-bold uppercase tracking-wide text-neutral-950 shadow-soft"
+                    className="anim-fade-in absolute -right-1.5 -top-1.5 rounded-md bg-amber-400 px-1.5 py-[1px] text-[9px] font-bold uppercase tracking-[0.08em] text-neutral-950 shadow-soft"
                     aria-hidden
                   >
                     Nuevo

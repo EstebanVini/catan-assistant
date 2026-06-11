@@ -73,7 +73,9 @@ export function GameScreen(): JSX.Element | null {
     if (canDeclareNow && !wasDeclarableRef.current) {
       wasDeclarableRef.current = true;
       pushToast('success', 'Puedes declarar victoria.');
-      safeVibrate(100);
+      // Pulso háptico (150 ms) sólo la primera vez que el CTA aparece en
+      // este turno; el flag se resetea cuando deja de ser declarable.
+      safeVibrate(150);
     } else if (!canDeclareNow) {
       wasDeclarableRef.current = false;
     }
@@ -193,14 +195,19 @@ function DiceStatsCollapsible({
           className="border-t border-white/10 px-3 pb-3 pt-2"
         >
           {total === 0 ? (
-            <p className="text-center text-[11px] text-neutral-400">
+            <p className="anim-fade-in text-center text-[11px] text-neutral-400">
               Aún no hay tiradas.
             </p>
           ) : (
+            // `animateOnMount` activa el stagger de 30 ms por barra cada vez
+            // que se abre la sección. El `if (open)` exterior ya garantiza un
+            // re-mount limpio entre abrir y cerrar — el cierre simplemente
+            // desmonta el subárbol (fade implícito por el padre).
             <DiceStats
               stats={stats}
               variant="default"
               lastRolledNumber={lastNumber}
+              animateOnMount
             />
           )}
         </div>
