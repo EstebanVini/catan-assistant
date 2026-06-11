@@ -224,7 +224,7 @@ export function GiveCardModal({ onClose }: { onClose: () => void }): JSX.Element
                   (empty && !selected ? ' opacity-45' : '')
                 }
               >
-                <ResourceIcon resource={r} size={22} />
+                <ResourceIcon resource={r} size={28} />
                 <span className="nums text-[11px] font-semibold leading-none">
                   {stock}
                 </span>

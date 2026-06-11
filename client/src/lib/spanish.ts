@@ -106,8 +106,6 @@ export const PHASE2_TERMS = {
   devDeck: 'Mazo de desarrollo',
   specialBuild: 'Construcción especial',
   specialBuildQueue: 'Cola de construcción especial',
-  hiddenVPSingular: 'Punto de victoria oculto',
-  hiddenVPPlural: 'Cartas de victoria ocultas',
   diceStats: 'Estadísticas de dados',
   histogram: 'Histograma',
 } as const;
@@ -140,9 +138,25 @@ export const PHASE3_TERMS = {
 export const DISPLAY_NAME_HELP = 'Es el nombre que verá la mesa al unirte.';
 export const SESSION_EXPIRED = 'Tu sesión expiró. Vuelve a entrar.';
 
-// Frase canónica para el bloque de puntos de victoria ocultos en la vista del
-// dueño. Se usa en `PlayDevModal` para evitar reinterpretaciones libres.
-export function hiddenVPCopy(n: number): string {
-  if (n === 1) return 'Tienes 1 punto de victoria oculto. Sumará cuando declares victoria.';
-  return `Tienes ${n} puntos de victoria ocultos. Sumarán cuando declares victoria.`;
+// Descripciones de las cartas de desarrollo para el preview (qué hace cada
+// una antes de usarla). Una sola fuente para evitar reinterpretaciones.
+export const DEV_CARD_DESCRIPTIONS: Record<
+  'knight' | 'vp' | 'monopoly' | 'yearOfPlenty' | 'roadBuilding',
+  string
+> = {
+  knight:
+    'Mueve el ladrón a la ficha que elijas y roba 1 carta al azar a un jugador con poblado o ciudad ahí. Cada Caballero jugado cuenta para el Ejército más grande (2 puntos a partir de 3 caballeros).',
+  vp: '1 punto de victoria. No suma a tu marcador hasta que la uses: al usarla, el punto se vuelve público para toda la mesa.',
+  monopoly:
+    'Declara un recurso: todos los demás jugadores te entregan TODAS sus cartas de ese recurso.',
+  yearOfPlenty: 'Toma 2 cartas del banco, del recurso o los recursos que elijas.',
+  roadBuilding: 'Coloca 2 caminos en el tablero sin pagar recursos.',
+};
+
+// Frase canónica para el bloque de cartas de Punto de victoria sin usar en la
+// vista del dueño. Se usa en `PlayDevModal`.
+export function vpCardsCopy(n: number): string {
+  if (n === 1)
+    return 'Tienes 1 carta de Punto de victoria sin usar. No suma a tu marcador hasta que la uses.';
+  return `Tienes ${n} cartas de Punto de victoria sin usar. No suman a tu marcador hasta que las uses.`;
 }

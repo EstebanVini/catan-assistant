@@ -158,7 +158,7 @@ describe('recomputeVictoryPoints', () => {
           id: 'p1',
           // Un poblado que toca 3 fichas sigue valiendo 1, y la ciudad 1.
           buildings: [building([[4, 'grain'], [5, 'wool'], [10, 'brick']]), building([[6, 'ore']], 'city')],
-          victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, hiddenVP: 0 },
+          victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
         },
       ],
     } as unknown as GameState;

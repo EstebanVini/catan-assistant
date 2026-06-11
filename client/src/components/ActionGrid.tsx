@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { BUILD_COSTS, BuildType, Resource, totalVictoryPoints } from '../types';
 import { buildTypeLabel, RESOURCE_NAMES_LOWER, joinList } from '../lib/spanish';
 import { BuildCostBadge } from './BuildCostBadge';
+import { useCollapsePref } from './CollapsibleSection';
 import { TradeModal } from './TradeModal';
 
 interface Props {
@@ -17,6 +18,9 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
   const declareWin = useStore((s) => s.declareWin);
   const pushToast = useStore((s) => s.pushToast);
   const [tradeOpen, setTradeOpen] = useState(false);
+  // Las "recetas" (costos de construcción) se pueden esconder; preferencia
+  // por dispositivo, mismo mecanismo que los colapsables (`ui.collapse.*`).
+  const [recipesHidden, toggleRecipes] = useCollapsePref('buildRecipes', false);
   // Detecta transición "antes no podía declarar → ahora sí" para añadir un
   // pulso único al CTA (encima del `anim-slide-down` de entrada). El flag
   // se resetea cuando el CTA deja de ser elegible, así un nuevo subir-de-VP
@@ -124,6 +128,16 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
             : 'No es tu turno todavía'}
         </div>
       ) : null}
+      <div className="mb-1 flex items-center justify-end">
+        <button
+          type="button"
+          onClick={toggleRecipes}
+          aria-pressed={recipesHidden}
+          className="min-h-[36px] rounded-md px-2 py-1 text-[11px] font-medium text-neutral-400 transition-colors active:bg-white/[0.06] active:text-neutral-200"
+        >
+          {recipesHidden ? 'Mostrar recetas' : 'Ocultar recetas'}
+        </button>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         {(['road', 'settlement', 'city', 'devcard'] as BuildType[]).map((t) => {
           const reason = buildReason(t);
@@ -150,9 +164,11 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
               >
                 {buildTypeLabel(t)}
               </div>
-              <div className="mt-2">
-                <BuildCostBadge type={t} />
-              </div>
+              {!recipesHidden ? (
+                <div className="mt-2">
+                  <BuildCostBadge type={t} />
+                </div>
+              ) : null}
               {reason ? (
                 <div className="mt-1.5 text-[10px] leading-tight text-neutral-500">
                   {reason}

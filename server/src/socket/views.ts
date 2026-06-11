@@ -77,8 +77,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
       bankManagerId: state.bankManagerId,
       status: state.status,
       extension56: state.extension56,
-      // Al terminar la partida, revelamos las VP ocultas SOLO del ganador.
-      players: state.players.map((p) => toPublic(p, state.status === 'ended' && state.winnerId === p.id)),
+      players: state.players.map((p) => toPublic(p)),
       turnOrder: state.turnOrder,
       currentTurnIndex: state.currentTurnIndex,
       phase: state.phase,
@@ -100,7 +99,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
   };
 }
 
-function toPublic(p: Player, revealHidden: boolean = false): PublicPlayer {
+function toPublic(p: Player): PublicPlayer {
   return {
     id: p.id,
     name: p.name,
@@ -113,20 +112,16 @@ function toPublic(p: Player, revealHidden: boolean = false): PublicPlayer {
     devCardsCount: devCardsTotal(p.devCards),
     knightsPlayed: p.knightsPlayed,
     ports: p.ports,
-    // hiddenVP solo se revela del ganador al terminar la partida (los demás siguen ocultos).
-    victoryPoints: { ...p.victoryPoints, hiddenVP: revealHidden ? p.victoryPoints.hiddenVP : 0 },
+    // Todo el marcador es público: vpCards son cartas de Punto de victoria ya
+    // usadas. Las que siguen en la mano solo se ven como devCardsCount.
+    victoryPoints: { ...p.victoryPoints },
   };
 }
 
-// Para el dueño, hiddenVP sí va.
+// Alias histórico: cuando existían VP ocultos, la vista del dueño difería de
+// la pública. Hoy son idénticas; se conserva el nombre para los handlers.
 export function buildViewWithOwnHidden(state: GameState, viewerId: string): PlayerView {
-  const view = buildView(state, viewerId);
-  const myPublic = view.state.players.find((p) => p.id === viewerId);
-  const meRecord = state.players.find((p) => p.id === viewerId);
-  if (myPublic && meRecord) {
-    myPublic.victoryPoints = { ...meRecord.victoryPoints };
-  }
-  return view;
+  return buildView(state, viewerId);
 }
 
 // Helpers para construir manos/devCards vacíos sin importar desde state.

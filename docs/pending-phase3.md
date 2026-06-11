@@ -47,6 +47,13 @@ Estado (2026-06-10, cierre): pases de qa-auditor, visual-designer y motion-engin
 - Verificado con smoke E2E real (server + 3 sockets): reparto inicial, edición fuera de turno, producción compartida, rechazos individuales, oferta dirigida, aceptación.
 - Nota de diseño: los botones "Construir" del ActionGrid siguen siendo el flujo que descuenta recursos (con validación de costo); el registro libre es vía la Tabla de construcción.
 
+### 4c. Cambios 3 (2026-06-11, pedidos por Esteban)
+1. **Íconos más grandes**: +30–40% en mano, descarte, pickers, trades, recetas y tabla de construcción.
+2. **Recetas ocultables**: toggle "Ocultar recetas" en las acciones de construcción (preferencia por dispositivo, `ui.collapse.buildRecipes`).
+3. **Arte propio de cartas de desarrollo** integrado en `DevCardGlyph` (medallones a 160px en `assets/icons/`).
+4. **Preview de carta de desarrollo**: tocar una carta abre su preview (arte grande + descripción canónica `DEV_CARD_DESCRIPTIONS`) y desde ahí se confirma "Jugar carta".
+5. **VP cards diferidas** (`hiddenVP` → `vpCards`): comprar/recibir una carta de Punto de victoria NO suma al marcador; "usarla" (`dev:play vp`, permitido en roll/main, incluso comprada ese turno) suma +1 público para todos. El marcador es 100% público (ya no hay reveal del ganador); para declarar victoria hay que usar las cartas primero. Verificado con smoke E2E (8 checks).
+
 ### 5. Verificación manual E2E (con backend + Mongo levantados)
 - Flujo invitado completo (≤15s a lobby), login/registro reales, 503 con Mongo caído.
 - Registro inicial con 3–4 dispositivos: autosave, reconexión a mitad, N/M listos, game:start bloqueado.

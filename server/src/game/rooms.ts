@@ -49,7 +49,7 @@ function newPlayer(id: string, sessionToken: string, name: string, profile?: Use
     devCards: emptyDevCards(),
     devCardsBoughtThisTurn: [],
     knightsPlayed: 0,
-    victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, hiddenVP: 0 },
+    victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
   };
 }
 

@@ -17,8 +17,9 @@ import { YearOfPlentyPickerModal } from '../components/YearOfPlentyPickerModal';
 import { RoadBuildingConfirmModal } from '../components/RoadBuildingConfirmModal';
 import { DiceStats } from '../components/DiceStats';
 import { CollapsibleSection } from '../components/CollapsibleSection';
-import { handTotal, totalVictoryPoints } from '../types';
-import { DEV_CARD_NAMES, hiddenVPCopy } from '../lib/spanish';
+import { DevCardType, handTotal, totalVictoryPoints } from '../types';
+import { DEV_CARD_DESCRIPTIONS, DEV_CARD_NAMES, vpCardsCopy } from '../lib/spanish';
+import { DevCardGlyph } from '../assets/icons';
 import { safeVibrate } from '../lib/motion';
 import { useModalA11y } from '../lib/useModalA11y';
 
@@ -152,6 +153,10 @@ export function GameScreen(): JSX.Element | null {
             playDevCard('knight');
             setDevSub({ kind: 'none' });
           }}
+          onPickVP={() => {
+            playDevCard('vp');
+            setDevSub({ kind: 'none' });
+          }}
           onPickMonopoly={() => setDevSub({ kind: 'monopoly' })}
           onPickYoP={() => setDevSub({ kind: 'yop' })}
           onPickRoadBuilding={() => setDevSub({ kind: 'roadBuilding' })}
@@ -213,27 +218,42 @@ function DiceStatsCollapsible({
   );
 }
 
-// Modal "Jugar carta de desarrollo" — Fase 2 §1: cuatro cartas jugables.
-//  - Caballero: dispara flujo del 7 directo (sin sub-modal).
-//  - Monopolio / YoP / RoadBuilding: abren sub-modal dedicado.
-//  - Punto de victoria: NO aparece en la lista; sólo la sección informativa.
+// Modal "Jugar carta de desarrollo" — Fase 2 §1, revisado:
+//  - Tocar una fila abre el PREVIEW de la carta (arte grande + descripción)
+//    y desde ahí se confirma con "Jugar carta" — nadie juega una carta sin
+//    poder leer antes qué hace.
+//  - Caballero: al confirmar dispara el flujo del 7 directo (sin sub-modal).
+//  - Monopolio / YoP / RoadBuilding: al confirmar abren su sub-modal.
+//  - Punto de victoria: jugable — al usarla suma +1 público al marcador
+//    (hasta entonces no cuenta para nadie).
 //
 // Reglas de disabled (un solo lugar):
 //  - `available <= 0`  → no se muestra la fila (omisión, no "gris vacío").
-//  - `available > 0` pero `compradaEsteTurno > 0` → fila visible y
-//    deshabilitada con razón "Comprada este turno — no se puede jugar
-//    todavía.".
-//  - Si jugó cualquier carta este turno → subnota global + todas deshabilitadas.
+//  - `available > 0` pero `compradaEsteTurno > 0` → fila visible; el preview
+//    se abre igual (leer siempre se puede) con el CTA deshabilitado y la
+//    razón "Comprada este turno".
 //  - YoP adicional: deshabilitada si banco totalmente vacío.
+type DevRow = {
+  card: DevCardType;
+  title: string;
+  subtitle: string;
+  available: number;
+  newCount: number;
+  extraReason: string | null;
+  onPick: () => void;
+};
+
 function PlayDevModal({
   onClose,
   onPickKnight,
+  onPickVP,
   onPickMonopoly,
   onPickYoP,
   onPickRoadBuilding,
 }: {
   onClose: () => void;
   onPickKnight: () => void;
+  onPickVP: () => void;
   onPickMonopoly: () => void;
   onPickYoP: () => void;
   onPickRoadBuilding: () => void;
@@ -243,52 +263,48 @@ function PlayDevModal({
   const state = view.state;
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalA11y(dialogRef, onClose);
+  // Carta en preview (null = lista). El preview es un overlay encima de la
+  // lista; cerrar el preview regresa a la lista.
+  const [preview, setPreview] = useState<DevRow | null>(null);
 
   // Cuántas "nuevas" (compradas este turno) hay de cada tipo: esas no son
-  // jugables todavía.
-  function newCount(card: 'knight' | 'monopoly' | 'yearOfPlenty' | 'roadBuilding'): number {
+  // jugables todavía. (Las de Punto de victoria nunca entran a esa lista:
+  // pueden usarse el mismo turno.)
+  function newCount(card: DevCardType): number {
     return me.devCardsBoughtThisTurn.filter((c) => c === card).length;
   }
 
-  function playable(card: 'knight' | 'monopoly' | 'yearOfPlenty' | 'roadBuilding'): number {
+  function playable(card: DevCardType): number {
     return me.devCards[card] - newCount(card);
   }
 
-  const playableKnight = playable('knight');
-  const playableMono = playable('monopoly');
-  const playableYoP = playable('yearOfPlenty');
-  const playableRB = playable('roadBuilding');
-
-  const hiddenVP = me.devCards.vp;
   const bankTotal = handTotal(state.bank);
 
   // No hay forma directa de saber "ya jugué una carta este turno" desde el
   // estado público; el server rechazaría la jugada. Aquí mostramos las
   // razones por carta y dejamos que el server sea autoridad.
-
-  // Lista de items a mostrar (sólo las que tengo `available > 0` o que tengo
-  // alguna copia disponible aunque sea "nueva", para mostrar la razón).
-  type Row = {
-    card: 'knight' | 'monopoly' | 'yearOfPlenty' | 'roadBuilding';
-    title: string;
-    subtitle: string;
-    available: number;
-    newCount: number;
-    extraReason: string | null;
-    onPick: () => void;
-  };
-
-  const rows: Row[] = [];
+  const rows: DevRow[] = [];
 
   if (me.devCards.knight > 0) {
     rows.push({
       card: 'knight',
       title: DEV_CARD_NAMES.knight,
       subtitle: 'Mueve el ladrón y roba 1 carta.',
-      available: playableKnight,
+      available: playable('knight'),
       newCount: newCount('knight'),
       extraReason: null,
       onPick: onPickKnight,
+    });
+  }
+  if (me.devCards.vp > 0) {
+    rows.push({
+      card: 'vp',
+      title: DEV_CARD_NAMES.vp,
+      subtitle: 'Úsala para sumar +1 punto a tu marcador.',
+      available: me.devCards.vp,
+      newCount: 0,
+      extraReason: null,
+      onPick: onPickVP,
     });
   }
   if (me.devCards.monopoly > 0) {
@@ -296,7 +312,7 @@ function PlayDevModal({
       card: 'monopoly',
       title: DEV_CARD_NAMES.monopoly,
       subtitle: 'Toma todas las cartas de 1 recurso de los demás.',
-      available: playableMono,
+      available: playable('monopoly'),
       newCount: newCount('monopoly'),
       extraReason: null,
       onPick: onPickMonopoly,
@@ -307,7 +323,7 @@ function PlayDevModal({
       card: 'yearOfPlenty',
       title: DEV_CARD_NAMES.yearOfPlenty,
       subtitle: 'Toma 2 cartas del banco.',
-      available: playableYoP,
+      available: playable('yearOfPlenty'),
       newCount: newCount('yearOfPlenty'),
       extraReason:
         bankTotal === 0
@@ -321,7 +337,7 @@ function PlayDevModal({
       card: 'roadBuilding',
       title: DEV_CARD_NAMES.roadBuilding,
       subtitle: 'Coloca 2 caminos sin pagar recursos.',
-      available: playableRB,
+      available: playable('roadBuilding'),
       newCount: newCount('roadBuilding'),
       extraReason: null,
       onPick: onPickRoadBuilding,
@@ -348,71 +364,51 @@ function PlayDevModal({
           Jugar carta de desarrollo
         </h2>
         <p className="mt-1 text-xs leading-relaxed text-neutral-400">
-          No puedes jugar una carta comprada este turno.
+          Toca una carta para ver qué hace antes de jugarla.
         </p>
         {rows.length === 0 ? (
           <p className="mt-3 rounded-md border border-white/10 bg-surface-1 px-3 py-3 text-center text-xs text-neutral-300">
-            No tienes cartas de desarrollo jugables.
+            No tienes cartas de desarrollo.
           </p>
         ) : (
           <div className="mt-3 space-y-2">
-            {rows.map((row) => {
-              const blockedByNew = row.available <= 0 && row.newCount > 0;
-              const reason: string | null = row.extraReason
-                ? row.extraReason
-                : blockedByNew
-                  ? 'Comprada este turno — no se puede jugar todavía.'
-                  : null;
-              const disabled = row.available <= 0 || row.extraReason !== null;
-              return (
-                <button
-                  key={row.card}
-                  type="button"
-                  disabled={disabled}
-                  title={reason ?? undefined}
-                  onClick={row.onPick}
-                  className={
-                    'flex min-h-[56px] w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors ' +
-                    (disabled
-                      ? 'cursor-not-allowed border-white/[0.06] bg-surface-1 opacity-50'
-                      : 'border-white/12 bg-surface-2 active:bg-white/[0.09]')
-                  }
-                >
-                  <div className="min-w-0 flex-1 pr-3">
-                    <div className="text-sm font-semibold text-neutral-50">
-                      {row.title}
-                    </div>
-                    <div className="mt-0.5 text-[11px] leading-snug text-neutral-400">
-                      {row.subtitle}
-                    </div>
-                    {reason ? (
-                      <div className="mt-1 text-[10px] leading-tight text-amber-300">
-                        {reason}
-                      </div>
-                    ) : null}
+            {rows.map((row) => (
+              <button
+                key={row.card}
+                type="button"
+                onClick={() => setPreview(row)}
+                className="flex min-h-[60px] w-full items-center justify-between gap-2 rounded-lg border border-white/12 bg-surface-2 px-3 py-2 text-left transition-colors active:bg-white/[0.09]"
+              >
+                <DevCardGlyph card={row.card} size={40} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-neutral-50">
+                    {row.title}
                   </div>
-                  <span className="nums flex-shrink-0 text-base font-bold text-neutral-50">
-                    ×{me.devCards[row.card]}
-                    {row.newCount > 0 ? (
-                      <span className="ml-1 text-[10px] font-medium text-amber-300">
-                        ({row.newCount}{' '}
-                        {row.newCount === 1 ? 'nueva' : 'nuevas'})
-                      </span>
-                    ) : null}
-                  </span>
-                </button>
-              );
-            })}
+                  <div className="mt-0.5 text-[11px] leading-snug text-neutral-400">
+                    {row.subtitle}
+                  </div>
+                </div>
+                <span className="nums flex-shrink-0 text-base font-bold text-neutral-50">
+                  ×{me.devCards[row.card]}
+                  {row.newCount > 0 ? (
+                    <span className="ml-1 text-[10px] font-medium text-amber-300">
+                      ({row.newCount}{' '}
+                      {row.newCount === 1 ? 'nueva' : 'nuevas'})
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            ))}
           </div>
         )}
 
-        {hiddenVP > 0 ? (
+        {me.devCards.vp > 0 ? (
           <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/[0.08] px-3 py-2.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-200">
-              Puntos de victoria ocultos
+              Cartas de Punto de victoria
             </p>
             <p className="mt-1 text-xs leading-snug text-amber-100">
-              {hiddenVPCopy(hiddenVP)}
+              {vpCardsCopy(me.devCards.vp)}
             </p>
           </div>
         ) : null}
@@ -424,6 +420,104 @@ function PlayDevModal({
             className="min-h-[44px] rounded-lg border border-white/10 bg-surface-3 px-4 py-2 text-sm"
           >
             Cerrar
+          </button>
+        </div>
+      </div>
+      {preview ? (
+        <DevCardPreview
+          row={preview}
+          count={me.devCards[preview.card]}
+          onClose={() => setPreview(null)}
+          onPlay={() => {
+            setPreview(null);
+            preview.onPick();
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// Preview de una carta de desarrollo: arte grande + descripción completa.
+// Desde aquí se confirma la jugada ("Jugar carta" / "Usar punto de victoria").
+function DevCardPreview({
+  row,
+  count,
+  onClose,
+  onPlay,
+}: {
+  row: DevRow;
+  count: number;
+  onClose: () => void;
+  onPlay: () => void;
+}): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null);
+  useModalA11y(ref, onClose);
+  const blockedByNew = row.available <= 0 && row.newCount > 0;
+  const reason: string | null = row.extraReason
+    ? row.extraReason
+    : blockedByNew
+      ? 'Comprada este turno — no se puede jugar todavía.'
+      : null;
+  const canPlay = row.available > 0 && row.extraReason === null;
+  return (
+    <div
+      className="anim-fade-in fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-3"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+    >
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dev-preview-title"
+        aria-describedby="dev-preview-desc"
+        onClick={(e) => e.stopPropagation()}
+        className="anim-scale-in w-full max-w-xs rounded-2xl border border-white/10 bg-neutral-900 p-4 text-center shadow-2xl ring-1 ring-white/5"
+      >
+        <div className="flex justify-center">
+          <DevCardGlyph card={row.card} size={128} />
+        </div>
+        <h3
+          id="dev-preview-title"
+          className="mt-3 text-lg font-semibold tracking-tight text-neutral-50"
+        >
+          {row.title}
+          <span className="nums ml-2 text-sm font-bold text-neutral-400">
+            ×{count}
+          </span>
+        </h3>
+        <p
+          id="dev-preview-desc"
+          className="mt-2 text-sm leading-relaxed text-neutral-300"
+        >
+          {DEV_CARD_DESCRIPTIONS[row.card]}
+        </p>
+        {reason ? (
+          <p className="mt-2 text-xs font-medium text-amber-300">{reason}</p>
+        ) : null}
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[48px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
+          >
+            Volver
+          </button>
+          <button
+            type="button"
+            disabled={!canPlay}
+            onClick={onPlay}
+            className={
+              'min-h-[48px] flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-all ' +
+              (canPlay
+                ? 'bg-emerald-500 text-neutral-950 shadow-cta active:scale-[0.99] active:bg-emerald-400'
+                : 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-500')
+            }
+          >
+            {row.card === 'vp' ? 'Usar punto de victoria' : 'Jugar carta'}
           </button>
         </div>
       </div>

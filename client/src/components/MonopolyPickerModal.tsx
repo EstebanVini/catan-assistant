@@ -121,7 +121,7 @@ export function MonopolyPickerModal({ onClose }: Props): JSX.Element {
                   (isSel && confirmed ? ' anim-pulse-scale' : '')
                 }
               >
-                <ResourceIcon resource={r} size={34} />
+                <ResourceIcon resource={r} size={40} />
                 <span
                   className={
                     'text-[11px] font-semibold tracking-tight ' +

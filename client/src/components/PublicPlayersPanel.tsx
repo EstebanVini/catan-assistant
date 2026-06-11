@@ -140,12 +140,14 @@ export function PublicPlayersPanel(): JSX.Element | null {
       <div className="space-y-2 p-3">
           {ordered.map((p) => {
             const isActive = p.id === activeId;
+            // Marcador 100% público: vpCards son cartas de Punto de victoria
+            // ya usadas; las que siguen en mano no cuentan para nadie.
             const vpVisible =
               p.victoryPoints.settlements +
               p.victoryPoints.cities * 2 +
               (p.victoryPoints.longestRoad ? 2 : 0) +
               (p.victoryPoints.largestArmy ? 2 : 0) +
-              (me?.id === p.id ? p.victoryPoints.hiddenVP : 0);
+              p.victoryPoints.vpCards;
             // El tick > 0 indica que hubo al menos un cambio: aplicamos la
             // clase de pulso. El `key` con tick fuerza re-mount cada cambio
             // para que la animación CSS se reinicie. La animación corre

@@ -48,7 +48,9 @@ export interface Player {
     cities: number;
     longestRoad: boolean;
     largestArmy: boolean;
-    hiddenVP: number;
+    // Cartas de Punto de victoria USADAS (públicas). Las que siguen en la
+    // mano (devCards.vp) no suman al marcador hasta que el dueño las use.
+    vpCards: number;
   };
 }
 

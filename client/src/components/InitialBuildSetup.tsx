@@ -224,7 +224,7 @@ export function InitialBuildSetup(): JSX.Element | null {
                               />
                             ) : null}
                           </span>
-                          <ResourceIcon resource={s.resource} size={18} />
+                          <ResourceIcon resource={s.resource} size={24} />
                           <span className="text-xs text-neutral-100">
                             {RESOURCE_NAMES_LOWER[s.resource]}
                           </span>
@@ -441,7 +441,7 @@ export function SpotPickerSheet({
                   (dimOthers ? ' opacity-60' : '')
                 }
               >
-                <ResourceIcon resource={r} size={26} />
+                <ResourceIcon resource={r} size={34} />
                 <span className="text-[10px] leading-none">
                   {RESOURCE_NAMES[r]}
                 </span>

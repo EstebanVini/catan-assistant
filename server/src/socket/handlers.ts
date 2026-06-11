@@ -591,8 +591,10 @@ export function registerHandlers(io: Server, socket: Socket): void {
         return;
       }
       player.devCards[card] += 1;
-      if (card === 'vp') player.victoryPoints.hiddenVP += 1;
-      else player.devCardsBoughtThisTurn.push(card);
+      // Las cartas de Punto de victoria NO suman al marcador al comprarse:
+      // cuentan cuando el dueño las usa (dev:play). Por eso tampoco entran a
+      // devCardsBoughtThisTurn (pueden usarse el mismo turno).
+      if (card !== 'vp') player.devCardsBoughtThisTurn.push(card);
       logAction(state, `${player.name} compró una carta de desarrollo.`, player.id);
     } else {
       const label = type === 'road' ? 'un Camino' : type === 'settlement' ? 'un Poblado' : 'una Ciudad';
@@ -603,7 +605,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
   });
 
   // === Cartas de desarrollo ===
-  socket.on('dev:play', ({ card, payload }: { card: 'knight' | 'monopoly' | 'yearOfPlenty' | 'roadBuilding'; payload?: any }) => {
+  socket.on('dev:play', ({ card, payload }: { card: 'knight' | 'monopoly' | 'yearOfPlenty' | 'roadBuilding' | 'vp'; payload?: any }) => {
     const state = getRoom(socket.data.code ?? '');
     if (!state) return;
     const player = findPlayer(state, socket.data.playerId ?? '');
@@ -616,8 +618,9 @@ export function registerHandlers(io: Server, socket: Socket): void {
       socket.emit('error', { message: 'No puedes jugar cartas de desarrollo ahora.' });
       return;
     }
-    // Knight permitido antes de tirar (en 'roll'); las demás solo en 'main'
-    if (card !== 'knight' && state.phase !== 'main') {
+    // Knight y Punto de victoria permitidos antes de tirar (en 'roll');
+    // las demás solo en 'main'.
+    if (card !== 'knight' && card !== 'vp' && state.phase !== 'main') {
       socket.emit('error', { message: 'Solo puedes jugar esta carta después de tirar.' });
       return;
     }
@@ -672,6 +675,10 @@ export function registerHandlers(io: Server, socket: Socket): void {
     } else if (card === 'roadBuilding') {
       logAction(state, `${player.name} jugó Construcción de caminos.`, player.id);
       // El tablero es físico; no descontamos recursos. Si quisiéramos llevar conteo, iría aquí.
+    } else if (card === 'vp') {
+      // Usar la carta la hace pública: +1 al marcador de todos a la vista.
+      player.victoryPoints.vpCards += 1;
+      logAction(state, `${player.name} usó una carta de Punto de victoria: +1 punto.`, player.id);
     }
     broadcastState(io, state);
     checkVictory(io, state, player);
@@ -906,7 +913,6 @@ export function registerHandlers(io: Server, socket: Socket): void {
         pushSnapshot(state);
         if (idxInDeck !== -1) state.devDeck.splice(idxInDeck, 1);
         target.devCards[devCard] += 1;
-        if (devCard === 'vp') target.victoryPoints.hiddenVP += 1;
         const text = `⚠️ El banco entregó 1 carta de desarrollo a ${target.name}`;
         logAction(state, `${text} (entrega manual de ${giver?.name ?? 'banco'}).`, target.id);
         io.to(state.code).emit('notice', { level: 'warn', text });

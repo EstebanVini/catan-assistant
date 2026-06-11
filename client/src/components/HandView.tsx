@@ -75,7 +75,7 @@ export function HandView(): JSX.Element | null {
               // cuando llega un nuevo delta sobre el mismo recurso.
               title={RESOURCE_NAMES[r]}
             >
-              <ResourceIcon resource={r} size={24} />
+              <ResourceIcon resource={r} size={32} />
               <span
                 className={
                   'nums mt-1.5 text-[28px] font-bold leading-none tracking-tight ' +

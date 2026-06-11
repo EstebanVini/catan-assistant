@@ -68,7 +68,9 @@ export interface VictoryPoints {
   cities: number;
   longestRoad: boolean;
   largestArmy: boolean;
-  hiddenVP: number;
+  // Cartas de Punto de victoria USADAS (públicas). Las que siguen en la mano
+  // (devCards.vp) no suman al marcador hasta que el dueño las use.
+  vpCards: number;
 }
 
 export interface PublicPlayer {
@@ -216,6 +218,6 @@ export function totalVictoryPoints(vp: VictoryPoints): number {
     vp.cities * 2 +
     (vp.longestRoad ? 2 : 0) +
     (vp.largestArmy ? 2 : 0) +
-    vp.hiddenVP
+    vp.vpCards
   );
 }

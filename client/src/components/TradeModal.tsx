@@ -151,7 +151,7 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
                           : 'border-white/10 bg-surface-3')
                       }
                     >
-                      <ResourceIcon resource={r} size={18} />
+                      <ResourceIcon resource={r} size={24} />
                       <span className="nums mt-1 text-xs font-semibold">
                         {have}
                       </span>
@@ -195,7 +195,7 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
                         (disabled ? ' opacity-40' : '')
                       }
                     >
-                      <ResourceIcon resource={r} size={18} />
+                      <ResourceIcon resource={r} size={24} />
                       <span className="nums mt-1 text-[10px] text-neutral-400">
                         banco {inBank}
                       </span>
@@ -346,7 +346,7 @@ function ResourceSteppers({
             key={r}
             className="flex items-center gap-2 rounded-md border border-white/10 bg-neutral-950 p-1.5"
           >
-            <ResourceIcon resource={r} size={18} />
+            <ResourceIcon resource={r} size={24} />
             <span className="flex-1 text-xs">{RESOURCE_NAMES[r]}</span>
             <span className="text-[10px] text-neutral-500">máx {max}</span>
             <button

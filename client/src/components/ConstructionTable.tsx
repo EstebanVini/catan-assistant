@@ -305,7 +305,7 @@ function BuildingList({
                               {s.number}
                             </span>
                           </span>
-                          <ResourceIcon resource={s.resource} size={18} />
+                          <ResourceIcon resource={s.resource} size={24} />
                           <span className="text-xs text-neutral-100">
                             {RESOURCE_NAMES_LOWER[s.resource]}
                           </span>
@@ -406,9 +406,9 @@ function RobberHexList({
                 </span>
                 <span className="flex flex-1 items-center gap-2">
                   {h.resource ? (
-                    <ResourceIcon resource={h.resource} size={20} />
+                    <ResourceIcon resource={h.resource} size={28} />
                   ) : (
-                    <DesertGlyph size={20} />
+                    <DesertGlyph size={28} />
                   )}
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate text-sm">

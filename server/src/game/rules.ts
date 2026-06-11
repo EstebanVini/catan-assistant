@@ -236,12 +236,15 @@ export function publicVictoryPoints(p: Player): number {
     p.victoryPoints.settlements +
     2 * p.victoryPoints.cities +
     (p.victoryPoints.longestRoad ? 2 : 0) +
-    (p.victoryPoints.largestArmy ? 2 : 0)
+    (p.victoryPoints.largestArmy ? 2 : 0) +
+    p.victoryPoints.vpCards
   );
 }
 
+// Todo el marcador es público: las cartas de Punto de victoria solo cuentan
+// una vez USADAS (mientras están en la mano son una carta de desarrollo más).
 export function totalVictoryPoints(p: Player): number {
-  return publicVictoryPoints(p) + p.victoryPoints.hiddenVP;
+  return publicVictoryPoints(p);
 }
 
 // === Ejército más grande ===

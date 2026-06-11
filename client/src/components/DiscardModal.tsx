@@ -72,7 +72,7 @@ export function DiscardModal(): JSX.Element | null {
                   (empty ? 'border-white/5 opacity-60' : 'border-white/12')
                 }
               >
-                <ResourceIcon resource={r} size={24} />
+                <ResourceIcon resource={r} size={30} />
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-neutral-100">
                     {RESOURCE_NAMES[r]}

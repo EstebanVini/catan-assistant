@@ -237,7 +237,7 @@ function SelectorRow({
                     : 'border-white/[0.10] bg-surface-1 active:scale-[0.97] active:bg-white/[0.08]')
               }
             >
-              <ResourceIcon resource={r} size={26} />
+              <ResourceIcon resource={r} size={32} />
               <span
                 className={
                   'nums text-[10px] font-semibold ' +

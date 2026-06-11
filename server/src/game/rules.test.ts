@@ -15,12 +15,12 @@ function makeState(): GameState {
     id: 'p1', sessionToken: 't1', name: 'A', color: 'red' as const, connected: true,
     hand: { brick: 1, lumber: 1, wool: 0, grain: 0, ore: 0 },
     ports: [], devCards: emptyDevCards(), devCardsBoughtThisTurn: [], knightsPlayed: 0,
-    victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, hiddenVP: 0 },
+    victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
   };
   const p2 = {
     id: 'p2', sessionToken: 't2', name: 'B', color: 'blue' as const, connected: true,
     hand: emptyHand(), ports: [], devCards: emptyDevCards(), devCardsBoughtThisTurn: [], knightsPlayed: 0,
-    victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, hiddenVP: 0 },
+    victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
   };
   return {
     code: 'TEST', hostId: 'p1', bankManagerId: 'p1', status: 'playing', extension56: false,

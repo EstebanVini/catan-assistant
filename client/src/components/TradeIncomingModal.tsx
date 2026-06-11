@@ -217,7 +217,7 @@ function ResourceLine({
             key={r}
             className="inline-flex items-center gap-0.5 rounded-md bg-surface-3 px-1 py-0.5"
           >
-            <ResourceIcon resource={r} size={12} />
+            <ResourceIcon resource={r} size={16} />
             <span className="font-semibold">{n}</span>
           </span>
         ))
@@ -237,7 +237,7 @@ function ChipList({ entries }: { entries: [keyof Hand, number][] }): JSX.Element
             key={r}
             className="inline-flex items-center gap-1 rounded-md bg-neutral-950 px-2 py-1 text-xs"
           >
-            <ResourceIcon resource={r} size={14} />
+            <ResourceIcon resource={r} size={20} />
             <span className="font-semibold">{n}</span>
             <span className="text-[10px] text-neutral-400">
               {RESOURCE_NAMES[r]}

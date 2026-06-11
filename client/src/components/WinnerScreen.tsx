@@ -53,9 +53,9 @@ export function WinnerScreen(): JSX.Element | null {
   const citiesPts = vp.cities * 2;
   const longestRoadPts = vp.longestRoad ? 2 : 0;
   const largestArmyPts = vp.largestArmy ? 2 : 0;
-  const hiddenPts = vp.hiddenVP;
+  const vpCardsPts = vp.vpCards;
   const total =
-    settlementsPts + citiesPts + longestRoadPts + largestArmyPts + hiddenPts;
+    settlementsPts + citiesPts + longestRoadPts + largestArmyPts + vpCardsPts;
 
   // MVP de robos: jugador con más robos exitosos. Si nadie robó, ocultar.
   const stealsEntries = Object.entries(state.stealsByPlayer ?? {}) as [
@@ -174,12 +174,12 @@ export function WinnerScreen(): JSX.Element | null {
                 value={largestArmyPts}
               />
             ) : null}
-            {hiddenPts > 0 ? (
+            {vpCardsPts > 0 ? (
               <BreakdownRow
                 icon={<DotIcon color="#fbbf24" />}
-                label="Puntos de victoria ocultos"
-                detail="Revelados al final"
-                value={hiddenPts}
+                label="Cartas de Punto de victoria"
+                detail="Usadas en la partida"
+                value={vpCardsPts}
               />
             ) : null}
             <li className="mt-1 flex items-center justify-between pt-3">
@@ -272,7 +272,7 @@ function computeTotal(p: PublicPlayer): number {
     p.victoryPoints.cities * 2 +
     (p.victoryPoints.longestRoad ? 2 : 0) +
     (p.victoryPoints.largestArmy ? 2 : 0) +
-    p.victoryPoints.hiddenVP
+    p.victoryPoints.vpCards
   );
 }
 
