@@ -19,13 +19,14 @@ export interface DevCardCounts {
   monopoly: number;
 }
 
-// Construcción inicial registrada en el lobby: un poblado del tablero físico
-// con las fichas (número + recurso) que toca. El 2º poblado da recursos de inicio.
-export interface InitialBuilding {
+// Construcción registrada por el jugador (su "Tabla de construcción"): un
+// poblado o ciudad del tablero físico con las fichas (número + recurso) que
+// toca. Se registra en el lobby (2 poblados de salida) y se edita a voluntad
+// durante la partida; los hexes de producción se derivan de aquí.
+export interface Building {
   id: string;
-  type: 'settlement' | 'city'; // en la colocación inicial normalmente 'settlement'
-  spots: Array<{ number: number; resource: Resource }>; // 1..3 fichas (el desierto no se registra)
-  grantsStartingResources: boolean; // true solo para el SEGUNDO poblado
+  type: 'settlement' | 'city';
+  spots: Array<{ number: number; resource: Resource }>; // 0..3 fichas (el desierto no se registra)
 }
 
 export interface Player {
@@ -36,7 +37,7 @@ export interface Player {
   avatarUrl?: string; // foto de perfil (pública en la partida) si está registrado
   color: PlayerColor | null;
   connected: boolean;
-  initialBuildings: InitialBuilding[]; // registradas en el lobby (ver game/setup.ts)
+  buildings: Building[]; // tabla de construcción del jugador (ver game/setup.ts)
   hand: Hand; // PRIVADO
   ports: PortType[];
   devCards: DevCardCounts; // PRIVADO en tipos; conteo total + caballeros jugados es público
@@ -68,6 +69,9 @@ export interface TradeOffer {
   toId: string | null; // null = a cualquiera (broadcast)
   give: Partial<Hand>;
   receive: Partial<Hand>;
+  // Jugadores que ya rechazaron: la oferta se les oculta solo a ellos. Cuando
+  // todos los elegibles rechazan, la oferta se retira para todos.
+  rejectedBy: string[];
 }
 
 export type GamePhase = 'roll' | 'discard' | 'robber' | 'main' | 'specialBuild';

@@ -223,29 +223,11 @@ export function executeTrade(from: Player, to: Player, give: Partial<Hand>, rece
 
 // === Puntos de victoria ===
 export function recomputeVictoryPoints(state: GameState): void {
-  // Una construcción física toca 1..3 fichas: las entradas con el mismo
-  // playerId+buildingId son la MISMA construcción y cuentan una sola vez
-  // (si alguna entrada es city, la construcción cuenta como city).
-  // Las entradas sin buildingId (ediciones manuales de la tabla) cuentan 1 cada una.
-  const settlementsByPlayer: Record<string, number> = {};
-  const citiesByPlayer: Record<string, number> = {};
-  const buildings = new Map<string, { playerId: string; type: 'settlement' | 'city' }>();
-  let manualSeq = 0;
-  for (const hex of state.hexes) {
-    for (const o of hex.owners) {
-      const key = o.buildingId ? `${o.playerId}:${o.buildingId}` : `manual-${manualSeq++}`;
-      const prev = buildings.get(key);
-      if (!prev) buildings.set(key, { playerId: o.playerId, type: o.type });
-      else if (prev.type === 'settlement' && o.type === 'city') prev.type = 'city';
-    }
-  }
-  for (const b of buildings.values()) {
-    if (b.type === 'settlement') settlementsByPlayer[b.playerId] = (settlementsByPlayer[b.playerId] ?? 0) + 1;
-    else citiesByPlayer[b.playerId] = (citiesByPlayer[b.playerId] ?? 0) + 1;
-  }
+  // La tabla de construcción de cada jugador es la fuente de verdad: cada
+  // entrada es UNA construcción física, sin importar cuántas fichas toque.
   for (const p of state.players) {
-    p.victoryPoints.settlements = settlementsByPlayer[p.id] ?? 0;
-    p.victoryPoints.cities = citiesByPlayer[p.id] ?? 0;
+    p.victoryPoints.settlements = p.buildings.filter((b) => b.type === 'settlement').length;
+    p.victoryPoints.cities = p.buildings.filter((b) => b.type === 'city').length;
   }
 }
 

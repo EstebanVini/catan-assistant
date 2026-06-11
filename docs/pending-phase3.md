@@ -32,13 +32,20 @@ Estado (2026-06-10, cierre): pases de qa-auditor, visual-designer y motion-engin
 - Tick "Registro completo": pop con micro-rebote (320ms) + check que se dibuja con stroke-dashoffset (220ms, delay 120ms); `CheckIcon` con prop `animated` opt-in.
 - Olas del océano: capa `body::after` con drift de un tile completo (52s, lineal, transform en compositor); en reduced-motion `animation: none`.
 
-### 4. Desviaciones conocidas / deuda a resolver (requieren decisión o cambio de server)
-- **Vaciar una card tras completar no baja el contador del host**: el server exige 1–3 spots, así que el cliente no emite estados con card vacía (brief §3 esperaba que el check se retirara). Opciones: server acepta payload "incompleto" marcando setupComplete=false, o se documenta como comportamiento final.
+### 4. Desviaciones conocidas / deuda a resolver
+- ~~**Vaciar una card tras completar no baja el contador del host**~~ RESUELTO: `player:setBuildings` acepta estados parciales (0–3 fichas); `setupComplete` solo es true con 2 poblados de 1–3 fichas.
+- ~~**Conteo del mazo de desarrollo no visible**~~ RESUELTO: el estado público expone `devDeckCount` y GiveCardModal muestra "Mazo: N".
+- ~~**Poblado con 0 fichas (desierto costero)**~~ RESUELTO: la validación laxa permite 0 fichas durante la partida (para INICIAR sigue exigiéndose 1–3 por poblado).
 - **Toast personal "Recibiste 1 trigo del banco." omitido**: requiere evento dirigido del server al receptor (hoy: pulso de mano + notice público).
 - **GiveCard sin ack**: éxito optimista a 900ms; ideal: ack en `admin:giveCard` para estados exactos (submitting→success/error).
-- **Conteo del mazo de desarrollo no visible** en GiveCardModal (el estado público no expone devDeckCount; el brief mostraba "Mazo: 18 cartas").
-- **Poblado con 0 fichas (desierto costero)**: relajación futura documentada en brief §3 caso 3.
 - **Avatar en lista del lobby** usa `p.name` como seed (el username no es público); aceptable, revisar si el server expone username.
+
+### 4b. Cambios de lógica post-Fase 3 (2026-06-11, pedidos por Esteban)
+1. **Recursos de inicio para todos los poblados**: al iniciar, cada jugador recibe 1 carta por CADA ficha que tocan sus 2 poblados (ya no solo el 2º). `grantsStartingResources` eliminado del modelo y el radio del lobby retirado.
+2. **Rechazo de intercambio individual**: `TradeOffer.rejectedBy` — la oferta se oculta solo para quien rechazó; se retira cuando todos los elegibles rechazaron (o el único destinatario, si era dirigida). El emisor ve "N de M rechazaron".
+3. **Tabla de construcción** (reemplaza "Tabla de producción"): listas de poblados y ciudades SOLO propias; cualquier jugador agrega/edita/quita a voluntad, en cualquier momento y sin requerir recursos (`player:setBuildings`, también usado por el lobby). El server deriva los hexes de producción (merge número+recurso, desierto fijo, ladrón preservado) y los VP/recuentos se cuentan desde la tabla. Recuento público de poblados/ciudades en el panel de Jugadores. El picker del ladrón vive en la misma sección (lista de fichas de toda la mesa, derivada). Los handlers `hex:*` se eliminaron.
+- Verificado con smoke E2E real (server + 3 sockets): reparto inicial, edición fuera de turno, producción compartida, rechazos individuales, oferta dirigida, aceptación.
+- Nota de diseño: los botones "Construir" del ActionGrid siguen siendo el flujo que descuenta recursos (con validación de costo); el registro libre es vía la Tabla de construcción.
 
 ### 5. Verificación manual E2E (con backend + Mongo levantados)
 - Flujo invitado completo (≤15s a lobby), login/registro reales, 503 con Mongo caído.

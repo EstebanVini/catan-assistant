@@ -5,7 +5,7 @@ import { ContextBanner } from '../components/ContextBanner';
 import { HandView } from '../components/HandView';
 import { ActionGrid } from '../components/ActionGrid';
 import { BankPanel } from '../components/BankPanel';
-import { ProductionTable } from '../components/ProductionTable';
+import { ConstructionTable } from '../components/ConstructionTable';
 import { PublicPlayersPanel } from '../components/PublicPlayersPanel';
 import { Log } from '../components/Log';
 import { DiscardModal } from '../components/DiscardModal';
@@ -117,7 +117,7 @@ export function GameScreen(): JSX.Element | null {
       <HandView />
       <ActionGrid onPlayDev={() => setDevSub({ kind: 'list' })} />
       <BankPanel />
-      <ProductionTable />
+      <ConstructionTable />
       <PublicPlayersPanel />
       <DiceStatsCollapsible
         stats={state.diceStats}

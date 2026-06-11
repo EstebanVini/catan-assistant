@@ -43,7 +43,7 @@ function newPlayer(id: string, sessionToken: string, name: string, profile?: Use
     avatarUrl: profile?.avatarUrl,
     color: null,
     connected: true,
-    initialBuildings: [],
+    buildings: [],
     hand: emptyHand(),
     ports: [],
     devCards: emptyDevCards(),

@@ -41,6 +41,11 @@ export function TradeIncomingModal(): JSX.Element | null {
   const iAmReceiver = trade.toId === me.id || (trade.toId === null && trade.fromId !== me.id);
 
   if (!iAmSender && !iAmReceiver) return null;
+  // El rechazo es individual: a quien ya rechazó se le oculta la oferta; el
+  // resto la sigue viendo hasta aceptar o rechazar (el server la retira
+  // cuando todos los elegibles rechazaron).
+  const rejectedBy = trade.rejectedBy ?? [];
+  if (iAmReceiver && rejectedBy.includes(me.id)) return null;
 
   const giveEntries = (Object.entries(trade.give) as [Resource, number][]).filter(
     ([, n]) => n > 0
@@ -50,6 +55,7 @@ export function TradeIncomingModal(): JSX.Element | null {
   );
 
   if (iAmSender) {
+    const eligibleCount = trade.toId ? 1 : state.players.length - 1;
     return (
       <SenderPanel
         toName={
@@ -57,6 +63,8 @@ export function TradeIncomingModal(): JSX.Element | null {
             ? (state.players.find((p) => p.id === trade.toId)?.name ?? '...')
             : null
         }
+        rejectedCount={rejectedBy.length}
+        eligibleCount={eligibleCount}
         giveEntries={giveEntries}
         receiveEntries={receiveEntries}
         onCancel={() => cancel()}
@@ -77,11 +85,15 @@ export function TradeIncomingModal(): JSX.Element | null {
 
 function SenderPanel({
   toName,
+  rejectedCount,
+  eligibleCount,
   giveEntries,
   receiveEntries,
   onCancel,
 }: {
   toName: string | null;
+  rejectedCount: number;
+  eligibleCount: number;
   giveEntries: [Resource, number][];
   receiveEntries: [Resource, number][];
   onCancel: () => void;
@@ -99,6 +111,12 @@ function SenderPanel({
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-200">
             {toName ? `Esperando a ${toName}` : 'Esperando respuesta'}
           </p>
+          {rejectedCount > 0 ? (
+            <p className="mt-0.5 text-[11px] text-neutral-400">
+              {rejectedCount} de {eligibleCount}{' '}
+              {rejectedCount === 1 ? 'rechazó' : 'rechazaron'} la oferta.
+            </p>
+          ) : null}
           <ResourceLine label="Doy" entries={giveEntries} />
           <ResourceLine label="Recibo" entries={receiveEntries} />
         </div>

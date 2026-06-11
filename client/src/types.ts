@@ -48,6 +48,9 @@ export interface TradeOffer {
   toId: string | null;
   give: Partial<Hand>;
   receive: Partial<Hand>;
+  // Quiénes ya rechazaron: la oferta se oculta solo para ellos; el resto la
+  // sigue viendo hasta aceptar o rechazar.
+  rejectedBy: string[];
 }
 
 export type GamePhase = 'roll' | 'discard' | 'robber' | 'main' | 'specialBuild';
@@ -84,17 +87,17 @@ export interface PublicPlayer {
   setupComplete: boolean;
 }
 
-// Fase 3 — Registro de construcciones iniciales (lobby).
-export interface InitialBuildingSpot {
+// Tabla de construcción del jugador: se registra en el lobby (2 poblados de
+// salida) y se edita a voluntad durante la partida, sin requerir recursos.
+export interface BuildingSpot {
   number: number; // 2–12 sin 7
   resource: Resource;
 }
 
-export interface InitialBuilding {
+export interface Building {
   id: string;
   type: 'settlement' | 'city';
-  spots: InitialBuildingSpot[]; // 1–3 fichas
-  grantsStartingResources: boolean; // exactamente uno de los dos en true
+  spots: BuildingSpot[]; // 0–3 fichas
 }
 
 // Fase 3 — Notice público (banner prominente para todos).
@@ -135,8 +138,8 @@ export interface MeView {
   devCardsBoughtThisTurn: DevCardType[];
   ports: PortType[];
   sessionToken?: string;
-  // Fase 3: mis construcciones iniciales (hidratación al reconectar).
-  initialBuildings?: InitialBuilding[];
+  // Mi tabla de construcción (hidratación al reconectar).
+  buildings?: Building[];
 }
 
 export interface PublicGameState {
@@ -152,6 +155,7 @@ export interface PublicGameState {
   specialBuildQueue: string[];
   hexes: Hex[];
   bank: Hand;
+  devDeckCount: number;
   diceStats: Record<number, number>;
   log: LogEntry[];
   pendingDiscards: Record<string, number>;

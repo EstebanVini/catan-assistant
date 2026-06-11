@@ -26,7 +26,7 @@ export interface PlayerView {
     devCards: Player['devCards'];
     devCardsBoughtThisTurn: Player['devCardsBoughtThisTurn'];
     ports: Player['ports'];
-    initialBuildings: Player['initialBuildings'];
+    buildings: Player['buildings'];
     sessionToken?: string; // solo se manda en el handshake inicial
   } | null;
   state: {
@@ -42,6 +42,7 @@ export interface PlayerView {
     specialBuildQueue: string[];
     hexes: GameState['hexes'];
     bank: GameState['bank'];
+    devDeckCount: number; // cartas restantes en el mazo de desarrollo (el contenido sigue oculto)
     diceStats: GameState['diceStats'];
     log: GameState['log'];
     pendingDiscards: GameState['pendingDiscards'];
@@ -67,7 +68,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
           devCards: me.devCards,
           devCardsBoughtThisTurn: me.devCardsBoughtThisTurn,
           ports: me.ports,
-          initialBuildings: me.initialBuildings,
+          buildings: me.buildings,
         }
       : null,
     state: {
@@ -84,6 +85,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
       specialBuildQueue: state.specialBuildQueue,
       hexes: state.hexes,
       bank: state.bank,
+      devDeckCount: state.devDeck.length,
       diceStats: state.diceStats,
       log: state.log.slice(-100),
       pendingDiscards: state.pendingDiscards,

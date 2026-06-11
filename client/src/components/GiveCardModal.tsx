@@ -249,7 +249,10 @@ export function GiveCardModal({ onClose }: { onClose: () => void }): JSX.Element
         >
           <span className="text-sm font-medium">Carta de desarrollo</span>
           <span className="text-[10px] text-neutral-400">
-            al azar, de la cima del mazo
+            al azar, de la cima del mazo ·{' '}
+            <span className="nums font-semibold text-neutral-200">
+              Mazo: {view.state.devDeckCount}
+            </span>
           </span>
         </button>
 

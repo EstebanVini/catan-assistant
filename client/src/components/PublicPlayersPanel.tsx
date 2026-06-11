@@ -202,6 +202,22 @@ export function PublicPlayersPanel(): JSX.Element | null {
                       </span>
                     </span>
                     <Sep />
+                    {/* Recuento público de la Tabla de construcción de cada
+                        jugador (las fichas concretas solo las ve su dueño). */}
+                    <span>
+                      Poblados:{' '}
+                      <span className="nums font-semibold text-neutral-100">
+                        {p.victoryPoints.settlements}
+                      </span>
+                    </span>
+                    <Sep />
+                    <span>
+                      Ciudades:{' '}
+                      <span className="nums font-semibold text-neutral-100">
+                        {p.victoryPoints.cities}
+                      </span>
+                    </span>
+                    <Sep />
                     <span>
                       Desarrollo:{' '}
                       <span className="nums font-semibold text-neutral-100">

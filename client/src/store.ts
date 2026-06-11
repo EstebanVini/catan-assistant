@@ -1,11 +1,10 @@
 import { create } from 'zustand';
 import {
+  Building,
   BuildType,
   ConnectionStatus,
   DevCardType,
   Hand,
-  Hex,
-  InitialBuilding,
   NoticeLevel,
   NoticePayload,
   PersistedSession,
@@ -107,7 +106,6 @@ interface StoreState {
   setExtension56: (enabled: boolean) => void;
   rollOrderByDice: () => void;
   startGame: () => void;
-  setInitialBuildings: (initialBuildings: InitialBuilding[]) => void;
 
   // Banco (Fase 3): entrega manual de cartas, en cualquier momento.
   giveCard: (payload: {
@@ -118,11 +116,9 @@ interface StoreState {
     force?: boolean;
   }) => void;
 
-  // Tabla
-  upsertHex: (hex: Hex) => void;
-  removeHex: (hexId: string) => void;
-  addHexOwner: (hexId: string, playerId: string, type: 'settlement' | 'city') => void;
-  removeHexOwner: (hexId: string, playerId: string) => void;
+  // Tabla de construcción (lobby y partida): reemplaza la lista completa de
+  // MIS construcciones; el server deriva los hexes de producción.
+  setBuildings: (buildings: Building[]) => void;
   setPorts: (ports: PortType[]) => void;
 
   // Turno y dado
@@ -336,17 +332,11 @@ export const useStore = create<StoreState>((set, get) => ({
     socket.emit('lobby:setExtension56', { enabled }),
   rollOrderByDice: () => socket.emit('lobby:rollOrderByDice'),
   startGame: () => socket.emit('game:start'),
-  setInitialBuildings: (initialBuildings) =>
-    socket.emit('lobby:setInitialBuildings', { initialBuildings }),
 
   giveCard: (payload) => socket.emit('admin:giveCard', payload),
 
-  upsertHex: (hex) => socket.emit('hex:upsert', { hex }),
-  removeHex: (hexId) => socket.emit('hex:remove', { hexId }),
-  addHexOwner: (hexId, playerId, type) =>
-    socket.emit('hex:addOwner', { hexId, playerId, type }),
-  removeHexOwner: (hexId, playerId) =>
-    socket.emit('hex:removeOwner', { hexId, playerId }),
+  setBuildings: (buildings) =>
+    socket.emit('player:setBuildings', { buildings }),
   setPorts: (ports) => socket.emit('player:setPorts', { ports }),
 
   rollNumber: (number) => socket.emit('turn:rollNumber', { number }),

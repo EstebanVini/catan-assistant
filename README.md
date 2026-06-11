@@ -122,15 +122,16 @@ npm test
 
 Vitest cubre la lógica pura del juego:
 - `rules.ts`: distribución con banco limitado, descartes tras el 7, proporciones de intercambio con banco/puertos.
-- `setup.ts`: validación del registro de construcciones iniciales, sembrado de la tabla de producción (merge por número+recurso) y reparto de recursos de inicio con banco limitado.
+- `setup.ts`: validación de la tabla de construcción, derivación de los hexes de producción (merge por número+recurso, desierto con ladrón, posición del ladrón preservada al editar) y reparto de recursos de inicio con banco limitado.
 
 ## Funcionalidad
 
 - **Cuentas y perfil**: registro/login (JWT + bcrypt), perfil con avatar, nombre visible, color preferido y estadísticas (partidas, victorias, insignias). Modo invitado sin fricción.
 - **Salas**: crear / unirse por código / reconectar desde `localStorage` (sesión de sala independiente del JWT).
-- **Lobby**: código compartible, selección de color (sin repetir), reordenar turnos (o sorteo por dados), encargado del banco, toggle Extensión 5–6, y **registro de construcciones iniciales** (cada jugador registra sus 2 poblados con número+recurso; el 2º otorga recursos al iniciar). El host ve el progreso y solo puede iniciar cuando todos completaron.
-- **Inicio de partida**: reparto automático de los recursos del 2º poblado y **sembrado de la tabla de producción** a partir de los registros.
-- **Juego**: barra de turno, mano privada, acciones (construir, intercambiar, terminar turno), panel del banco (teclado 2–12, deshacer, **entrega manual de cartas con notificación pública anti-trampas**), tabla de producción editable y **colapsable**, estado público de jugadores, log cronológico.
+- **Lobby**: código compartible, selección de color (sin repetir), reordenar turnos (o sorteo por dados), encargado del banco, toggle Extensión 5–6, y **registro de construcciones iniciales** (cada jugador registra sus 2 poblados con las fichas número+recurso que tocan). El host ve el progreso y solo puede iniciar cuando todos completaron.
+- **Inicio de partida**: reparto automático de recursos — **todos los poblados registrados dan 1 carta por cada ficha que tocan** — y derivación de los hexes de producción a partir de los registros (el ladrón arranca en el desierto).
+- **Juego**: barra de turno, mano privada, acciones (construir, intercambiar, terminar turno), panel del banco (teclado 2–12, deshacer, **entrega manual de cartas con notificación pública anti-trampas**), **Tabla de construcción** personal y colapsable (listas de poblados y ciudades propias, editables a voluntad sin requerir recursos; el recuento por jugador es público en la lista de Jugadores), estado público de jugadores, log cronológico.
+- **Intercambios entre jugadores**: el rechazo es individual — la oferta solo se oculta para quien la rechazó y sigue activa para el resto hasta que alguien la acepta o todos la rechazan.
 - **Reglas que el servidor hace cumplir**: distribución con banco limitado, secuencia del 7 completa (descarte + ladrón + robo aleatorio), intercambio banco/puertos (4:1, 3:1, 2:1) y entre jugadores, cartas de desarrollo completas (Caballero, Monopolio, Año de la abundancia, Construcción de caminos; no jugables el turno en que se compran), insignias (Ejército más grande automático, Camino más largo manual), victoria a 10 declarada en tu turno.
 - **Extensión 5–6**: hasta 6 jugadores (verde y café), banco 24, mazo 34, Fase de Construcción Especial entre turnos.
 - **Al terminar**: el resultado se guarda en MongoDB (`matches`) y las stats de los usuarios registrados se actualizan atómicamente; los invitados quedan en el historial sin cuenta.

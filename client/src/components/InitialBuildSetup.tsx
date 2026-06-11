@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
-import { InitialBuilding, RESOURCES, Resource } from '../types';
+import { Building, RESOURCES, Resource } from '../types';
 import { RESOURCE_NAMES, RESOURCE_NAMES_LOWER } from '../lib/spanish';
 import { ResourceIcon } from './ResourceIcon';
 import { useModalA11y } from '../lib/useModalA11y';
@@ -11,31 +11,23 @@ import { safeVibrate } from '../lib/motion';
 // Decisiones estructurales (ya tomadas por el ux-architect):
 //  - Dos cards FIJAS (la regla es exactamente 2 poblados; sin grados de
 //    libertad inexistentes).
-//  - "Mi 2º poblado" es un radio compartido entre las dos cards: imposible
-//    marcar dos o cero. Poblado 2 viene pre-marcado.
+//  - TODOS los poblados reparten recursos al iniciar (1 carta por ficha
+//    tocada), así que ya no se marca cuál es "el 2º poblado".
 //  - El picker omite el 7 (y el desierto) en lugar de deshabilitarlos.
-//  - Autosave: cada mutación emite `lobby:setInitialBuildings` completo —
-//    cuando el payload es válido para el servidor (1–3 fichas por poblado).
-//    Mientras un poblado siga vacío, el estado vive localmente; el progreso
-//    "N/M listos" deriva SIEMPRE del estado del servidor (`setupComplete`).
-//  - `type: 'city'` existe en el modelo pero la UI no lo expone (gancho
-//    documentado, brief §3 caso 9).
+//  - Autosave: cada mutación emite `player:setBuildings` completo — el server
+//    acepta estados parciales (0–3 fichas) y marca `setupComplete` solo
+//    cuando ambos poblados tienen 1–3 fichas. El progreso "N/M listos" deriva
+//    SIEMPRE del estado del servidor (`setupComplete`).
+//  - `type: 'city'` existe en el modelo pero esta UI no lo expone (durante la
+//    partida la Tabla de construcción sí maneja ciudades).
 
 const PICKER_NUMBERS = [2, 3, 4, 5, 6, 8, 9, 10, 11, 12];
 
-function defaultBuilds(): InitialBuilding[] {
+function defaultBuilds(): Building[] {
   return [
-    { id: 'b1', type: 'settlement', spots: [], grantsStartingResources: false },
-    { id: 'b2', type: 'settlement', spots: [], grantsStartingResources: true },
+    { id: 'b1', type: 'settlement', spots: [] },
+    { id: 'b2', type: 'settlement', spots: [] },
   ];
-}
-
-function isServerValid(builds: InitialBuilding[]): boolean {
-  return (
-    builds.length === 2 &&
-    builds.every((b) => b.spots.length >= 1 && b.spots.length <= 3) &&
-    builds.filter((b) => b.grantsStartingResources).length === 1
-  );
 }
 
 type SheetState = {
@@ -47,11 +39,11 @@ type SheetState = {
 export function InitialBuildSetup(): JSX.Element | null {
   const view = useStore((s) => s.view);
   const connectionStatus = useStore((s) => s.connectionStatus);
-  const setInitialBuildings = useStore((s) => s.setInitialBuildings);
+  const setBuildings = useStore((s) => s.setBuildings);
   const pushToast = useStore((s) => s.pushToast);
 
-  const [builds, setBuilds] = useState<InitialBuilding[]>(() => {
-    const server = useStore.getState().view?.me?.initialBuildings;
+  const [builds, setBuilds] = useState<Building[]>(() => {
+    const server = useStore.getState().view?.me?.buildings;
     return server && server.length === 2 ? server : defaultBuilds();
   });
   const [sheet, setSheet] = useState<SheetState | null>(null);
@@ -62,7 +54,7 @@ export function InitialBuildSetup(): JSX.Element | null {
   // mutación local reciente (autosave en vuelo).
   const lastMutationAtRef = useRef(0);
   // Reintento automático al reconectar (brief §3, estados).
-  const pendingEmitRef = useRef<InitialBuilding[] | null>(null);
+  const pendingEmitRef = useRef<Building[] | null>(null);
 
   const me = view?.me ?? null;
   const myPublic =
@@ -70,9 +62,9 @@ export function InitialBuildSetup(): JSX.Element | null {
   const serverComplete = !!myPublic?.setupComplete;
 
   // Hidratar desde el servidor (reconexión / primer state:update).
-  const serverSerialized = JSON.stringify(me?.initialBuildings ?? null);
+  const serverSerialized = JSON.stringify(me?.buildings ?? null);
   useEffect(() => {
-    const server = me?.initialBuildings;
+    const server = me?.buildings;
     if (!server || server.length !== 2) return;
     if (Date.now() - lastMutationAtRef.current < 1500) return;
     setBuilds((local) =>
@@ -96,24 +88,23 @@ export function InitialBuildSetup(): JSX.Element | null {
     if (connectionStatus === 'connected' && pendingEmitRef.current) {
       const pending = pendingEmitRef.current;
       pendingEmitRef.current = null;
-      setInitialBuildings(pending);
+      setBuildings(pending);
     }
-  }, [connectionStatus, setInitialBuildings]);
+  }, [connectionStatus, setBuildings]);
 
   if (!view || !me) return null;
 
-  function commit(next: InitialBuilding[]): void {
+  function commit(next: Building[]): void {
     lastMutationAtRef.current = Date.now();
     setBuilds(next);
-    // Solo se sincroniza un payload que el servidor acepte (1–3 fichas por
-    // poblado). Estados parciales viven localmente hasta ser válidos.
-    if (!isServerValid(next)) return;
+    // El server acepta estados parciales (0–3 fichas): se sincroniza siempre,
+    // así el contador "N/M listos" del anfitrión baja si alguien vacía una card.
     if (connectionStatus !== 'connected') {
       pendingEmitRef.current = next;
       pushToast('info', 'Sin conexión. Se guardará al reconectar.');
       return;
     }
-    setInitialBuildings(next);
+    setBuildings(next);
   }
 
   function removeSpot(buildIdx: 0 | 1, spotIdx: number): void {
@@ -122,14 +113,6 @@ export function InitialBuildSetup(): JSX.Element | null {
         ? { ...b, spots: b.spots.filter((_, j) => j !== spotIdx) }
         : b
     );
-    commit(next);
-  }
-
-  function setGrants(buildIdx: 0 | 1): void {
-    const next = builds.map((b, i) => ({
-      ...b,
-      grantsStartingResources: i === buildIdx,
-    }));
     commit(next);
   }
 
@@ -185,7 +168,7 @@ export function InitialBuildSetup(): JSX.Element | null {
       </div>
       <p className="mt-1 text-[11px] leading-snug text-neutral-400">
         Mira el tablero y registra las fichas con número que tocan tus 2
-        poblados.
+        poblados. Al iniciar recibes 1 carta por cada ficha registrada.
       </p>
 
       <div className="mt-3 space-y-2.5">
@@ -275,19 +258,6 @@ export function InitialBuildSetup(): JSX.Element | null {
                   + Agregar ficha
                 </button>
               ) : null}
-              <label className="mt-2 flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-lg border border-white/10 bg-neutral-950/60 px-2.5 py-2">
-                <input
-                  type="radio"
-                  name="grants-starting-resources"
-                  checked={b.grantsStartingResources}
-                  onChange={() => setGrants(idx)}
-                  className="h-5 w-5 flex-shrink-0 accent-emerald-500"
-                />
-                <span className="text-[11px] leading-snug text-neutral-200">
-                  Es mi 2º poblado (el último que coloqué): recibe recursos al
-                  iniciar
-                </span>
-              </label>
             </div>
           );
         })}
@@ -336,8 +306,9 @@ export function InitialBuildSetup(): JSX.Element | null {
 }
 
 // Bottom-sheet del picker de ficha: número (2–12 sin 7, el desierto no se
-// registra) + recurso, ambos pasos visibles a la vez (sin wizard).
-function SpotPickerSheet({
+// registra) + recurso, ambos pasos visibles a la vez (sin wizard). Lo reusa
+// la Tabla de construcción durante la partida.
+export function SpotPickerSheet({
   buildLabel,
   editing,
   initialNumber,

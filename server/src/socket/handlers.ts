@@ -2,7 +2,6 @@ import { Server, Socket } from 'socket.io';
 import { nanoid } from 'nanoid';
 import {
   GameState,
-  Hex,
   Hand,
   Player,
   PlayerColor,
@@ -44,8 +43,8 @@ import {
   reconnect,
   setPlayerConnection,
 } from '../game/rooms';
-import { InitialBuilding, DevCardType } from '../game/state';
-import { applyInitialSetup, playerSetupComplete, validateInitialBuildings } from '../game/setup';
+import { Building, DevCardType } from '../game/state';
+import { applyInitialSetup, playerSetupComplete, rebuildHexes, validateBuildings } from '../game/setup';
 import { buildViewWithOwnHidden } from './views';
 import { isDbConnected } from '../db/connection';
 import { User } from '../db/models/User';
@@ -280,23 +279,46 @@ export function registerHandlers(io: Server, socket: Socket): void {
     broadcastState(io, state);
   });
 
-  // Registro de construcciones iniciales (cada jugador, desde su celular, en el lobby)
-  socket.on('lobby:setInitialBuildings', ({ initialBuildings }: { initialBuildings: InitialBuilding[] }) => {
+  // Tabla de construcción del jugador: en el lobby registra sus 2 poblados de
+  // salida; durante la partida agrega/edita poblados y ciudades A VOLUNTAD
+  // (sin requerir recursos — el tablero físico es la autoridad). Solo edita
+  // la suya; los hexes de producción se derivan de las tablas de todos.
+  socket.on('player:setBuildings', ({ buildings }: { buildings: Building[] }) => {
     const state = getRoom(socket.data.code ?? '');
-    if (!state || state.status !== 'lobby') return;
+    if (!state || state.status === 'ended') return;
     const player = findPlayer(state, socket.data.playerId ?? '');
     if (!player) return;
-    const val = validateInitialBuildings(initialBuildings);
+    const val = validateBuildings(buildings);
     if (!val.ok) {
       socket.emit('error', { message: val.reason });
       return;
     }
-    player.initialBuildings = initialBuildings.map((b) => ({
+    const playing = state.status === 'playing';
+    if (playing) pushSnapshot(state);
+    const before = {
+      settlements: player.buildings.filter((b) => b.type === 'settlement').length,
+      cities: player.buildings.filter((b) => b.type === 'city').length,
+    };
+    player.buildings = buildings.map((b) => ({
       id: b.id || nanoid(8),
       type: b.type,
       spots: b.spots.map((s) => ({ number: s.number, resource: s.resource })),
-      grantsStartingResources: b.grantsStartingResources,
     }));
+    if (playing) {
+      state.hexes = rebuildHexes(state.players, state.hexes);
+      recomputeVictoryPoints(state);
+      const after = {
+        settlements: player.buildings.filter((b) => b.type === 'settlement').length,
+        cities: player.buildings.filter((b) => b.type === 'city').length,
+      };
+      if (after.settlements !== before.settlements || after.cities !== before.cities) {
+        logAction(
+          state,
+          `${player.name} actualizó su tabla: ${after.settlements} ${after.settlements === 1 ? 'poblado' : 'poblados'} y ${after.cities} ${after.cities === 1 ? 'ciudad' : 'ciudades'}.`,
+          player.id
+        );
+      }
+    }
     broadcastState(io, state);
   });
 
@@ -325,7 +347,8 @@ export function registerHandlers(io: Server, socket: Socket): void {
     state.currentTurnIndex = 0;
     state.startedAt = Date.now();
 
-    // Sembrar la tabla de producción y repartir los recursos del 2º poblado
+    // Derivar los hexes de producción y repartir los recursos de inicio:
+    // 1 carta por cada ficha que tocan los poblados registrados (todos).
     const setup = applyInitialSetup(state.players, state.bank);
     state.hexes = setup.hexes;
     for (const player of state.players) {
@@ -348,54 +371,8 @@ export function registerHandlers(io: Server, socket: Socket): void {
     broadcastState(io, state);
   });
 
-  // === Tabla de producción ===
-  socket.on('hex:upsert', ({ hex }: { hex: Hex }) => {
-    const state = getRoom(socket.data.code ?? '');
-    if (!state) return;
-    pushSnapshot(state);
-    const idx = state.hexes.findIndex((h) => h.id === hex.id);
-    if (idx >= 0) state.hexes[idx] = { ...state.hexes[idx], ...hex };
-    else state.hexes.push({ ...hex, owners: hex.owners ?? [] });
-    recomputeVictoryPoints(state);
-    broadcastState(io, state);
-  });
-
-  socket.on('hex:remove', ({ hexId }: { hexId: string }) => {
-    const state = getRoom(socket.data.code ?? '');
-    if (!state) return;
-    pushSnapshot(state);
-    state.hexes = state.hexes.filter((h) => h.id !== hexId);
-    recomputeVictoryPoints(state);
-    broadcastState(io, state);
-  });
-
-  socket.on(
-    'hex:addOwner',
-    ({ hexId, playerId, type }: { hexId: string; playerId: string; type: 'settlement' | 'city' }) => {
-      const state = getRoom(socket.data.code ?? '');
-      if (!state) return;
-      const hex = state.hexes.find((h) => h.id === hexId);
-      if (!hex) return;
-      pushSnapshot(state);
-      // Si ya existe como settlement y queremos city, actualizar
-      const existing = hex.owners.find((o) => o.playerId === playerId);
-      if (existing) existing.type = type;
-      else hex.owners.push({ playerId, type });
-      recomputeVictoryPoints(state);
-      broadcastState(io, state);
-    }
-  );
-
-  socket.on('hex:removeOwner', ({ hexId, playerId }: { hexId: string; playerId: string }) => {
-    const state = getRoom(socket.data.code ?? '');
-    if (!state) return;
-    const hex = state.hexes.find((h) => h.id === hexId);
-    if (!hex) return;
-    pushSnapshot(state);
-    hex.owners = hex.owners.filter((o) => o.playerId !== playerId);
-    recomputeVictoryPoints(state);
-    broadcastState(io, state);
-  });
+  // (Los antiguos handlers hex:* desaparecieron: los hexes ahora se derivan
+  // de las tablas de construcción vía player:setBuildings.)
 
   socket.on('player:setPorts', ({ ports }: { ports: PortType[] }) => {
     const state = getRoom(socket.data.code ?? '');
@@ -739,6 +716,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
         toId,
         give,
         receive,
+        rejectedBy: [],
       };
       logAction(state, `${player.name} ofreció un intercambio.`, player.id);
       broadcastState(io, state);
@@ -753,9 +731,20 @@ export function registerHandlers(io: Server, socket: Socket): void {
     const offer = state.activeTrade;
     if (offer.toId && offer.toId !== responder.id) return;
     if (responder.id === offer.fromId) return;
+    // Quien ya rechazó no puede volver a responder a la misma oferta.
+    if (offer.rejectedBy.includes(responder.id)) return;
     if (!accept) {
+      // El rechazo es individual: la oferta se oculta solo para quien
+      // rechazó; los demás la siguen viendo hasta aceptar o rechazar.
+      offer.rejectedBy.push(responder.id);
       logAction(state, `${responder.name} rechazó el intercambio.`, responder.id);
-      state.activeTrade = undefined;
+      const eligible = offer.toId
+        ? [offer.toId]
+        : state.players.filter((p) => p.id !== offer.fromId).map((p) => p.id);
+      if (eligible.every((id) => offer.rejectedBy.includes(id))) {
+        state.activeTrade = undefined;
+        logAction(state, 'Nadie aceptó el intercambio: la oferta se retiró.');
+      }
       broadcastState(io, state);
       return;
     }
