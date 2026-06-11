@@ -128,8 +128,8 @@ interface StoreState {
   moveRobber: (hexId: string) => void;
   stealFrom: (targetPlayerId: string) => void;
 
-  // Acciones
-  build: (type: BuildType) => void;
+  // Acciones. Comprar una ciudad exige decir qué poblado se convierte.
+  build: (type: BuildType, settlementId?: string) => void;
   playDevCard: (card: DevCardType, payload?: unknown) => void;
   tradeBank: (give: Resource, receive: Resource) => void;
   offerTrade: (toId: string | null, give: Partial<Hand>, receive: Partial<Hand>) => void;
@@ -348,7 +348,7 @@ export const useStore = create<StoreState>((set, get) => ({
   stealFrom: (targetPlayerId) =>
     socket.emit('robber:steal', { targetPlayerId }),
 
-  build: (type) => socket.emit('build', { type }),
+  build: (type, settlementId) => socket.emit('build', { type, settlementId }),
   playDevCard: (card, payload) =>
     socket.emit('dev:play', { card, payload }),
   tradeBank: (give, receive) =>

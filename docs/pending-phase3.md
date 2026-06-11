@@ -47,7 +47,15 @@ Estado (2026-06-10, cierre): pases de qa-auditor, visual-designer y motion-engin
 - Verificado con smoke E2E real (server + 3 sockets): reparto inicial, edición fuera de turno, producción compartida, rechazos individuales, oferta dirigida, aceptación.
 - Nota de diseño: los botones "Construir" del ActionGrid siguen siendo el flujo que descuenta recursos (con validación de costo); el registro libre es vía la Tabla de construcción.
 
-### 4c. Cambios 3 (2026-06-11, pedidos por Esteban)
+### 4d. Cambios 3 de cambios.txt (2026-06-11, pedidos por Esteban)
+1. **Tabla dirigida por compras**: ya no se agregan poblados/ciudades a mano (botones eliminados). Comprar un Poblado crea su slot vacío en la tabla; comprar una Ciudad pide elegir qué poblado convertir (`build {type, settlementId}`). `player:setBuildings` en partida solo permite editar fichas y quitar (el server rechaza altas y cambios de tipo). En el lobby sigue libre para el registro inicial.
+2. **Confirmación de compra**: toda compra (camino, poblado, ciudad, carta) pasa por un modal con el costo; la ciudad integra ahí el selector de poblado.
+3. **Banco ilimitado**: ningún flujo se bloquea por banco insuficiente (tirada, trade banco, YoP, entrega manual, reparto inicial). Los contadores son informativos con piso en 0 (`drainBank`). El forzado del GiveCardModal quedó solo para el mazo de desarrollo. Bonus: entrega de dev card sin tipo ahora sí toma la cima del mazo (bug previo).
+4. **Marcador propio en el TopBar**: nombre + color + "N pts" siempre visibles.
+5. **Sección "Cartas de desarrollo"** bajo la Tabla de construcción: lista mis cartas con preview de solo lectura (arte grande + descripción); `DevCardPreview` extraído como componente compartido con el modal de jugar.
+- Verificado con smoke E2E real (12 checks): compra de poblado/ciudad, rechazo de altas a mano, edición de fichas, banco que nunca bloquea.
+
+### 4c. Cambios previos (2026-06-11, pedidos por Esteban)
 1. **Íconos más grandes**: +30–40% en mano, descarte, pickers, trades, recetas y tabla de construcción.
 2. **Recetas ocultables**: toggle "Ocultar recetas" en las acciones de construcción (preferencia por dispositivo, `ui.collapse.buildRecipes`).
 3. **Arte propio de cartas de desarrollo** integrado en `DevCardGlyph` (medallones a 160px en `assets/icons/`).

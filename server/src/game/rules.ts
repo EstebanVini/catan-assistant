@@ -44,8 +44,14 @@ export function payToBank(hand: Hand, bank: Hand, cost: Partial<Hand>): void {
 export function takeFromBank(hand: Hand, bank: Hand, take: Partial<Hand>): void {
   for (const [res, n] of Object.entries(take) as [Resource, number][]) {
     hand[res] += n;
-    bank[res] -= n;
+    drainBank(bank, res, n);
   }
+}
+
+// El banco es ILIMITADO (decisión de mesa): nunca bloquea una entrega. El
+// contador es solo informativo y tiene piso en 0 para no mostrar negativos.
+export function drainBank(bank: Hand, res: Resource, n: number): void {
+  bank[res] = Math.max(0, bank[res] - n);
 }
 
 // === Mazo de cartas de desarrollo ===
@@ -70,68 +76,36 @@ export function shuffle<T>(arr: T[]): T[] {
 }
 
 // === Distribución por tirada ===
-// Devuelve un mapa { playerId -> recursos recibidos } y mutate bank + hands.
+// Devuelve un mapa { playerId -> recursos recibidos } y muta bank + hands.
+// El banco es ilimitado: todos reciben su demanda completa, siempre.
+// `shortages`/`partials` se conservan en la firma (siempre vacíos) para no
+// romper a los consumidores.
 export interface DistributionResult {
   perPlayer: Record<string, Partial<Hand>>;
-  shortages: Resource[]; // recursos donde no alcanzó para todos y nadie recibió
+  shortages: Resource[];
   partials: Array<{ playerId: string; resource: Resource; given: number; wanted: number }>;
 }
 
 export function distributeForRoll(state: GameState, number: number): DistributionResult {
   const perPlayer: Record<string, Partial<Hand>> = {};
-  const shortages: Resource[] = [];
-  const partials: DistributionResult['partials'] = [];
 
-  // 1. Calcular demanda por recurso, agrupada
-  // Map<Resource, Map<playerId, count>>
-  const demand: Map<Resource, Map<string, number>> = new Map();
   for (const hex of state.hexes) {
     if (hex.number !== number) continue;
     if (hex.robber) continue;
     if (!hex.resource) continue;
     for (const owner of hex.owners) {
-      const add = owner.type === 'city' ? 2 : 1;
-      if (!demand.has(hex.resource)) demand.set(hex.resource, new Map());
-      const m = demand.get(hex.resource)!;
-      m.set(owner.playerId, (m.get(owner.playerId) ?? 0) + add);
+      const n = owner.type === 'city' ? 2 : 1;
+      const player = state.players.find((p) => p.id === owner.playerId);
+      if (!player) continue;
+      player.hand[hex.resource] += n;
+      drainBank(state.bank, hex.resource, n);
+      perPlayer[owner.playerId] = perPlayer[owner.playerId] ?? {};
+      perPlayer[owner.playerId][hex.resource] =
+        (perPlayer[owner.playerId][hex.resource] ?? 0) + n;
     }
   }
 
-  // 2. Aplicar regla del banco limitado por recurso
-  for (const [res, perPlayerDemand] of demand.entries()) {
-    const total = Array.from(perPlayerDemand.values()).reduce((a, b) => a + b, 0);
-    const available = state.bank[res];
-
-    if (total <= available) {
-      // Todo cabe
-      for (const [pid, n] of perPlayerDemand.entries()) {
-        perPlayer[pid] = perPlayer[pid] ?? {};
-        perPlayer[pid][res] = (perPlayer[pid][res] ?? 0) + n;
-      }
-      state.bank[res] -= total;
-      for (const pid of perPlayerDemand.keys()) {
-        const player = state.players.find((p) => p.id === pid)!;
-        player.hand[res] += perPlayerDemand.get(pid)!;
-      }
-    } else if (perPlayerDemand.size === 1) {
-      // Solo un jugador, recibe lo que quede
-      const [pid, wanted] = Array.from(perPlayerDemand.entries())[0];
-      const given = available;
-      if (given > 0) {
-        perPlayer[pid] = perPlayer[pid] ?? {};
-        perPlayer[pid][res] = (perPlayer[pid][res] ?? 0) + given;
-        const player = state.players.find((p) => p.id === pid)!;
-        player.hand[res] += given;
-        state.bank[res] -= given;
-        if (given < wanted) partials.push({ playerId: pid, resource: res, given, wanted });
-      }
-    } else {
-      // Varios y no alcanza → nadie recibe
-      shortages.push(res);
-    }
-  }
-
-  return { perPlayer, shortages, partials };
+  return { perPlayer, shortages: [], partials: [] };
 }
 
 // === Cálculo de descartes tras 7 ===
@@ -181,13 +155,11 @@ export function tradeWithBank(
   if (player.hand[give] < ratio) {
     return { ok: false, reason: `Necesitas ${ratio} ${give} para esta proporción.` };
   }
-  if (state.bank[receive] < 1) {
-    return { ok: false, reason: `El banco no tiene ${receive}.` };
-  }
+  // Banco ilimitado: nunca se queda sin el recurso a entregar.
   player.hand[give] -= ratio;
   state.bank[give] += ratio;
   player.hand[receive] += 1;
-  state.bank[receive] -= 1;
+  drainBank(state.bank, receive, 1);
   return { ok: true, ratio };
 }
 

@@ -20,6 +20,7 @@ import {
   canAfford,
   computePendingDiscards,
   distributeForRoll,
+  drainBank,
   executeTrade,
   findPlayer,
   payToBank,
@@ -280,8 +281,9 @@ export function registerHandlers(io: Server, socket: Socket): void {
   });
 
   // Tabla de construcción del jugador: en el lobby registra sus 2 poblados de
-  // salida; durante la partida agrega/edita poblados y ciudades A VOLUNTAD
-  // (sin requerir recursos — el tablero físico es la autoridad). Solo edita
+  // salida (edición libre). Durante la partida los poblados/ciudades SOLO
+  // crecen comprando ('build'): aquí únicamente se editan las fichas de las
+  // construcciones existentes o se quita una registrada por error. Solo edita
   // la suya; los hexes de producción se derivan de las tablas de todos.
   socket.on('player:setBuildings', ({ buildings }: { buildings: Building[] }) => {
     const state = getRoom(socket.data.code ?? '');
@@ -294,6 +296,20 @@ export function registerHandlers(io: Server, socket: Socket): void {
       return;
     }
     const playing = state.status === 'playing';
+    if (playing) {
+      const prevById = new Map(player.buildings.map((b) => [b.id, b]));
+      for (const b of buildings) {
+        const prev = prevById.get(b.id);
+        if (!prev) {
+          socket.emit('error', { message: 'Los poblados se agregan comprándolos en Construir.' });
+          return;
+        }
+        if (prev.type !== b.type) {
+          socket.emit('error', { message: 'Para subir un poblado a ciudad, compra una Ciudad en Construir.' });
+          return;
+        }
+      }
+    }
     if (playing) pushSnapshot(state);
     const before = {
       settlements: player.buildings.filter((b) => b.type === 'settlement').length,
@@ -555,54 +571,79 @@ export function registerHandlers(io: Server, socket: Socket): void {
   });
 
   // === Construir ===
-  socket.on('build', ({ type }: { type: 'road' | 'settlement' | 'city' | 'devcard' }) => {
-    const state = getRoom(socket.data.code ?? '');
-    if (!state) return;
-    const player = findPlayer(state, socket.data.playerId ?? '');
-    if (!player) return;
-    // En main solo el activo; en specialBuild solo el primero de la cola
-    if (state.phase === 'main') {
-      if (!ensureActive(state, player.id)) {
-        socket.emit('error', { message: 'No es tu turno.' });
+  // Comprar es la ÚNICA forma de crecer la Tabla de construcción durante la
+  // partida: un Poblado crea su slot (sin fichas; el dueño las registra
+  // después) y una Ciudad convierte el poblado que el comprador eligió
+  // (settlementId).
+  socket.on(
+    'build',
+    ({ type, settlementId }: { type: 'road' | 'settlement' | 'city' | 'devcard'; settlementId?: string }) => {
+      const state = getRoom(socket.data.code ?? '');
+      if (!state) return;
+      const player = findPlayer(state, socket.data.playerId ?? '');
+      if (!player) return;
+      // En main solo el activo; en specialBuild solo el primero de la cola
+      if (state.phase === 'main') {
+        if (!ensureActive(state, player.id)) {
+          socket.emit('error', { message: 'No es tu turno.' });
+          return;
+        }
+      } else if (state.phase === 'specialBuild') {
+        if (state.specialBuildQueue[0] !== player.id) {
+          socket.emit('error', { message: 'No es tu turno en la Construcción especial.' });
+          return;
+        }
+      } else {
+        socket.emit('error', { message: 'No puedes construir ahora.' });
         return;
       }
-    } else if (state.phase === 'specialBuild') {
-      if (state.specialBuildQueue[0] !== player.id) {
-        socket.emit('error', { message: 'No es tu turno en la Construcción especial.' });
+      // Ciudad: validar el poblado a convertir ANTES de cobrar.
+      const targetSettlement =
+        type === 'city'
+          ? player.buildings.find((b) => b.id === settlementId && b.type === 'settlement')
+          : undefined;
+      if (type === 'city' && !targetSettlement) {
+        socket.emit('error', { message: 'Elige qué poblado se convierte en ciudad.' });
         return;
       }
-    } else {
-      socket.emit('error', { message: 'No puedes construir ahora.' });
-      return;
-    }
-    const cost = BUILD_COSTS[type];
-    if (!canAfford(player.hand, cost)) {
-      const lack = shortfall(player.hand, cost);
-      const parts = (Object.entries(lack) as [Resource, number][]).map(([r, n]) => `${n} ${esResource(r)}`);
-      socket.emit('error', { message: `Te falta: ${parts.join(', ')}.` });
-      return;
-    }
-    pushSnapshot(state);
-    payToBank(player.hand, state.bank, cost);
-    if (type === 'devcard') {
-      const card = state.devDeck.pop();
-      if (!card) {
-        socket.emit('error', { message: 'No quedan cartas de desarrollo.' });
+      const cost = BUILD_COSTS[type];
+      if (!canAfford(player.hand, cost)) {
+        const lack = shortfall(player.hand, cost);
+        const parts = (Object.entries(lack) as [Resource, number][]).map(([r, n]) => `${n} ${esResource(r)}`);
+        socket.emit('error', { message: `Te falta: ${parts.join(', ')}.` });
         return;
       }
-      player.devCards[card] += 1;
-      // Las cartas de Punto de victoria NO suman al marcador al comprarse:
-      // cuentan cuando el dueño las usa (dev:play). Por eso tampoco entran a
-      // devCardsBoughtThisTurn (pueden usarse el mismo turno).
-      if (card !== 'vp') player.devCardsBoughtThisTurn.push(card);
-      logAction(state, `${player.name} compró una carta de desarrollo.`, player.id);
-    } else {
-      const label = type === 'road' ? 'un Camino' : type === 'settlement' ? 'un Poblado' : 'una Ciudad';
-      logAction(state, `${player.name} construyó ${label}.`, player.id);
+      pushSnapshot(state);
+      payToBank(player.hand, state.bank, cost);
+      if (type === 'devcard') {
+        const card = state.devDeck.pop();
+        if (!card) {
+          socket.emit('error', { message: 'No quedan cartas de desarrollo.' });
+          return;
+        }
+        player.devCards[card] += 1;
+        // Las cartas de Punto de victoria NO suman al marcador al comprarse:
+        // cuentan cuando el dueño las usa (dev:play). Por eso tampoco entran a
+        // devCardsBoughtThisTurn (pueden usarse el mismo turno).
+        if (card !== 'vp') player.devCardsBoughtThisTurn.push(card);
+        logAction(state, `${player.name} compró una carta de desarrollo.`, player.id);
+      } else if (type === 'settlement') {
+        player.buildings.push({ id: nanoid(8), type: 'settlement', spots: [] });
+        state.hexes = rebuildHexes(state.players, state.hexes);
+        recomputeVictoryPoints(state);
+        logAction(state, `${player.name} construyó un Poblado. Le falta registrar sus fichas.`, player.id);
+      } else if (type === 'city') {
+        targetSettlement!.type = 'city';
+        state.hexes = rebuildHexes(state.players, state.hexes);
+        recomputeVictoryPoints(state);
+        logAction(state, `${player.name} construyó una Ciudad (subió un poblado).`, player.id);
+      } else {
+        logAction(state, `${player.name} construyó un Camino.`, player.id);
+      }
+      broadcastState(io, state);
+      checkVictory(io, state, player);
     }
-    broadcastState(io, state);
-    checkVictory(io, state, player);
-  });
+  );
 
   // === Cartas de desarrollo ===
   socket.on('dev:play', ({ card, payload }: { card: 'knight' | 'monopoly' | 'yearOfPlenty' | 'roadBuilding' | 'vp'; payload?: any }) => {
@@ -657,18 +698,13 @@ export function registerHandlers(io: Server, socket: Socket): void {
       logAction(state, `${player.name} declaró Monopolio de ${esResource(res)} y se llevó ${total} cartas.`, player.id);
     } else if (card === 'yearOfPlenty') {
       const picks = (payload?.resources as Resource[]) ?? [];
-      if (picks.length !== 2) {
+      if (picks.length !== 2 || picks.some((r) => !RESOURCES.includes(r))) {
         socket.emit('error', { message: 'Elige 2 recursos.' });
         return;
       }
+      // Banco ilimitado: siempre hay de dónde tomar.
       for (const r of picks) {
-        if (!RESOURCES.includes(r) || state.bank[r] < 1) {
-          socket.emit('error', { message: 'El banco se quedó sin ese recurso.' });
-          return;
-        }
-      }
-      for (const r of picks) {
-        state.bank[r] -= 1;
+        drainBank(state.bank, r, 1);
         player.hand[r] += 1;
       }
       logAction(state, `${player.name} jugó Año de la abundancia: tomó ${picks.map(esResource).join(' y ')}.`, player.id);
@@ -889,30 +925,30 @@ export function registerHandlers(io: Server, socket: Socket): void {
           socket.emit('error', { message: 'Elige un recurso válido.' });
           return;
         }
-        if (state.bank[resource] < 1 && !force) {
-          socket.emit('error', { message: `El banco no tiene ${esResource(resource)}. Puedes forzar la entrega si la mesa lo acuerda.` });
-          return;
-        }
+        // Banco ilimitado: la entrega nunca se bloquea ni requiere forzado.
         pushSnapshot(state);
-        if (state.bank[resource] >= 1) state.bank[resource] -= 1;
+        drainBank(state.bank, resource, 1);
         target.hand[resource] += 1;
         const text = `⚠️ El banco entregó 1 ${esResource(resource)} a ${target.name}`;
         logAction(state, `${text} (entrega manual de ${giver?.name ?? 'banco'}).`, target.id);
         io.to(state.code).emit('notice', { level: 'warn', text });
       } else {
         const validDev: DevCardType[] = ['knight', 'vp', 'roadBuilding', 'yearOfPlenty', 'monopoly'];
-        if (!devCard || !validDev.includes(devCard)) {
-          socket.emit('error', { message: 'Elige una carta de desarrollo válida.' });
+        // Sin tipo explícito: la carta superior del mazo (es lo que promete
+        // el modal del banco).
+        const chosen = devCard ?? state.devDeck[state.devDeck.length - 1];
+        if (!chosen || !validDev.includes(chosen)) {
+          socket.emit('error', { message: 'No quedan cartas en el mazo de desarrollo.' });
           return;
         }
-        const idxInDeck = state.devDeck.indexOf(devCard);
+        const idxInDeck = state.devDeck.lastIndexOf(chosen);
         if (idxInDeck === -1 && !force) {
           socket.emit('error', { message: 'No quedan cartas de ese tipo en el mazo. Puedes forzar la entrega si la mesa lo acuerda.' });
           return;
         }
         pushSnapshot(state);
         if (idxInDeck !== -1) state.devDeck.splice(idxInDeck, 1);
-        target.devCards[devCard] += 1;
+        target.devCards[chosen] += 1;
         const text = `⚠️ El banco entregó 1 carta de desarrollo a ${target.name}`;
         logAction(state, `${text} (entrega manual de ${giver?.name ?? 'banco'}).`, target.id);
         io.to(state.code).emit('notice', { level: 'warn', text });

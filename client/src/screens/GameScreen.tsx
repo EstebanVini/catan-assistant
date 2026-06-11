@@ -17,9 +17,11 @@ import { YearOfPlentyPickerModal } from '../components/YearOfPlentyPickerModal';
 import { RoadBuildingConfirmModal } from '../components/RoadBuildingConfirmModal';
 import { DiceStats } from '../components/DiceStats';
 import { CollapsibleSection } from '../components/CollapsibleSection';
-import { DevCardType, handTotal, totalVictoryPoints } from '../types';
-import { DEV_CARD_DESCRIPTIONS, DEV_CARD_NAMES, vpCardsCopy } from '../lib/spanish';
+import { DevCardType, totalVictoryPoints } from '../types';
+import { DEV_CARD_NAMES, vpCardsCopy } from '../lib/spanish';
 import { DevCardGlyph } from '../assets/icons';
+import { DevCardPreview } from '../components/DevCardPreview';
+import { DevCardsPanel } from '../components/DevCardsPanel';
 import { safeVibrate } from '../lib/motion';
 import { useModalA11y } from '../lib/useModalA11y';
 
@@ -132,6 +134,7 @@ export function GameScreen(): JSX.Element | null {
         <div className="min-w-0 md:row-span-2 lg:row-span-1">
           <BankPanel />
           <ConstructionTable />
+          <DevCardsPanel />
         </div>
         <div className="min-w-0">
           <PublicPlayersPanel />
@@ -239,7 +242,6 @@ type DevRow = {
   subtitle: string;
   available: number;
   newCount: number;
-  extraReason: string | null;
   onPick: () => void;
 };
 
@@ -260,7 +262,6 @@ function PlayDevModal({
 }): JSX.Element {
   const view = useStore((s) => s.view)!;
   const me = view.me!;
-  const state = view.state;
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalA11y(dialogRef, onClose);
   // Carta en preview (null = lista). El preview es un overlay encima de la
@@ -278,11 +279,10 @@ function PlayDevModal({
     return me.devCards[card] - newCount(card);
   }
 
-  const bankTotal = handTotal(state.bank);
-
   // No hay forma directa de saber "ya jugué una carta este turno" desde el
   // estado público; el server rechazaría la jugada. Aquí mostramos las
-  // razones por carta y dejamos que el server sea autoridad.
+  // razones por carta y dejamos que el server sea autoridad. (El banco es
+  // ilimitado: Año de la abundancia ya no se bloquea por banco vacío.)
   const rows: DevRow[] = [];
 
   if (me.devCards.knight > 0) {
@@ -292,7 +292,6 @@ function PlayDevModal({
       subtitle: 'Mueve el ladrón y roba 1 carta.',
       available: playable('knight'),
       newCount: newCount('knight'),
-      extraReason: null,
       onPick: onPickKnight,
     });
   }
@@ -303,7 +302,6 @@ function PlayDevModal({
       subtitle: 'Úsala para sumar +1 punto a tu marcador.',
       available: me.devCards.vp,
       newCount: 0,
-      extraReason: null,
       onPick: onPickVP,
     });
   }
@@ -314,7 +312,6 @@ function PlayDevModal({
       subtitle: 'Toma todas las cartas de 1 recurso de los demás.',
       available: playable('monopoly'),
       newCount: newCount('monopoly'),
-      extraReason: null,
       onPick: onPickMonopoly,
     });
   }
@@ -325,10 +322,6 @@ function PlayDevModal({
       subtitle: 'Toma 2 cartas del banco.',
       available: playable('yearOfPlenty'),
       newCount: newCount('yearOfPlenty'),
-      extraReason:
-        bankTotal === 0
-          ? 'El banco no tiene recursos para esta carta.'
-          : null,
       onPick: onPickYoP,
     });
   }
@@ -339,7 +332,6 @@ function PlayDevModal({
       subtitle: 'Coloca 2 caminos sin pagar recursos.',
       available: playable('roadBuilding'),
       newCount: newCount('roadBuilding'),
-      extraReason: null,
       onPick: onPickRoadBuilding,
     });
   }
@@ -425,8 +417,16 @@ function PlayDevModal({
       </div>
       {preview ? (
         <DevCardPreview
-          row={preview}
+          card={preview.card}
           count={me.devCards[preview.card]}
+          reason={
+            preview.available <= 0 && preview.newCount > 0
+              ? 'Comprada este turno — no se puede jugar todavía.'
+              : null
+          }
+          playLabel={
+            preview.card === 'vp' ? 'Usar punto de victoria' : 'Jugar carta'
+          }
           onClose={() => setPreview(null)}
           onPlay={() => {
             setPreview(null);
@@ -434,93 +434,6 @@ function PlayDevModal({
           }}
         />
       ) : null}
-    </div>
-  );
-}
-
-// Preview de una carta de desarrollo: arte grande + descripción completa.
-// Desde aquí se confirma la jugada ("Jugar carta" / "Usar punto de victoria").
-function DevCardPreview({
-  row,
-  count,
-  onClose,
-  onPlay,
-}: {
-  row: DevRow;
-  count: number;
-  onClose: () => void;
-  onPlay: () => void;
-}): JSX.Element {
-  const ref = useRef<HTMLDivElement>(null);
-  useModalA11y(ref, onClose);
-  const blockedByNew = row.available <= 0 && row.newCount > 0;
-  const reason: string | null = row.extraReason
-    ? row.extraReason
-    : blockedByNew
-      ? 'Comprada este turno — no se puede jugar todavía.'
-      : null;
-  const canPlay = row.available > 0 && row.extraReason === null;
-  return (
-    <div
-      className="anim-fade-in fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-3"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClose();
-      }}
-    >
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="dev-preview-title"
-        aria-describedby="dev-preview-desc"
-        onClick={(e) => e.stopPropagation()}
-        className="anim-scale-in w-full max-w-xs rounded-2xl border border-white/10 bg-neutral-900 p-4 text-center shadow-2xl ring-1 ring-white/5"
-      >
-        <div className="flex justify-center">
-          <DevCardGlyph card={row.card} size={128} />
-        </div>
-        <h3
-          id="dev-preview-title"
-          className="mt-3 text-lg font-semibold tracking-tight text-neutral-50"
-        >
-          {row.title}
-          <span className="nums ml-2 text-sm font-bold text-neutral-400">
-            ×{count}
-          </span>
-        </h3>
-        <p
-          id="dev-preview-desc"
-          className="mt-2 text-sm leading-relaxed text-neutral-300"
-        >
-          {DEV_CARD_DESCRIPTIONS[row.card]}
-        </p>
-        {reason ? (
-          <p className="mt-2 text-xs font-medium text-amber-300">{reason}</p>
-        ) : null}
-        <div className="mt-4 flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-[48px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
-          >
-            Volver
-          </button>
-          <button
-            type="button"
-            disabled={!canPlay}
-            onClick={onPlay}
-            className={
-              'min-h-[48px] flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-all ' +
-              (canPlay
-                ? 'bg-emerald-500 text-neutral-950 shadow-cta active:scale-[0.99] active:bg-emerald-400'
-                : 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-500')
-            }
-          >
-            {row.card === 'vp' ? 'Usar punto de victoria' : 'Jugar carta'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

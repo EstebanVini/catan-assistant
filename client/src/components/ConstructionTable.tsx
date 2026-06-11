@@ -10,21 +10,18 @@ import { BuildingGlyph, DesertGlyph, RobberGlyph } from '../assets/icons';
 
 // Tabla de construcción: SOLO mis poblados y ciudades, en dos listas. Cada
 // entrada registra las fichas (número + recurso) que toca esa construcción.
-// Cualquier jugador edita la suya a voluntad, en cualquier momento y SIN
-// requerir recursos — el tablero físico es la autoridad; el server deriva de
-// aquí la producción y el recuento público de poblados/ciudades.
+//
+// Los poblados/ciudades NO se agregan a mano: comprar un Poblado (en
+// Construir) crea su slot aquí, y comprar una Ciudad convierte el poblado que
+// el comprador eligió. En esta tabla solo se editan las fichas de cada
+// construcción (y se puede quitar una registrada por error). El server deriva
+// de aquí la producción y el recuento público de poblados/ciudades.
 //
 // Durante la fase del ladrón la sección se fuerza abierta y muestra la lista
 // de fichas de TODA la mesa (derivada por el server) para que el jugador en
 // turno elija a dónde moverlo; el resumen cerrado siempre dice dónde está.
 
-type SheetState =
-  | { kind: 'newBuilding'; type: Building['type'] }
-  | { kind: 'spot'; buildingId: string; spotIdx: number | null };
-
-function newBuildingId(): string {
-  return 'bld-' + Math.random().toString(36).slice(2, 10);
-}
+type SheetState = { buildingId: string; spotIdx: number | null };
 
 export function ConstructionTable(): JSX.Element | null {
   const view = useStore((s) => s.view);
@@ -50,27 +47,20 @@ export function ConstructionTable(): JSX.Element | null {
 
   function confirmSheet(number: number, resource: Resource): void {
     if (!sheet) return;
-    if (sheet.kind === 'newBuilding') {
-      setBuildings([
-        ...buildings,
-        { id: newBuildingId(), type: sheet.type, spots: [{ number, resource }] },
-      ]);
-    } else {
-      setBuildings(
-        buildings.map((b) => {
-          if (b.id !== sheet.buildingId) return b;
-          if (sheet.spotIdx === null) {
-            return { ...b, spots: [...b.spots, { number, resource }] };
-          }
-          return {
-            ...b,
-            spots: b.spots.map((s, j) =>
-              j === sheet.spotIdx ? { number, resource } : s
-            ),
-          };
-        })
-      );
-    }
+    setBuildings(
+      buildings.map((b) => {
+        if (b.id !== sheet.buildingId) return b;
+        if (sheet.spotIdx === null) {
+          return { ...b, spots: [...b.spots, { number, resource }] };
+        }
+        return {
+          ...b,
+          spots: b.spots.map((s, j) =>
+            j === sheet.spotIdx ? { number, resource } : s
+          ),
+        };
+      })
+    );
     setSheet(null);
   }
 
@@ -84,24 +74,13 @@ export function ConstructionTable(): JSX.Element | null {
     );
   }
 
-  function toggleType(buildingId: string): void {
-    setBuildings(
-      buildings.map((b) =>
-        b.id === buildingId
-          ? { ...b, type: b.type === 'city' ? 'settlement' : 'city' }
-          : b
-      )
-    );
-  }
-
   function removeBuilding(buildingId: string): void {
     setBuildings(buildings.filter((b) => b.id !== buildingId));
   }
 
-  const sheetBuilding =
-    sheet?.kind === 'spot'
-      ? buildings.find((b) => b.id === sheet.buildingId) ?? null
-      : null;
+  const sheetBuilding = sheet
+    ? buildings.find((b) => b.id === sheet.buildingId) ?? null
+    : null;
 
   return (
     <>
@@ -138,33 +117,26 @@ export function ConstructionTable(): JSX.Element | null {
             <>
               <BuildingList
                 title="Poblados"
-                addLabel="+ Agregar poblado"
-                emptyCopy="Sin poblados registrados."
+                emptyCopy="Sin poblados. Se agregan comprándolos en Construir."
                 buildings={settlements}
-                toggleLabel="Subir a ciudad"
-                onAdd={() => setSheet({ kind: 'newBuilding', type: 'settlement' })}
-                onAddSpot={(id) => setSheet({ kind: 'spot', buildingId: id, spotIdx: null })}
-                onEditSpot={(id, j) => setSheet({ kind: 'spot', buildingId: id, spotIdx: j })}
+                onAddSpot={(id) => setSheet({ buildingId: id, spotIdx: null })}
+                onEditSpot={(id, j) => setSheet({ buildingId: id, spotIdx: j })}
                 onRemoveSpot={removeSpot}
-                onToggleType={toggleType}
                 onRemove={removeBuilding}
               />
               <BuildingList
                 title="Ciudades"
-                addLabel="+ Agregar ciudad"
-                emptyCopy="Sin ciudades registradas."
+                emptyCopy="Sin ciudades. Compra una en Construir y elige qué poblado sube."
                 buildings={cities}
-                toggleLabel="Bajar a poblado"
-                onAdd={() => setSheet({ kind: 'newBuilding', type: 'city' })}
-                onAddSpot={(id) => setSheet({ kind: 'spot', buildingId: id, spotIdx: null })}
-                onEditSpot={(id, j) => setSheet({ kind: 'spot', buildingId: id, spotIdx: j })}
+                onAddSpot={(id) => setSheet({ buildingId: id, spotIdx: null })}
+                onEditSpot={(id, j) => setSheet({ buildingId: id, spotIdx: j })}
                 onRemoveSpot={removeSpot}
-                onToggleType={toggleType}
                 onRemove={removeBuilding}
               />
               <p className="text-[11px] leading-snug text-neutral-500">
-                Aquí solo ves tus construcciones. El recuento de cada jugador
-                está en la lista de Jugadores.
+                Aquí solo ves tus construcciones y editas sus fichas. Los
+                poblados y ciudades se agregan comprándolos en Construir; el
+                recuento de cada jugador está en la lista de Jugadores.
               </p>
             </>
           ) : null}
@@ -173,28 +145,16 @@ export function ConstructionTable(): JSX.Element | null {
 
       {sheet ? (
         <SpotPickerSheet
-          key={
-            sheet.kind === 'newBuilding'
-              ? `new-${sheet.type}`
-              : `${sheet.buildingId}-${sheet.spotIdx ?? 'new'}`
-          }
-          buildLabel={
-            sheet.kind === 'newBuilding'
-              ? sheet.type === 'city'
-                ? 'Ciudad nueva'
-                : 'Poblado nuevo'
-              : sheetBuilding?.type === 'city'
-                ? 'Ciudad'
-                : 'Poblado'
-          }
-          editing={sheet.kind === 'spot' && sheet.spotIdx !== null}
+          key={`${sheet.buildingId}-${sheet.spotIdx ?? 'new'}`}
+          buildLabel={sheetBuilding?.type === 'city' ? 'Ciudad' : 'Poblado'}
+          editing={sheet.spotIdx !== null}
           initialNumber={
-            sheet.kind === 'spot' && sheet.spotIdx !== null
+            sheet.spotIdx !== null
               ? sheetBuilding?.spots[sheet.spotIdx]?.number ?? null
               : null
           }
           initialResource={
-            sheet.kind === 'spot' && sheet.spotIdx !== null
+            sheet.spotIdx !== null
               ? sheetBuilding?.spots[sheet.spotIdx]?.resource ?? null
               : null
           }
@@ -208,27 +168,19 @@ export function ConstructionTable(): JSX.Element | null {
 
 function BuildingList({
   title,
-  addLabel,
   emptyCopy,
   buildings,
-  toggleLabel,
-  onAdd,
   onAddSpot,
   onEditSpot,
   onRemoveSpot,
-  onToggleType,
   onRemove,
 }: {
   title: string;
-  addLabel: string;
   emptyCopy: string;
   buildings: Building[];
-  toggleLabel: string;
-  onAdd: () => void;
   onAddSpot: (buildingId: string) => void;
   onEditSpot: (buildingId: string, spotIdx: number) => void;
   onRemoveSpot: (buildingId: string, spotIdx: number) => void;
-  onToggleType: (buildingId: string) => void;
   onRemove: (buildingId: string) => void;
 }): JSX.Element {
   return (
@@ -252,22 +204,13 @@ function BuildingList({
                 <p className="text-xs font-semibold text-neutral-100">
                   {title === 'Poblados' ? 'Poblado' : 'Ciudad'} {i + 1}
                 </p>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => onToggleType(b.id)}
-                    className="min-h-[36px] rounded-md border border-white/10 bg-surface-3 px-2 py-1 text-[11px] text-neutral-200 transition-colors active:bg-white/10"
-                  >
-                    {toggleLabel}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onRemove(b.id)}
-                    className="min-h-[36px] rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] text-red-200 transition-colors active:bg-red-500/20"
-                  >
-                    Quitar
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => onRemove(b.id)}
+                  className="min-h-[36px] rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] text-red-200 transition-colors active:bg-red-500/20"
+                >
+                  Quitar
+                </button>
               </div>
               {b.spots.length === 0 ? (
                 <p className="mt-1.5 rounded-md border border-dashed border-white/15 px-2.5 py-2 text-center text-[11px] text-neutral-400">
@@ -343,13 +286,6 @@ function BuildingList({
           ))}
         </ul>
       )}
-      <button
-        type="button"
-        onClick={onAdd}
-        className="mt-2 min-h-[44px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm transition-colors active:bg-white/10"
-      >
-        {addLabel}
-      </button>
     </div>
   );
 }

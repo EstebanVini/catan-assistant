@@ -63,31 +63,20 @@ describe('distributeForRoll', () => {
     expect(s.players[0].hand.grain).toBe(0);
   });
 
-  it('si el banco no tiene suficiente para varios, nadie de ellos recibe', () => {
+  it('banco ilimitado: reparte completo aunque el contador esté en 0', () => {
     const s = makeState();
-    s.bank.wool = 1;
+    s.bank.wool = 0;
     s.hexes = [
       { id: 'h1', number: 5, resource: 'wool', robber: false, owners: [{ playerId: 'p1', type: 'settlement' }] },
-      { id: 'h2', number: 5, resource: 'wool', robber: false, owners: [{ playerId: 'p2', type: 'settlement' }] },
-    ];
-    const r = distributeForRoll(s, 5);
-    expect(s.players[0].hand.wool).toBe(0);
-    expect(s.players[1].hand.wool).toBe(0);
-    expect(r.shortages).toContain('wool');
-  });
-
-  it('si solo un jugador esperaba el recurso y no alcanza, recibe lo que quede', () => {
-    const s = makeState();
-    s.bank.wool = 1;
-    s.hexes = [
-      { id: 'h1', number: 5, resource: 'wool', robber: false, owners: [
-        { playerId: 'p1', type: 'city' }, // pide 2
-      ] },
+      { id: 'h2', number: 5, resource: 'wool', robber: false, owners: [{ playerId: 'p2', type: 'city' }] },
     ];
     const r = distributeForRoll(s, 5);
     expect(s.players[0].hand.wool).toBe(1);
-    expect(r.partials.length).toBe(1);
-    expect(r.partials[0]).toEqual({ playerId: 'p1', resource: 'wool', given: 1, wanted: 2 });
+    expect(s.players[1].hand.wool).toBe(2);
+    expect(r.shortages).toEqual([]);
+    expect(r.partials).toEqual([]);
+    // El contador informativo nunca baja de 0.
+    expect(s.bank.wool).toBe(0);
   });
 });
 
@@ -133,5 +122,14 @@ describe('tradeWithBank', () => {
     expect(r.ratio).toBe(4);
     expect(s.players[0].hand.wool).toBe(0);
     expect(s.players[0].hand.brick).toBe(2); // tenía 1 inicial
+  });
+  it('banco ilimitado: entrega aunque el contador del recurso esté en 0', () => {
+    const s = makeState();
+    s.players[0].hand.wool = 4;
+    s.bank.brick = 0;
+    const r = tradeWithBank(s, s.players[0], 'wool', 'brick');
+    expect(r.ok).toBe(true);
+    expect(s.players[0].hand.brick).toBe(2);
+    expect(s.bank.brick).toBe(0);
   });
 });

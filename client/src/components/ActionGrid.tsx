@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
-import { BUILD_COSTS, BuildType, Resource, totalVictoryPoints } from '../types';
+import { BUILD_COSTS, Building, BuildType, Resource, totalVictoryPoints } from '../types';
 import { buildTypeLabel, RESOURCE_NAMES_LOWER, joinList } from '../lib/spanish';
 import { BuildCostBadge } from './BuildCostBadge';
 import { useCollapsePref } from './CollapsibleSection';
 import { TradeModal } from './TradeModal';
+import { useModalA11y } from '../lib/useModalA11y';
+import { BuildingGlyph, RoadGlyph, DevCardGlyph } from '../assets/icons';
 
 interface Props {
   onPlayDev: () => void;
@@ -21,6 +23,9 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
   // Las "recetas" (costos de construcción) se pueden esconder; preferencia
   // por dispositivo, mismo mecanismo que los colapsables (`ui.collapse.*`).
   const [recipesHidden, toggleRecipes] = useCollapsePref('buildRecipes', false);
+  // Compra pendiente de confirmar. Toda compra pasa por aquí; la ciudad
+  // además exige elegir qué poblado se convierte.
+  const [purchase, setPurchase] = useState<BuildType | null>(null);
   // Detecta transición "antes no podía declarar → ahora sí" para añadir un
   // pulso único al CTA (encima del `anim-slide-down` de entrada). El flag
   // se resetea cuando el CTA deja de ser elegible, así un nuevo subir-de-VP
@@ -102,9 +107,15 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
     return joinList(parts);
   }
 
+  const mySettlements: Building[] = (me.buildings ?? []).filter(
+    (b) => b.type === 'settlement'
+  );
+
   function buildReason(type: BuildType): string | null {
     if (baseDisabled) return baseDisabled;
     if (!canAfford(type)) return `Te falta: ${missingDetail(type)}.`;
+    if (type === 'city' && mySettlements.length === 0)
+      return 'No tienes poblados para convertir en ciudad.';
     return null;
   }
 
@@ -147,7 +158,7 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
               key={t}
               type="button"
               disabled={isDisabled}
-              onClick={() => build(t)}
+              onClick={() => setPurchase(t)}
               title={reason ?? undefined}
               className={
                 'group min-h-[88px] rounded-xl border p-3 text-left transition-all ' +
@@ -252,7 +263,152 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
         )}
       </div>
       {tradeOpen ? <TradeModal onClose={() => setTradeOpen(false)} /> : null}
+      {purchase ? (
+        <PurchaseConfirmModal
+          type={purchase}
+          settlements={mySettlements}
+          onClose={() => setPurchase(null)}
+          onConfirm={(settlementId) => {
+            build(purchase, settlementId);
+            setPurchase(null);
+          }}
+        />
+      ) : null}
     </section>
+  );
+}
+
+// Confirmación de compra: toda compra con recursos pide un "¿Seguro?" con el
+// costo a la vista. La Ciudad además exige elegir qué poblado se convierte —
+// la Tabla de construcción se actualiza sola al confirmar.
+function PurchaseConfirmModal({
+  type,
+  settlements,
+  onClose,
+  onConfirm,
+}: {
+  type: BuildType;
+  settlements: Building[];
+  onClose: () => void;
+  onConfirm: (settlementId?: string) => void;
+}): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null);
+  useModalA11y(ref, onClose);
+  const [settlementId, setSettlementId] = useState<string | null>(null);
+  const needsSettlement = type === 'city';
+  const ready = !needsSettlement || settlementId !== null;
+
+  const icon =
+    type === 'road' ? (
+      <RoadGlyph size={56} />
+    ) : type === 'devcard' ? (
+      <DevCardGlyph card="knight" size={56} />
+    ) : (
+      <BuildingGlyph type={type} size={56} />
+    );
+
+  return (
+    <div
+      className="anim-fade-in fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="purchase-title"
+        onClick={(e) => e.stopPropagation()}
+        className="anim-scale-in w-full max-w-sm rounded-2xl border border-white/10 bg-neutral-900 p-4 shadow-2xl ring-1 ring-white/5"
+      >
+        <div className="flex items-center gap-3">
+          {icon}
+          <div className="min-w-0 flex-1">
+            <h2
+              id="purchase-title"
+              className="text-base font-semibold tracking-tight text-neutral-50"
+            >
+              Comprar {buildTypeLabel(type).toLowerCase()}
+            </h2>
+            <div className="mt-1.5">
+              <BuildCostBadge type={type} />
+            </div>
+          </div>
+        </div>
+
+        {needsSettlement ? (
+          <div className="mt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
+              ¿Qué poblado se convierte en ciudad?
+            </p>
+            <div className="mt-1.5 space-y-1.5">
+              {settlements.map((b, i) => {
+                const selected = settlementId === b.id;
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setSettlementId(b.id)}
+                    className={
+                      'flex min-h-[48px] w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-all active:scale-[0.99] ' +
+                      (selected
+                        ? 'border-emerald-400 bg-emerald-500/15 text-emerald-50'
+                        : 'border-white/10 bg-surface-2 text-neutral-100')
+                    }
+                  >
+                    <BuildingGlyph type="settlement" size={24} />
+                    <span className="flex-1 text-sm font-medium">
+                      Poblado {i + 1}
+                    </span>
+                    <span className="text-[11px] text-neutral-400">
+                      {b.spots.length === 0
+                        ? 'sin fichas'
+                        : b.spots
+                            .map((s) => `${s.number} ${RESOURCE_NAMES_LOWER[s.resource]}`)
+                            .join(' · ')}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        <p className="mt-3 text-[11px] leading-snug text-neutral-400">
+          {type === 'settlement'
+            ? 'Al confirmar se descuentan los recursos y aparece el poblado en tu Tabla de construcción para registrar sus fichas.'
+            : type === 'city'
+              ? 'Al confirmar se descuentan los recursos y el poblado elegido sube a ciudad en tu Tabla de construcción.'
+              : type === 'devcard'
+                ? 'Al confirmar se descuentan los recursos y recibes la carta superior del mazo.'
+                : 'Al confirmar se descuentan los recursos.'}
+        </p>
+
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[48px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={!ready}
+            onClick={() => onConfirm(settlementId ?? undefined)}
+            className={
+              'min-h-[48px] flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition-all ' +
+              (ready
+                ? 'bg-emerald-500 text-neutral-950 shadow-cta active:scale-[0.99] active:bg-emerald-400'
+                : 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-500')
+            }
+          >
+            {ready ? 'Confirmar compra' : 'Elige un poblado'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

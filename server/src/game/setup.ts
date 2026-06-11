@@ -121,16 +121,16 @@ export function rebuildHexes(
 
 export interface SetupResult {
   hexes: Hex[];
-  // Recursos de inicio efectivamente entregados a cada jugador (ya con banco limitado aplicado)
+  // Recursos de inicio entregados a cada jugador (banco ilimitado: completos)
   grants: Record<string, Hand>;
-  // Avisos de banco insuficiente durante el reparto inicial
+  // Siempre vacío desde que el banco es ilimitado; se conserva por la firma.
   shortages: Array<{ playerId: string; resource: Resource; wanted: number; given: number }>;
 }
 
 // Toma los buildings de todos y devuelve los hexes derivados + el reparto de
 // recursos de inicio: TODOS los poblados registrados dan 1 carta por cada
-// ficha que tocan. Muta `bank` descontando lo entregado. El ladrón arranca en
-// el desierto.
+// ficha que tocan. El banco es ilimitado (su contador solo informa, piso en
+// 0). El ladrón arranca en el desierto.
 export function applyInitialSetup(
   players: Array<Pick<Player, 'id' | 'buildings'>>,
   bank: Hand
@@ -138,21 +138,16 @@ export function applyInitialSetup(
   const hexes = rebuildHexes(players, []);
 
   const grants: Record<string, Hand> = {};
-  const shortages: SetupResult['shortages'] = [];
 
   for (const player of players) {
     grants[player.id] = emptyHand();
     for (const building of player.buildings) {
       for (const spot of building.spots) {
-        if (bank[spot.resource] >= 1) {
-          bank[spot.resource] -= 1;
-          grants[player.id][spot.resource] += 1;
-        } else {
-          shortages.push({ playerId: player.id, resource: spot.resource, wanted: 1, given: 0 });
-        }
+        bank[spot.resource] = Math.max(0, bank[spot.resource] - 1);
+        grants[player.id][spot.resource] += 1;
       }
     }
   }
 
-  return { hexes, grants, shortages };
+  return { hexes, grants, shortages: [] };
 }

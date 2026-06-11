@@ -36,60 +36,27 @@ export function YearOfPlentyPickerModal({ onClose }: Props): JSX.Element | null 
   }, [phase, onClose, pushToast]);
 
   if (!bank) return null;
-  // Copia con narrowing estable: `availableFor` es una function declaration
-  // (se hoistea), así que TypeScript no propaga el narrowing de `bank` dentro
-  // del closure. `bankHand` ya es `Hand` sin undefined.
-  const bankHand = bank;
 
-  // Si el banco está completamente vacío, el modal ni siquiera debería abrir
-  // (lo evita el modal padre §1.3). Defensa adicional aquí:
-  const bankTotal = RESOURCES.reduce((a, r) => a + bankHand[r], 0);
-
-  // Helper: ¿está disponible este recurso para el selector `slot`, dado el
-  // estado del otro selector?
-  function availableFor(slot: 1 | 2, res: Resource): { ok: boolean; reason?: string } {
-    const stock = bankHand[res];
-    if (stock <= 0) return { ok: false, reason: 'Agotado en el banco' };
-    const other = slot === 1 ? r2 : r1;
-    if (other === res && stock < 2) {
-      return { ok: false, reason: 'Sin stock para 2' };
-    }
+  // El banco es ILIMITADO: cualquier recurso está disponible siempre (incluso
+  // 2 del mismo). El stock que se muestra es solo informativo.
+  function availableFor(): { ok: boolean; reason?: string } {
     return { ok: true };
   }
 
-  // ¿Es viable el caso "banco corto a 1"? Sólo si hay exactamente 1 carta total.
-  const onlyOneCardInBank = bankTotal === 1;
-
-  // Recurso del único disponible (si banco corto).
-  const lastResource: Resource | null = onlyOneCardInBank
-    ? (RESOURCES.find((r) => bank[r] === 1) ?? null)
-    : null;
-
-  // Si hay banco corto y el usuario eligió el único disponible, permitimos
-  // confirmar con sólo 1.
-  const canConfirmShort = onlyOneCardInBank && r1 !== null && r2 === null;
-
   const ready = r1 !== null && r2 !== null;
-  const canConfirm = ready || canConfirmShort;
+  const canConfirm = ready;
 
   function handleConfirm() {
     if (!canConfirm || submitting) return;
     setSubmitting(true);
-    const picks: Resource[] = ready
-      ? [r1 as Resource, r2 as Resource]
-      : [r1 as Resource];
-    playDevCard('yearOfPlenty', { resources: picks });
+    playDevCard('yearOfPlenty', { resources: [r1 as Resource, r2 as Resource] });
     window.setTimeout(() => onClose(), 60);
   }
 
   const progress = (r1 !== null ? 1 : 0) + (r2 !== null ? 1 : 0);
   const confirmLabel = ready
     ? `Tomar ${RESOURCE_NAMES[r1 as Resource]} y ${RESOURCE_NAMES[r2 as Resource]} del banco`
-    : canConfirmShort
-      ? `Tomar 1 carta de ${RESOURCE_NAMES[r1 as Resource]}`
-      : onlyOneCardInBank
-        ? 'Elige el recurso disponible'
-        : 'Elige 2 recursos';
+    : 'Elige 2 recursos';
 
   return (
     <div
@@ -119,25 +86,18 @@ export function YearOfPlentyPickerModal({ onClose }: Props): JSX.Element | null 
           suficiente.
         </p>
 
-        {onlyOneCardInBank && lastResource ? (
-          <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[11px] font-medium leading-snug text-amber-100">
-            Solo queda 1 carta en el banco ({RESOURCE_NAMES[lastResource]}).
-            Tomarás 1 en lugar de 2.
-          </p>
-        ) : null}
-
         <SelectorRow
           label="Recurso 1"
           selected={r1}
           onPick={setR1}
-          availableFor={(res) => availableFor(1, res)}
+          availableFor={() => availableFor()}
           bank={bank}
         />
         <SelectorRow
           label="Recurso 2"
           selected={r2}
           onPick={setR2}
-          availableFor={(res) => availableFor(2, res)}
+          availableFor={() => availableFor()}
           bank={bank}
         />
 
@@ -146,9 +106,7 @@ export function YearOfPlentyPickerModal({ onClose }: Props): JSX.Element | null 
           aria-live="polite"
         >
           Has elegido{' '}
-          <span className="nums font-bold text-neutral-50">
-            {progress}/{onlyOneCardInBank ? 1 : 2}
-          </span>
+          <span className="nums font-bold text-neutral-50">{progress}/2</span>
         </p>
 
         <button

@@ -104,16 +104,17 @@ describe('applyInitialSetup', () => {
     expect(result.hexes.filter((h) => h.robber)).toHaveLength(1);
   });
 
-  it('respeta el banco limitado en el reparto inicial', () => {
+  it('banco ilimitado: el reparto inicial es completo aunque el contador esté en 0', () => {
     const bank = fullBank(false);
     bank.grain = 0;
     const result = applyInitialSetup(
       [{ id: 'p1', buildings: [building([[6, 'ore']]), building([[4, 'grain'], [5, 'wool']])] }],
       bank
     );
-    expect(result.grants.p1.grain).toBe(0);
+    expect(result.grants.p1.grain).toBe(1);
     expect(result.grants.p1.wool).toBe(1);
-    expect(result.shortages).toEqual([{ playerId: 'p1', resource: 'grain', wanted: 1, given: 0 }]);
+    expect(result.shortages).toEqual([]);
+    expect(bank.grain).toBe(0);
   });
 });
 

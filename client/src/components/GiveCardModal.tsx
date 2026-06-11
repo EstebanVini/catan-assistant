@@ -84,8 +84,6 @@ export function GiveCardModal({ onClose }: { onClose: () => void }): JSX.Element
     : null;
 
   const stockOf = (r: Resource): number => state.bank[r];
-  const selectedStockZero =
-    selection?.kind === 'resource' && stockOf(selection.resource) === 0;
 
   const ready = target !== null && selection !== null;
 
@@ -125,14 +123,9 @@ export function GiveCardModal({ onClose }: { onClose: () => void }): JSX.Element
 
   function submit(): void {
     if (!ready || mode === 'submitting') return;
-    if (selectedStockZero && selection?.kind === 'resource') {
-      // Banco en 0: confirmación explícita ANTES de emitir.
-      setForceMessage(
-        `El banco no tiene ${RESOURCE_NAMES_LOWER[selection.resource]}. ¿Entregar de todas formas? Quedará registrado.`
-      );
-      setMode('forcing');
-      return;
-    }
+    // El banco es ilimitado: las entregas de recursos nunca requieren
+    // forzado. (El flujo `forcing` queda solo para el mazo de desarrollo
+    // agotado, vía el error del server.)
     emit(false);
   }
 
@@ -204,13 +197,12 @@ export function GiveCardModal({ onClose }: { onClose: () => void }): JSX.Element
             const stock = stockOf(r);
             const selected =
               selection?.kind === 'resource' && selection.resource === r;
-            const empty = stock === 0;
             return (
               <button
                 key={r}
                 type="button"
                 aria-pressed={selected}
-                aria-label={`${RESOURCE_NAMES[r]}, ${stock} en el banco${empty ? ' (requiere forzar)' : ''}`}
+                aria-label={`${RESOURCE_NAMES[r]}, ${stock} en el banco`}
                 onClick={() => {
                   setSelection({ kind: 'resource', resource: r });
                   setForceMessage(null);
@@ -220,8 +212,7 @@ export function GiveCardModal({ onClose }: { onClose: () => void }): JSX.Element
                   'flex h-16 w-full flex-col items-center justify-center gap-0.5 rounded-lg border transition-all active:scale-[0.97] ' +
                   (selected
                     ? 'border-emerald-400 bg-emerald-500/15 text-emerald-50'
-                    : 'border-white/10 bg-surface-2 text-neutral-100') +
-                  (empty && !selected ? ' opacity-45' : '')
+                    : 'border-white/10 bg-surface-2 text-neutral-100')
                 }
               >
                 <ResourceIcon resource={r} size={28} />
