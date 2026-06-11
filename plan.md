@@ -1,6 +1,6 @@
 # Plan de desarrollo — Catán Assistant
 
-> Plan completo de desarrollo del asistente digital para partidas presenciales de Catán. Basado en `prompt-claude-code-catan.md` y aprovechando el equipo de agentes disponible en `.claude/agents/`.
+> Plan completo de desarrollo del asistente digital para partidas presenciales de Catán. Basado en `prompt-claude-code-catan.md` (versión actualizada con MongoDB, auth JWT, Docker, construcciones iniciales y tema visual Catán) y aprovechando el equipo de agentes disponible en `.claude/agents/`.
 
 ---
 
@@ -9,8 +9,10 @@
 App web **mobile-first** que reemplaza el papel y las cartas de recursos en una partida presencial de Catán. Sincronización en tiempo real entre los celulares de los jugadores mediante un código de sala. Soporta edición base (3–4 jugadores) y extensión 5–6 jugadores.
 
 **Stack**:
-- Backend: Node.js + Express + Socket.IO, estado en memoria, sirve el frontend compilado en un solo proceso.
-- Frontend: React + Vite + Zustand + `socket.io-client`, TypeScript, mobile-first.
+- Backend: Node.js + Express + Socket.IO; **estado en vivo en memoria** (`Map<code, GameState>`); **MongoDB (Mongoose)** para usuarios, historial de partidas y estadísticas. Sirve el frontend compilado en un solo proceso.
+- Autenticación: **JWT + bcrypt** (registro/login por REST; el socket manda el token en `auth.token`; modo invitado permitido).
+- Frontend: React + Vite + Zustand + `socket.io-client`, TypeScript, mobile-first, **tema visual Catán** (océano + paleta del juego).
+- **Docker:** `docker compose up` levanta mongo + server (multi-stage build). También se puede levantar solo mongo y desarrollar fuera del contenedor.
 - Identificadores de código en inglés; UI en español.
 
 ---
@@ -19,163 +21,88 @@ App web **mobile-first** que reemplaza el papel y las cartas de recursos en una 
 
 | Agente | Rol en este proyecto |
 |---|---|
-| **ux-architect** | Define los flujos de usuario y produce design briefs para cada pantalla (Home, Lobby, Game) y para los flujos críticos (secuencia del 7, intercambio, fase de construcción especial). Identifica casos extremos. No escribe código. |
-| **ui-engineer** | Implementa los componentes y pantallas en React + TypeScript + Tailwind. Conecta el cliente al Socket.IO. Construye la store Zustand y los componentes funcionales (HandView, ProductionTable, DiceInput, Log, etc.). |
-| **ux-writer** | Audita y mejora todo el copy en español: labels, CTAs, mensajes de error, toasts, empty states, instrucciones de fases. Define el glosario del producto (Camino, Poblado, Ciudad, Carta de desarrollo, etc.). |
-| **visual-designer** | Refina la jerarquía visual, paleta de color (incluida la identidad de cada jugador), tipografía y espaciado. Eleva el look-and-feel a calidad premium sin desviarse del mobile-first. |
-| **motion-engineer** | Agrega micro-interacciones y animaciones funcionales: feedback al recibir cartas, transición de fases del turno, banner de "es tu turno" con vibración, secuencia del 7. Respeta `prefers-reduced-motion`. |
-| **qa-auditor** | Auditoría final por fase: accesibilidad (WCAG AA), Core Web Vitals, responsive en 360–414px, touch targets ≥44px, anti-patterns. Reporta P0–P3 y corrige P0/P1. |
+| **ux-architect** | Define los flujos de usuario y produce design briefs para cada pantalla (Login, Home, Lobby, Game, Profile) y para los flujos críticos (registro de construcciones iniciales, secuencia del 7, intercambio, entrega manual de cartas, fase de construcción especial). Identifica casos extremos. No escribe código. |
+| **ui-engineer** | Implementa los componentes y pantallas en React + TypeScript + Tailwind. Conecta el cliente al Socket.IO y a la API REST de auth. Construye la store Zustand y los componentes funcionales (HandView, ProductionTable, DiceInput, Log, InitialBuildSetup, etc.). |
+| **ux-writer** | Audita y mejora todo el copy en español: labels, CTAs, mensajes de error, toasts, notices públicos, empty states, instrucciones de fases. Define el glosario del producto. |
+| **visual-designer** | Aplica el **tema Catán**: fondo océano, paleta del juego (recursos, jugadores, superficies pergamino/madera, acentos dorados), tipografía con carácter, **nuevos íconos** de recursos y cartas centralizados en `client/src/assets/icons.tsx` con fallback emoji. |
+| **motion-engineer** | Agrega micro-interacciones y animaciones funcionales: feedback al recibir cartas, transición de fases del turno, banner de "es tu turno" con vibración, secuencia del 7, notice prominente del banco. Respeta `prefers-reduced-motion`. |
+| **qa-auditor** | Auditoría final por fase: accesibilidad (WCAG AA, contraste sobre el fondo océano), Core Web Vitals, responsive en 360–414px, touch targets ≥44px, anti-patterns. Reporta P0–P3 y corrige P0/P1. |
 
-> Los agentes son frontend. **El backend (Node + Express + Socket.IO + lógica de reglas) lo implementa el orquestador** (Claude principal) directamente, porque ningún agente está especializado en backend. Los agentes consumen ese backend mediante los eventos definidos en el contrato.
+> Los agentes son frontend. **El backend (Node + Express + Socket.IO + Mongoose + auth + lógica de reglas) lo implementa el orquestador** (Claude principal) directamente. Los agentes consumen ese backend mediante los eventos definidos en el contrato y la API REST de auth.
 
 ---
 
 ## 3. Fases
 
-El proyecto sigue las fases del prompt original: **Fase 1 (MVP jugable)**, **Fase 2 (recomendadas)**, **Fase 3 (futuro, solo ganchos)**.
+Estado actual: la Fase 1 original (MVP jugable sin DB) y gran parte de la Fase 2 (dev cards, insignias, victoria, extensión 5-6, dice stats) **ya están implementadas**. Este plan cubre el **delta** introducido por el prompt actualizado.
 
-### Fase 0 — Setup (orquestador)
+### Fase 0 — Infraestructura (orquestador) **[NUEVO]**
 
-- Crear `package.json` raíz con workspaces o scripts coordinados (`dev`, `build`, `start`).
-- Estructura de carpetas: `server/` y `client/`.
-- TypeScript en ambos lados.
-- Tailwind CSS en el client, Vite con proxy a `http://localhost:3001`.
-- Express sirve `client/dist` + fallback SPA.
+0a. **Docker + docker-compose**:
+   - `docker-compose.yml`: servicio `mongo` (imagen `mongo:7`, volumen `mongo-data`, credenciales por env, `restart: unless-stopped`) y servicio `server` (build desde `server/Dockerfile`, `depends_on: mongo`, `env_file: .env`).
+   - `server/Dockerfile` multi-stage (`node:20-alpine`, usuario no-root): etapa de build compila client (Vite) y server (tsc); etapa final copia `client/dist` + `server/dist` y corre `npm start`.
+   - `.env.example` (`MONGODB_URI`, `JWT_SECRET`, `PORT`, credenciales mongo) y `.dockerignore`. `.env` en `.gitignore`.
+   - Script raíz `npm run docker:db` para levantar solo mongo.
+0b. **MongoDB + auth**:
+   - `server/src/db/connection.ts`: conexión Mongoose por `MONGODB_URI`, tolerante a fallos (la app de juego funciona aunque mongo no esté; auth/persistencia se degradan con mensaje claro).
+   - `server/src/db/models/User.ts`: username único, email opcional único, `passwordHash` (bcrypt), `displayName`, `avatarUrl`, `color`, `stats` (gamesPlayed, wins, losses, longestRoadBadges, largestArmyBadges, totalVictoryPoints), timestamps.
+   - `server/src/db/models/Match.ts`: code, extension56, startedAt/endedAt, winner, players[] (con userId opcional para invitados).
+   - `server/src/auth/auth.ts`: rutas REST `POST /api/auth/register`, `POST /api/auth/login` (bcrypt 10–12 rounds, JWT 30d), `GET /api/users/me`, `PATCH /api/users/me`. Nunca devolver `passwordHash`.
+   - `server/src/auth/middleware.ts`: middleware Express (`Authorization: Bearer`) + guard del handshake de Socket.IO (`auth.token` → `socket.data.userId`; sin token = invitado permitido).
 
-### Fase 1 — MVP jugable
+### Fase 1 — Delta MVP (backend: orquestador / frontend: agentes)
 
-Orden de turnos por agente:
+**Backend (orquestador):**
+1. `state.ts`: tipo `InitialBuilding { id, type, spots[{number,resource}], grantsStartingResources }`; `Player.userId?`, `Player.avatarUrl?`, `Player.initialBuildings`.
+2. `server/src/game/setup.ts` (**función pura testeable**): toma los `initialBuildings` de todos → valida (2 poblados, exactamente 1 con `grantsStartingResources`, números 2–12 sin 7, 1–3 spots) → devuelve `hexes` sembrados (merge por `number`+`resource`) + reparto de recursos de inicio (respetando banco).
+3. Handlers: `lobby:setInitialBuildings` (validación servidor); `game:start` exige registro completo de todos; al iniciar reparte recursos del 2º poblado y siembra `hexes`.
+4. `game:create`/`game:join` aceptan usuarios autenticados (toman `displayName`/`avatarUrl`/`color` preferido del `User`) e invitados (solo `name`).
+5. Tests unitarios de `setup.ts` (sembrado, merge de hexes, banco limitado en inicio) además de los de `rules.ts`.
 
-1. **ux-architect** — produce 3 design briefs:
-   - **Home**: crear partida, unirse por código, reconectar desde `localStorage`.
-   - **Lobby**: código compartible, lista de jugadores, selección de color, orden de turnos, encargado del banco, toggle extensión 5-6.
-   - **Game**: barra de turno, mano privada, acciones (construir/intercambiar/terminar turno), tabla de producción editable, panel del banco, estado público de jugadores, log, secuencia del 7 (descarte + ladrón + robar carta).
+**Frontend (ui-engineer, tras brief del ux-architect):**
+6. `client/src/api.ts` (REST auth) + pantalla **Login/Registro** con "Jugar como invitado". JWT en `localStorage` y en el handshake del socket.
+7. **InitialBuildSetup** en el Lobby: formulario táctil de 2 poblados (selector 2–12 sin 7, recurso con íconos, marcar 2º poblado), check verde al completar, progreso "3/4 listos" para el host; botón Iniciar bloqueado hasta que todos completen.
+8. Reconexión: JWT + `{code, playerId, sessionToken}` en `localStorage`.
 
-2. **Orquestador (backend)** — Fase 1 del servidor:
-   - `server/game/state.ts`: tipos `Resource`, `Hand`, `Player`, `Hex`, `GameState`.
-   - `server/game/rules.ts`: lógica pura (costos, distribución con banco limitado, secuencia del 7, robo aleatorio, intercambio con puertos, validación de construcción).
-   - `server/game/rooms.ts`: `Map<code, GameState>`, helpers de creación e identidad (`playerId`, `sessionToken`).
-   - `server/socket/handlers.ts`: registro de los eventos `game:create`, `game:join`, `game:reconnect`, `lobby:*`, `turn:rollNumber`, `discard:submit`, `robber:move`, `robber:steal`, `build`, `trade:*`, `turn:end`, `action:undo`, `hex:*`.
-   - **Vista personalizada por socket**: serializa el estado ocultando manos ajenas.
-   - Pila de snapshots para `undo`.
-   - Express sirve `client/dist` + fallback SPA.
+### Fase 2 — Delta recomendadas
 
-3. **ui-engineer** — Fase 1 del cliente:
-   - `client/src/socket.ts`: instancia única de `socket.io-client` con reconexión y reenvío de credenciales desde `localStorage`.
-   - `client/src/store.ts`: Zustand con `me`, `state` (vista personalizada), `hand`, helpers para emitir eventos.
-   - Pantallas: `Home`, `Lobby`, `Game`.
-   - Componentes: `HandView`, `ProductionTable` (editable: agregar/quitar dueños, marcar `settlement`/`city`, indicar ladrón), `DiceInput` (teclado 2–12, solo bank manager), `BuildActions`, `TradePanel` (banco/puertos + entre jugadores), `DiscardModal`, `RobberFlow` (mover ladrón + botón "Robar carta"), `Log`, `PublicPlayersPanel`.
-   - Mobile-first puro: una columna, touch targets ≥44px, navegación inferior.
+**Backend (orquestador):**
+9. **Persistencia de resultados:** al `game:declareWin`, crear `Match` y actualizar `stats` con `$inc` atómico para cada jugador con `userId` (wins/losses, insignias, VP). Invitados solo quedan en `Match.players`.
+10. **`admin:giveCard`** (host/bank manager, en cualquier momento): entrega recurso (descuenta banco; forzable si no hay) o carta de desarrollo (descuenta mazo). **Siempre** emite `notice { level, text }` a **todos** + entrada en log (anti-trampas).
+11. Evento `notice` agregado al contrato servidor→cliente.
 
-4. **ux-writer** — pasa sobre el cliente:
-   - Define el glosario (Camino, Poblado, Ciudad, Carta de desarrollo, Mano, Banco, Encargado del banco, Tirar, Descartar, Mover ladrón, Robar carta, Terminar turno, etc.).
-   - Mejora CTAs, mensajes de error ("no alcanza para construir Poblado: te faltan 1 madera, 1 trigo"), empty states, toasts ("Es tu turno", "Recibiste 2 ovejas, 1 mineral"), instrucciones de la secuencia del 7.
-   - Verifica voz activa y segunda persona.
+**Frontend (agentes, en este orden):**
+12. **ui-engineer:** pantalla **Profile** (foto, displayName editable, stats); panel del banco con **"Entregar carta"** (selector jugador + recurso/dev + confirmar); banner `notice` prominente para todos; **tabla de producción colapsable** (estado persistido por dispositivo en `localStorage`) y patrón colapsable en secciones densas.
+13. **ux-writer:** copy del login/registro/perfil, formulario de construcciones iniciales, notices del banco ("⚠️ El banco entregó 1 trigo a Ana"), errores de auth ("usuario ya existe", "credenciales inválidas").
+14. **visual-designer:** **tema Catán completo**: fondo océano (degradado/textura sutil, sin distraer), superficies pergamino/madera semiopacas con contraste WCAG AA, paleta de recursos (terracota/bosque/lima/dorado/pizarra), acentos dorados en insignias, tipografía display para títulos y código de sala, **íconos nuevos** de recursos y dev cards centralizados en un solo módulo (`client/src/assets/icons.tsx`) con fallback emoji.
+15. **motion-engineer:** animación del notice del banco, reparto de cartas, transición de fases, vibración de turno, parallax/olas muy sutiles del fondo (respetando `prefers-reduced-motion`).
+16. **qa-auditor:** auditoría integral (contraste sobre océano, modales nuevos accesibles, responsive 360–414px, performance). Reporte P0–P3; el orquestador corrige P0/P1.
 
-5. **visual-designer** — pasa visual:
-   - Paleta: define colores de identidad de jugador (rojo, azul, blanco, naranja) con contraste accesible sobre fondo oscuro y claro.
-   - Iconos de recursos (brick, lumber, wool, grain, ore) con consistencia cromática.
-   - Tipografía: jerarquía clara entre número de cartas (grandes), labels (medianos), log (pequeño).
-   - Estado activo del turno con tratamiento visual claro (borde de color, no solo texto).
-   - Cards de jugador y panel del banco con jerarquía premium.
+### Fase 3 — Futuro (solo ganchos, no implementar)
 
-6. **motion-engineer** — micro-interacciones funcionales:
-   - Transición suave al cambiar de fase (`roll` → `discard` → `robber` → `main`).
-   - Feedback al recibir/perder cartas (count anima de un número al otro con spring).
-   - Banner "Es tu turno" con entrada animada + vibración (`navigator.vibrate`).
-   - Toast del log con auto-dismiss.
-   - Botones con feedback de press (scale 0.97).
-   - Respeta `prefers-reduced-motion` siempre.
-
-7. **qa-auditor** — auditoría Fase 1:
-   - Accesibilidad: contraste, focus indicators, ARIA en modales (descarte, intercambio), navegación por teclado.
-   - Responsive: 360–414px sin overflow, touch targets ≥44px, `min-h-[100dvh]` donde aplique.
-   - Performance: animaciones solo `transform`/`opacity`, no layout thrashing.
-   - Anti-patterns: sin emojis, sin `any` injustificado, sin código truncado.
-   - Reporte P0–P3; corrige P0 y P1.
-
-### Fase 2 — Recomendadas
-
-Misma rotación de agentes, ahora sobre los features añadidos:
-
-1. **ux-architect** — briefs para:
-   - Cartas de desarrollo (comprar, jugar Knight/Monopoly/Year of Plenty/Road Building).
-   - Marcador de puntos de victoria + insignias (Ejército más grande automático, Camino más largo manual).
-   - Declarar victoria a 10.
-   - **Extensión 5–6 jugadores**: toggle en lobby, colores verde/café, banco 24, mazo 34, **Fase de Construcción Especial** (cola, "Listo", saltar).
-   - Estadísticas de dados (histograma).
-   - Notificación/vibración de turno.
-
-2. **Orquestador (backend)** — Fase 2 del servidor:
-   - Mazo de desarrollo barajado según el modo (base 25 / extensión 34).
-   - Efectos de cartas de desarrollo (Knight reusa el flujo del 7; Monopoly transfiere todas las cartas del recurso; Year of Plenty toma 2 del banco; Road Building permite 2 caminos sin costo).
-   - Regla "no se juega el mismo turno que se compra".
-   - Cálculo de Ejército más grande (≥3, mayor, empate conserva el dueño previo).
-   - Asignación manual de Camino más largo (`vp:setLongestRoad`).
-   - Detección de victoria a 10 + `game:declareWin`.
-   - Toggle `extension56` en lobby: ajusta máx jugadores (6), banco (24), mazo (34).
-   - Fase de Construcción Especial: tras `turn:end`, llenar `specialBuildQueue` con los demás en orden horario; cada jugador puede construir/comprar dev (no intercambiar ni jugar dev); `specialBuild:done` y `specialBuild:skip`; al vaciarse, siguiente turno.
-   - `diceStats` (histograma).
-   - Tests unitarios mínimos de `rules.ts`.
-
-3. **ui-engineer** — Fase 2 del cliente:
-   - `DevCardsPanel` (privado): comprar, listar, jugar.
-   - `VictoryTracker` público con insignias.
-   - Banner ganador.
-   - Lobby: toggle 5-6, colores adicionales.
-   - `SpecialBuildBanner` y flujo de cola con botón "Listo" + opción del host de "Saltar".
-   - `DiceStats` (mini-histograma).
-   - Vibración de turno (`navigator.vibrate`).
-
-4. **ux-writer** — copy de:
-   - Nombres y descripciones de cartas de desarrollo.
-   - Mensaje claro al ganar.
-   - Tooltips del marcador (qué incluye Ejército más grande, Camino más largo).
-   - Banner de Fase de Construcción Especial.
-   - Mensajes del histograma.
-
-5. **visual-designer** — refina:
-   - Insignias (Camino más largo, Ejército más grande) con tratamiento icónico.
-   - Tarjetas de desarrollo con identidad visual distinguible (Knight ≠ Monopoly).
-   - Colores verde y café/marrón coherentes con la paleta base.
-   - Estado "Fase de Construcción Especial" claramente diferenciado del turno normal.
-   - Pantalla de ganador con tratamiento celebratorio (contenido, no caricaturesco).
-
-6. **motion-engineer** —
-   - Entrega/recibo de cartas en Monopoly (transferencia masiva con stagger).
-   - Animación al obtener una insignia (transferida entre jugadores).
-   - Confeti contenido o tratamiento sutil al declarar victoria.
-   - Avance de cola en la Fase de Construcción Especial.
-
-7. **qa-auditor** — auditoría Fase 2:
-   - Verifica que los modales nuevos (compra de dev, declaración de victoria, fase especial) son accesibles.
-   - Responsive sigue intacto.
-   - Performance no degradada por las nuevas animaciones.
-   - Reporte P0–P3.
-
-### Fase 3 — Futuro (solo ganchos)
-
-- Foto del tablero + visión para autocompletar `hexes`: el modelo de `hexes` ya está diseñado como lista editable, así que no se requiere reescritura. Solo un comentario en `state.ts` documentando el punto de extensión.
-- Variante "paired players" (turno emparejado) como alternativa a la Fase de Construcción Especial: comentario en `handlers.ts` señalando dónde insertar el flujo alternativo.
+- Foto del tablero + visión para autocompletar `hexes`: el modelo ya es una lista editable; comentario en `state.ts` documenta el punto de extensión.
+- Variante "paired players" como alternativa a la Fase de Construcción Especial: comentario en `handlers.ts`.
+- Subida real de avatar (`POST /api/users/me/avatar` multipart): gancho documentado, MVP usa URL.
 
 ---
 
 ## 4. Contrato entre fases / agentes
 
 Cada agente recibe del anterior:
-- **Brief** (cuando es ux-architect → ui-engineer): pantallas, flujos, casos extremos.
-- **Componentes funcionales** (cuando es ui-engineer → ux-writer / visual-designer / motion-engineer): listos para refinar sin romper la lógica.
-- **Reporte P0–P3** (cuando es qa-auditor → orquestador): correcciones priorizadas.
+- **Brief** (ux-architect → ui-engineer): pantallas, flujos, casos extremos (guardado en `docs/`).
+- **Componentes funcionales** (ui-engineer → ux-writer / visual-designer / motion-engineer): listos para refinar sin romper la lógica.
+- **Reporte P0–P3** (qa-auditor → orquestador): correcciones priorizadas.
 
-Después de cada agente, el orquestador (yo) verifica el output, ejecuta `npm run build` cuando aplica, y pasa al siguiente.
+Después de cada agente, el orquestador verifica el output, ejecuta `npm run build` y los tests, y pasa al siguiente.
 
 ---
 
 ## 5. Entregables finales
 
-- App funcional con un solo `npm start` que sirve frontend + backend en un proceso.
-- README con instrucciones de instalación y uso.
-- Tests unitarios mínimos de `server/game/rules.ts`.
-- UI 100% en español, identificadores en inglés.
-- Mobile-first verificado en 360–414px.
-- Accesibilidad WCAG AA.
+- App funcional: `docker compose up --build` (todo en contenedores) **o** `docker compose up -d mongo` + `npm run dev` (desarrollo) **o** `npm run build` + `npm start` (producción local en un proceso).
+- `.env.example` documentado; `.env` ignorado por git.
+- README con ambos modos de uso y variables de entorno.
+- Tests unitarios de `server/src/game/rules.ts` y `server/src/game/setup.ts`.
+- Auth segura: bcrypt con sal, JWT por env, sin passwordHash al cliente, sin loguear secretos.
+- UI 100% en español, identificadores en inglés, tema Catán en todas las pantallas.
+- Mobile-first verificado en 360–414px. Accesibilidad WCAG AA.

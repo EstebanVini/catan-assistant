@@ -191,7 +191,7 @@ export function SpecialBuildBanner(): JSX.Element | null {
             <button
               type="button"
               onClick={() => setConfirmSkip(true)}
-              className="min-h-[40px] rounded-md border border-white/15 bg-white/[0.06] px-3 py-2 text-xs font-medium text-sky-50 transition-colors active:bg-white/[0.10]"
+              className="min-h-[40px] rounded-md border border-white/15 bg-surface-3 px-3 py-2 text-xs font-medium text-sky-50 transition-colors active:bg-white/[0.10]"
             >
               {!head.connected
                 ? `${head.name} está desconectado. Saltar su turno.`
@@ -205,7 +205,7 @@ export function SpecialBuildBanner(): JSX.Element | null {
               <button
                 type="button"
                 onClick={() => setConfirmSkip(false)}
-                className="min-h-[36px] rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-neutral-200"
+                className="min-h-[36px] rounded-md border border-white/10 bg-surface-3 px-3 py-1.5 text-xs text-neutral-200"
               >
                 Cancelar
               </button>
@@ -265,7 +265,10 @@ function QueueItem({
         ' ' +
         ring +
         ' ' +
-        padding
+        padding +
+        // Pulso único cuando la cola avanza y este item pasa a ser la cabeza
+        // (comportamiento documentado del prop `pulse`).
+        (pulse && state === 'head' ? ' anim-pulse-scale' : '')
       }
       style={{
         boxShadow:

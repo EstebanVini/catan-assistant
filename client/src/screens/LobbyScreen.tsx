@@ -10,8 +10,10 @@ import {
   RESOURCES,
 } from '../types';
 import { ColorChip } from '../components/ColorChip';
-import { COLOR_NAMES, RESOURCE_NAMES } from '../lib/spanish';
+import { COLOR_NAMES, RESOURCE_NAMES, joinList } from '../lib/spanish';
 import { useModalA11y } from '../lib/useModalA11y';
+import { InitialBuildSetup, CheckIcon } from '../components/InitialBuildSetup';
+import { Avatar } from '../components/Avatar';
 
 export function LobbyScreen(): JSX.Element | null {
   const view = useStore((s) => s.view);
@@ -83,17 +85,29 @@ export function LobbyScreen(): JSX.Element | null {
     : BASE_COLORS;
 
   const playersWithColor = state.players.filter((p) => p.color);
+  // Fase 3: el registro de poblados de salida es condición de inicio. El
+  // progreso "N/M listos" deriva SIEMPRE del estado del servidor.
+  const setupReady = state.players.filter((p) => p.setupComplete);
+  const allSetupComplete = state.players.every((p) => p.setupComplete);
+  const mySetupComplete = !!state.players.find((p) => p.id === me.id)
+    ?.setupComplete;
+  const setupMissingNames = state.players
+    .filter((p) => !p.setupComplete)
+    .map((p) => p.name);
   const canStart =
     isHost &&
     playersWithColor.length >= 3 &&
-    state.players.every((p) => p.color);
+    state.players.every((p) => p.color) &&
+    allSetupComplete;
   const startReason = !isHost
     ? 'Solo el anfitrión puede iniciar la partida.'
     : playersWithColor.length < 3
       ? 'Faltan jugadores. Mínimo 3 con color elegido.'
       : state.players.some((p) => !p.color)
         ? 'Falta que todos elijan color.'
-        : null;
+        : !allSetupComplete
+          ? `Faltan registros de salida (${setupReady.length}/${state.players.length} listos)`
+          : null;
 
   async function copyCode() {
     try {
@@ -120,18 +134,18 @@ export function LobbyScreen(): JSX.Element | null {
         <h1 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
           Sala de espera
         </h1>
-        <div className="mt-2 rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.03] p-4 shadow-card">
+        <div className="mt-2 rounded-2xl border border-white/10 bg-surface-2 bg-gradient-to-b from-white/[0.07] to-white/[0.03] p-4 shadow-card">
           <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
             Código de partida
           </p>
           <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="font-mono text-[34px] font-bold leading-none tracking-[0.18em] text-neutral-50">
+            <span className="title-gold font-display text-[34px] font-bold leading-none tracking-[0.18em]">
               {state.code}
             </span>
             <button
               type="button"
               onClick={copyCode}
-              className="min-h-[44px] rounded-lg border border-white/12 bg-white/5 px-3 py-2 text-xs font-semibold text-neutral-100 transition-colors active:bg-white/10"
+              className="min-h-[44px] rounded-lg border border-white/12 bg-surface-3 px-3 py-2 text-xs font-semibold text-neutral-100 transition-colors active:bg-white/10"
             >
               Copiar
             </button>
@@ -192,12 +206,12 @@ export function LobbyScreen(): JSX.Element | null {
             <span className="nums font-semibold text-neutral-300">
               {state.extension56 ? 24 : 19}
             </span>{' '}
-            por recurso
+            cartas por recurso
           </p>
         </div>
       </header>
 
-      <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 shadow-soft">
+      <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-surface-1 p-3 shadow-soft">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
           Jugadores ({state.players.length}/{state.extension56 ? 6 : 4})
         </h2>
@@ -218,12 +232,31 @@ export function LobbyScreen(): JSX.Element | null {
                   {idx + 1}
                 </span>
                 <ColorChip color={p.color} size={22} />
+                {p.avatarUrl ? (
+                  <Avatar
+                    seed={p.name}
+                    name={p.name}
+                    avatarUrl={p.avatarUrl}
+                    size={24}
+                  />
+                ) : null}
                 <div className="flex-1">
-                  <span className="text-sm font-semibold text-neutral-50">
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-50">
                     {p.name}
                     {isMe ? (
-                      <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">
                         Tú
+                      </span>
+                    ) : null}
+                    {p.setupComplete ? (
+                      // Check verde de registro inicial completo. Los
+                      // pendientes no llevan marca (no han hecho nada malo).
+                      <span
+                        className="anim-scale-in inline-flex"
+                        role="img"
+                        aria-label="Registro de salida completo"
+                      >
+                        <CheckIcon size={14} />
                       </span>
                     ) : null}
                   </span>
@@ -241,7 +274,7 @@ export function LobbyScreen(): JSX.Element | null {
                       type="button"
                       onClick={() => moveInOrder(p.id, -1)}
                       disabled={idx === 0}
-                      className="h-11 w-11 rounded-md border border-white/10 bg-white/5 text-base disabled:opacity-40"
+                      className="h-11 w-11 rounded-md border border-white/10 bg-surface-3 text-base disabled:opacity-40"
                       aria-label={`Subir a ${p.name} en el orden de turno`}
                     >
                       <span aria-hidden>↑</span>
@@ -250,7 +283,7 @@ export function LobbyScreen(): JSX.Element | null {
                       type="button"
                       onClick={() => moveInOrder(p.id, 1)}
                       disabled={idx === ordered.length - 1}
-                      className="h-11 w-11 rounded-md border border-white/10 bg-white/5 text-base disabled:opacity-40"
+                      className="h-11 w-11 rounded-md border border-white/10 bg-surface-3 text-base disabled:opacity-40"
                       aria-label={`Bajar a ${p.name} en el orden de turno`}
                     >
                       <span aria-hidden>↓</span>
@@ -263,7 +296,7 @@ export function LobbyScreen(): JSX.Element | null {
         </ul>
       </section>
 
-      <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 shadow-soft">
+      <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-surface-1 p-3 shadow-soft">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
           Tu color
         </h2>
@@ -298,8 +331,8 @@ export function LobbyScreen(): JSX.Element | null {
                   (isMine
                     ? 'border-emerald-400 bg-emerald-500/15 text-emerald-50 shadow-soft'
                     : isTakenByOther
-                      ? 'cursor-not-allowed border-white/[0.06] bg-white/[0.02] text-neutral-500 line-through'
-                      : 'border-white/12 bg-white/[0.05] text-neutral-100 active:bg-white/10') +
+                      ? 'cursor-not-allowed border-white/[0.06] bg-surface-1 text-neutral-500 line-through'
+                      : 'border-white/12 bg-surface-2 text-neutral-100 active:bg-white/10') +
                   (shakeColor === c ? ' anim-shake' : '')
                 }
               >
@@ -325,21 +358,39 @@ export function LobbyScreen(): JSX.Element | null {
         <button
           type="button"
           onClick={() => setPortsOpen(true)}
-          className="mt-3 min-h-[40px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
+          className="mt-3 min-h-[40px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-xs"
         >
           Mis puertos ({me.ports.length})
         </button>
       </section>
 
+      {/* Fase 3: la tarea principal del lobby una vez elegido el color. */}
+      <InitialBuildSetup />
+
       {isHost ? (
-        <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 shadow-soft">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
-            Controles del anfitrión
-          </h2>
+        <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-surface-1 p-3 shadow-soft">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
+              Controles del anfitrión
+            </h2>
+            {/* Progreso de registros de salida — pulsa cuando sube. */}
+            <span
+              key={'setup-progress-' + setupReady.length}
+              className={
+                'nums rounded-full border px-2 py-0.5 text-[11px] font-semibold ' +
+                (allSetupComplete
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                  : 'border-amber-500/40 bg-amber-500/10 text-amber-200') +
+                (setupReady.length > 0 ? ' anim-pulse-scale' : '')
+              }
+            >
+              {setupReady.length}/{state.players.length} listos
+            </span>
+          </div>
           <button
             type="button"
             onClick={() => rollOrderByDice()}
-            className="mt-2 min-h-[44px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            className="mt-2 min-h-[44px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
           >
             Sortear orden con dados
           </button>
@@ -359,7 +410,7 @@ export function LobbyScreen(): JSX.Element | null {
                       'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs ' +
                       (selected
                         ? 'border-emerald-400 bg-emerald-500/10'
-                        : 'border-white/10 bg-white/5')
+                        : 'border-white/10 bg-surface-3')
                     }
                   >
                     <ColorChip color={p.color} size={12} />
@@ -377,20 +428,44 @@ export function LobbyScreen(): JSX.Element | null {
           {isHost ? (
             <button
               type="button"
-              disabled={!canStart}
+              // Cuando lo único pendiente son registros de salida, el botón
+              // sigue tapeable: el tap responde con los nombres que faltan
+              // (el host puede gritárselos a la mesa — es presencial).
+              disabled={!canStart && allSetupComplete}
+              aria-disabled={!canStart}
               title={startReason ?? undefined}
-              onClick={() => startGame()}
+              onClick={() => {
+                if (canStart) {
+                  startGame();
+                  return;
+                }
+                if (!allSetupComplete && setupMissingNames.length > 0) {
+                  pushToast('info', `Faltan: ${joinList(setupMissingNames)}.`);
+                }
+              }}
               className={
                 'min-h-[56px] w-full rounded-xl px-3 py-3 text-base font-bold tracking-tight transition-all active:scale-[0.99] ' +
                 (canStart
                   ? 'bg-emerald-500 text-neutral-950 shadow-cta active:bg-emerald-400'
-                  : 'cursor-not-allowed border border-white/10 bg-white/[0.04] text-neutral-400')
+                  : 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-400')
               }
             >
               {startReason ?? 'Iniciar partida'}
             </button>
+          ) : !mySetupComplete ? (
+            <button
+              type="button"
+              onClick={() =>
+                document
+                  .getElementById('initial-build-setup')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }
+              className="min-h-[56px] w-full rounded-xl border border-amber-500/40 bg-amber-500/[0.08] px-3 py-3 text-center text-sm font-semibold text-amber-200 transition-all active:scale-[0.99] active:bg-amber-500/[0.14]"
+            >
+              Te falta registrar tus poblados ↓
+            </button>
           ) : (
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] py-3.5 text-center text-sm font-medium text-neutral-300">
+            <div className="rounded-xl border border-white/10 bg-surface-2 py-3.5 text-center text-sm font-medium text-neutral-300">
               Espera a que el anfitrión inicie la partida.
             </div>
           )}
@@ -420,7 +495,7 @@ function Tag({
 }): JSX.Element {
   const cls =
     tone === 'muted'
-      ? 'bg-white/5 text-neutral-400 border-white/10'
+      ? 'bg-surface-3 text-neutral-400 border-white/10'
       : 'bg-sky-500/15 text-sky-200 border-sky-500/30';
   return (
     <span
@@ -494,7 +569,7 @@ function PortsModal({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
           >
             Cancelar
           </button>
@@ -521,7 +596,7 @@ function PortRow({
   onChange: () => void;
 }): JSX.Element {
   return (
-    <label className="flex cursor-pointer items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
+    <label className="flex cursor-pointer items-center justify-between rounded-lg border border-white/10 bg-surface-3 px-3 py-2.5">
       <span className="text-sm">{label}</span>
       <input
         type="checkbox"

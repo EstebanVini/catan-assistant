@@ -36,15 +36,19 @@ export function YearOfPlentyPickerModal({ onClose }: Props): JSX.Element | null 
   }, [phase, onClose, pushToast]);
 
   if (!bank) return null;
+  // Copia con narrowing estable: `availableFor` es una function declaration
+  // (se hoistea), así que TypeScript no propaga el narrowing de `bank` dentro
+  // del closure. `bankHand` ya es `Hand` sin undefined.
+  const bankHand = bank;
 
   // Si el banco está completamente vacío, el modal ni siquiera debería abrir
   // (lo evita el modal padre §1.3). Defensa adicional aquí:
-  const bankTotal = RESOURCES.reduce((a, r) => a + bank[r], 0);
+  const bankTotal = RESOURCES.reduce((a, r) => a + bankHand[r], 0);
 
   // Helper: ¿está disponible este recurso para el selector `slot`, dado el
   // estado del otro selector?
   function availableFor(slot: 1 | 2, res: Resource): { ok: boolean; reason?: string } {
-    const stock = bank[res];
+    const stock = bankHand[res];
     if (stock <= 0) return { ok: false, reason: 'Agotado en el banco' };
     const other = slot === 1 ? r2 : r1;
     if (other === res && stock < 2) {
@@ -156,7 +160,7 @@ export function YearOfPlentyPickerModal({ onClose }: Props): JSX.Element | null 
             'nums mt-3 min-h-[56px] w-full rounded-xl px-3 py-3 text-base font-bold tracking-tight transition-all active:scale-[0.97] ' +
             (canConfirm && !submitting
               ? 'bg-emerald-500 text-neutral-950 shadow-cta active:bg-emerald-400'
-              : 'cursor-not-allowed border border-white/10 bg-white/[0.04] text-neutral-500')
+              : 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-500')
           }
         >
           {submitting ? 'Tomando…' : confirmLabel}
@@ -166,7 +170,7 @@ export function YearOfPlentyPickerModal({ onClose }: Props): JSX.Element | null 
           type="button"
           onClick={onClose}
           disabled={submitting}
-          className="mt-2 min-h-[44px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-neutral-200 transition-transform active:scale-[0.97] disabled:opacity-50"
+          className="mt-2 min-h-[44px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium text-neutral-200 transition-transform active:scale-[0.97] disabled:opacity-50"
         >
           Cancelar
         </button>
@@ -229,8 +233,8 @@ function SelectorRow({
                 (isSel
                   ? `${tone.border} ${tone.bg} shadow-soft`
                   : disabled
-                    ? 'cursor-not-allowed border-white/[0.06] bg-white/[0.02] opacity-55'
-                    : 'border-white/[0.10] bg-white/[0.035] active:scale-[0.97] active:bg-white/[0.08]')
+                    ? 'cursor-not-allowed border-white/[0.06] bg-surface-1 opacity-55'
+                    : 'border-white/[0.10] bg-surface-1 active:scale-[0.97] active:bg-white/[0.08]')
               }
             >
               <ResourceIcon resource={r} size={26} />

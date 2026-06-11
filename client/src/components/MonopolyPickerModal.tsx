@@ -116,8 +116,8 @@ export function MonopolyPickerModal({ onClose }: Props): JSX.Element {
                   (isSel
                     ? `${tone.ring} ${tone.bg} shadow-card`
                     : dim
-                      ? 'border-white/[0.06] bg-white/[0.02] opacity-55'
-                      : 'border-white/[0.10] bg-white/[0.035] active:bg-white/[0.08]') +
+                      ? 'border-white/[0.06] bg-surface-1 opacity-55'
+                      : 'border-white/[0.10] bg-surface-1 active:bg-white/[0.08]') +
                   (isSel && confirmed ? ' anim-pulse-scale' : '')
                 }
               >
@@ -145,7 +145,7 @@ export function MonopolyPickerModal({ onClose }: Props): JSX.Element {
             'nums mt-4 min-h-[56px] w-full rounded-xl px-3 py-3 text-base font-bold tracking-tight transition-all active:scale-[0.97] ' +
             (selected && !submitting
               ? 'bg-amber-400 text-neutral-950 shadow-cta-amber active:bg-amber-300'
-              : 'cursor-not-allowed border border-white/10 bg-white/[0.04] text-neutral-500')
+              : 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-500')
           }
         >
           {submitting ? 'Aplicando…' : confirmLabel}
@@ -160,7 +160,7 @@ export function MonopolyPickerModal({ onClose }: Props): JSX.Element {
           type="button"
           onClick={onClose}
           disabled={submitting}
-          className="mt-3 min-h-[44px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-neutral-200 transition-transform active:scale-[0.97] disabled:opacity-50"
+          className="mt-3 min-h-[44px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium text-neutral-200 transition-transform active:scale-[0.97] disabled:opacity-50"
         >
           Cancelar
         </button>

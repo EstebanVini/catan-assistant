@@ -19,12 +19,24 @@ export interface DevCardCounts {
   monopoly: number;
 }
 
+// Construcción inicial registrada en el lobby: un poblado del tablero físico
+// con las fichas (número + recurso) que toca. El 2º poblado da recursos de inicio.
+export interface InitialBuilding {
+  id: string;
+  type: 'settlement' | 'city'; // en la colocación inicial normalmente 'settlement'
+  spots: Array<{ number: number; resource: Resource }>; // 1..3 fichas (el desierto no se registra)
+  grantsStartingResources: boolean; // true solo para el SEGUNDO poblado
+}
+
 export interface Player {
   id: string;
+  userId?: string; // _id del User en MongoDB; ausente si juega como invitado
   sessionToken: string; // privado, no se envía a otros
   name: string;
+  avatarUrl?: string; // foto de perfil (pública en la partida) si está registrado
   color: PlayerColor | null;
   connected: boolean;
+  initialBuildings: InitialBuilding[]; // registradas en el lobby (ver game/setup.ts)
   hand: Hand; // PRIVADO
   ports: PortType[];
   devCards: DevCardCounts; // PRIVADO en tipos; conteo total + caballeros jugados es público
@@ -44,7 +56,10 @@ export interface Hex {
   number: number | null; // 2..12 (sin 7); null para desierto
   resource: Resource | null;
   robber: boolean;
-  owners: Array<{ playerId: string; type: 'settlement' | 'city' }>;
+  // buildingId agrupa las entradas que pertenecen a la MISMA construcción física
+  // (un poblado toca 1..3 fichas): así los VP no se cuentan de más. Las entradas
+  // sin buildingId (ediciones manuales de la tabla) cuentan 1 cada una.
+  owners: Array<{ playerId: string; type: 'settlement' | 'city'; buildingId?: string }>;
 }
 
 export interface TradeOffer {
@@ -80,6 +95,7 @@ export interface GameState {
   bank: Hand;
   devDeck: DevCardType[]; // mazo barajado (servidor)
   diceStats: Record<number, number>;
+  startedAt: number | null; // epoch ms al iniciar la partida (para persistir el Match)
   lastRolledNumber: number | null; // último número del dado ingresado (UI sin parsear log)
   turnsPlayed: number; // turnos completos jugados (para resumen del ganador)
   stealsByPlayer: Record<string, number>; // playerId -> robos exitosos (para "MVP de robos")

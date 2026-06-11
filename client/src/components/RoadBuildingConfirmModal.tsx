@@ -71,7 +71,7 @@ export function RoadBuildingConfirmModal({ onClose }: Props): JSX.Element {
             // el toque registró. Touch target ≥56 px cumple Apple HIG.
             'mt-4 min-h-[56px] w-full rounded-xl px-3 py-3 text-base font-bold tracking-tight transition-all active:scale-[0.97] ' +
             (submitting
-              ? 'cursor-not-allowed border border-white/10 bg-white/[0.04] text-neutral-500'
+              ? 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-500'
               : 'bg-emerald-500 text-neutral-950 shadow-cta active:bg-emerald-400')
           }
         >
@@ -81,7 +81,7 @@ export function RoadBuildingConfirmModal({ onClose }: Props): JSX.Element {
           type="button"
           onClick={onClose}
           disabled={submitting}
-          className="mt-2 min-h-[44px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-neutral-200 transition-transform active:scale-[0.97] disabled:opacity-50"
+          className="mt-2 min-h-[44px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium text-neutral-200 transition-transform active:scale-[0.97] disabled:opacity-50"
         >
           Cancelar
         </button>

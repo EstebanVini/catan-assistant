@@ -118,7 +118,7 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
   return (
     <section className="mx-3 mt-3">
       {!inMain && !inSpecial ? (
-        <div className="mb-2 rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-400">
+        <div className="mb-2 rounded-md border border-white/10 bg-surface-1 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-400">
           {state.phase === 'main' && active
             ? `No es tu turno · ${active.name}`
             : 'No es tu turno todavía'}
@@ -138,8 +138,8 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
               className={
                 'group min-h-[88px] rounded-xl border p-3 text-left transition-all ' +
                 (isDisabled
-                  ? 'cursor-not-allowed border-white/[0.06] bg-white/[0.02] opacity-70'
-                  : 'border-white/12 bg-gradient-to-b from-white/[0.07] to-white/[0.03] shadow-soft active:scale-[0.98] active:bg-white/[0.09]')
+                  ? 'cursor-not-allowed border-white/[0.06] bg-surface-1 opacity-70'
+                  : 'border-white/12 bg-surface-2 bg-gradient-to-b from-white/[0.07] to-white/[0.03] shadow-wood active:scale-[0.98] active:bg-white/[0.09]')
               }
             >
               <div
@@ -228,7 +228,7 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
               'min-h-[56px] w-full rounded-xl px-3 py-2 text-base font-bold tracking-tight transition-all ' +
               (inMain
                 ? 'bg-emerald-500 text-neutral-950 shadow-cta active:scale-[0.99] active:bg-emerald-400'
-                : 'cursor-not-allowed border border-white/10 bg-white/[0.04] text-neutral-500')
+                : 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-500')
             }
           >
             Terminar turno
@@ -267,8 +267,8 @@ function DisabledAwareButton({
       className={
         'min-h-[52px] rounded-xl border px-3 py-2 text-sm font-medium transition-all ' +
         (!disabled
-          ? 'border-white/12 bg-white/[0.05] text-neutral-100 active:scale-[0.98] active:bg-white/[0.09]'
-          : 'cursor-not-allowed border-white/[0.06] bg-white/[0.02] text-neutral-500')
+          ? 'border-white/12 bg-surface-2 text-neutral-100 active:scale-[0.98] active:bg-white/[0.09]'
+          : 'cursor-not-allowed border-white/[0.06] bg-surface-1 text-neutral-500')
       }
     >
       {label}

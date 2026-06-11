@@ -27,16 +27,23 @@ export function generateCode(): string {
   return code;
 }
 
-export function createRoom(hostName: string): { state: GameState; hostId: string; sessionToken: string } {
-  const code = generateCode();
-  const hostId = nanoid(10);
-  const sessionToken = nanoid(24);
-  const host: Player = {
-    id: hostId,
+// Datos del usuario autenticado (si los hay) al crear/unirse; los invitados no traen nada.
+export interface UserProfileInfo {
+  userId?: string;
+  avatarUrl?: string;
+  preferredColor?: string;
+}
+
+function newPlayer(id: string, sessionToken: string, name: string, profile?: UserProfileInfo): Player {
+  return {
+    id,
+    userId: profile?.userId,
     sessionToken,
-    name: hostName.trim().slice(0, 20),
+    name: name.trim().slice(0, 20),
+    avatarUrl: profile?.avatarUrl,
     color: null,
     connected: true,
+    initialBuildings: [],
     hand: emptyHand(),
     ports: [],
     devCards: emptyDevCards(),
@@ -44,6 +51,24 @@ export function createRoom(hostName: string): { state: GameState; hostId: string
     knightsPlayed: 0,
     victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, hiddenVP: 0 },
   };
+}
+
+const ALL_COLORS: PlayerColor[] = ['red', 'blue', 'white', 'orange', 'green', 'brown'];
+
+// Intenta asignar el color preferido del usuario si es válido para el modo y está libre.
+function tryPreferredColor(state: GameState, player: Player, preferred?: string): void {
+  const color = ALL_COLORS.find((c) => c === preferred);
+  if (!color) return;
+  const extensionOnly = color === 'green' || color === 'brown';
+  if (extensionOnly && !state.extension56) return;
+  if (colorAvailable(state, color, player.id)) player.color = color;
+}
+
+export function createRoom(hostName: string, profile?: UserProfileInfo): { state: GameState; hostId: string; sessionToken: string } {
+  const code = generateCode();
+  const hostId = nanoid(10);
+  const sessionToken = nanoid(24);
+  const host = newPlayer(hostId, sessionToken, hostName, profile);
   const state: GameState = {
     code,
     hostId,
@@ -59,6 +84,7 @@ export function createRoom(hostName: string): { state: GameState; hostId: string
     bank: fullBank(false),
     devDeck: buildDevDeck(false),
     diceStats: { 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0 },
+    startedAt: null,
     lastRolledNumber: null,
     turnsPlayed: 0,
     stealsByPlayer: {},
@@ -69,6 +95,7 @@ export function createRoom(hostName: string): { state: GameState; hostId: string
   };
   rooms.set(code, state);
   undoStack.set(code, []);
+  tryPreferredColor(state, host, profile?.preferredColor);
   return { state, hostId, sessionToken };
 }
 
@@ -78,7 +105,8 @@ export function getRoom(code: string): GameState | undefined {
 
 export function joinRoom(
   code: string,
-  name: string
+  name: string,
+  profile?: UserProfileInfo
 ): { state: GameState; playerId: string; sessionToken: string } | { error: string } {
   const state = getRoom(code);
   if (!state) return { error: 'No encontramos esa partida.' };
@@ -92,21 +120,10 @@ export function joinRoom(
   let finalName = name.trim().slice(0, 20);
   const existing = state.players.filter((p) => p.name === finalName).length;
   if (existing > 0) finalName = `${finalName} (${existing + 1})`;
-  const player: Player = {
-    id: playerId,
-    sessionToken,
-    name: finalName,
-    color: null,
-    connected: true,
-    hand: emptyHand(),
-    ports: [],
-    devCards: emptyDevCards(),
-    devCardsBoughtThisTurn: [],
-    knightsPlayed: 0,
-    victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, hiddenVP: 0 },
-  };
+  const player = newPlayer(playerId, sessionToken, finalName, profile);
   state.players.push(player);
   state.turnOrder.push(playerId);
+  tryPreferredColor(state, player, profile?.preferredColor);
   return { state, playerId, sessionToken };
 }
 

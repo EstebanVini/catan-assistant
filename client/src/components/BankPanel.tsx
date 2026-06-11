@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { NumericKeypad } from './NumericKeypad';
 import { useModalA11y } from '../lib/useModalA11y';
 import { DiceStats } from './DiceStats';
+import { GiveCardModal } from './GiveCardModal';
 
 // Panel del encargado del banco: teclado 2-12, undo, último número, mini
 // histograma. El histograma standalone (con probabilidades) se abre en un
@@ -20,6 +21,7 @@ export function BankPanel(): JSX.Element | null {
   const undo = useStore((s) => s.undo);
   const [confirmUndo, setConfirmUndo] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [giveCardOpen, setGiveCardOpen] = useState(false);
   // Tracking de la última tirada para animar la entrada del número grande y
   // pulsar el panel cuando entra una nueva.
   const prevLastNumberRef = useRef<number | null>(null);
@@ -57,7 +59,7 @@ export function BankPanel(): JSX.Element | null {
   );
 
   return (
-    <section className="mx-3 mt-3 rounded-xl border border-amber-500/30 bg-gradient-to-b from-amber-500/[0.09] to-amber-500/[0.03] p-3 shadow-card">
+    <section className="mx-3 mt-3 rounded-xl border border-amber-500/30 bg-surface-1 bg-gradient-to-b from-amber-500/[0.09] to-amber-500/[0.03] p-3 shadow-card">
       {/* Wrapper con `key` para reiniciar el pulso del header al llegar nueva
           tirada, sin remontar el panel completo (preservamos state interno). */}
       <div
@@ -93,11 +95,21 @@ export function BankPanel(): JSX.Element | null {
         <button
           type="button"
           onClick={() => setConfirmUndo(true)}
-          className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium transition-all active:scale-[0.98] active:bg-white/10"
+          className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium transition-all active:scale-[0.98] active:bg-white/10"
         >
           Deshacer última acción
         </button>
       </div>
+      {/* Entrega manual del banco (Fase 3): disponible en cualquier fase,
+          incluso fuera del turno. Herramienta de corrección — estilo
+          secundario. Siempre pública (notice a toda la mesa). */}
+      <button
+        type="button"
+        onClick={() => setGiveCardOpen(true)}
+        className="mt-2 min-h-[44px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium transition-all active:scale-[0.98] active:bg-white/10"
+      >
+        Entregar carta
+      </button>
       <div className="mt-3">
         <div className="mb-1.5 flex items-baseline justify-between">
           <h3 className="text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
@@ -106,7 +118,7 @@ export function BankPanel(): JSX.Element | null {
           <button
             type="button"
             onClick={() => setStatsOpen(true)}
-            className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-medium text-neutral-200 transition-colors active:bg-white/10"
+            className="rounded-md border border-white/10 bg-surface-3 px-2 py-1 text-[10px] font-medium text-neutral-200 transition-colors active:bg-white/10"
           >
             Ver estadísticas
           </button>
@@ -133,6 +145,9 @@ export function BankPanel(): JSX.Element | null {
           total={totalRolls}
           onClose={() => setStatsOpen(false)}
         />
+      ) : null}
+      {giveCardOpen ? (
+        <GiveCardModal onClose={() => setGiveCardOpen(false)} />
       ) : null}
     </section>
   );
@@ -177,7 +192,7 @@ function ConfirmUndoDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium"
+            className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium"
           >
             Cancelar
           </button>
@@ -249,7 +264,7 @@ function ExpandedStatsDialog({
         <button
           type="button"
           onClick={onClose}
-          className="mt-5 min-h-[44px] w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-neutral-200 transition-colors active:bg-white/[0.08]"
+          className="mt-5 min-h-[44px] w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm font-medium text-neutral-200 transition-colors active:bg-white/[0.08]"
         >
           Cerrar
         </button>

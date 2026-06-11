@@ -105,7 +105,7 @@ function SenderPanel({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs"
+          className="rounded-md border border-white/10 bg-surface-3 px-2 py-1 text-xs"
         >
           Cancelar oferta
         </button>
@@ -144,13 +144,13 @@ function ReceiverDialog({
           {fromName} te ofrece un intercambio
         </h2>
         <div className="mt-3 space-y-2">
-          <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+          <div className="rounded-lg border border-white/10 bg-surface-3 p-2.5">
             <p className="text-[11px] uppercase tracking-wide text-neutral-400">
               Te da
             </p>
             <ChipList entries={giveEntries} />
           </div>
-          <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+          <div className="rounded-lg border border-white/10 bg-surface-3 p-2.5">
             <p className="text-[11px] uppercase tracking-wide text-neutral-400">
               Te pide
             </p>
@@ -164,7 +164,7 @@ function ReceiverDialog({
           <button
             type="button"
             onClick={onReject}
-            className="min-h-[48px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium"
+            className="min-h-[48px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium"
           >
             Rechazar
           </button>
@@ -197,7 +197,7 @@ function ResourceLine({
         entries.map(([r, n]) => (
           <span
             key={r}
-            className="inline-flex items-center gap-0.5 rounded-md bg-white/5 px-1 py-0.5"
+            className="inline-flex items-center gap-0.5 rounded-md bg-surface-3 px-1 py-0.5"
           >
             <ResourceIcon resource={r} size={12} />
             <span className="font-semibold">{n}</span>

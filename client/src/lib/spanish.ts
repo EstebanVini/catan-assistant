@@ -112,6 +112,34 @@ export const PHASE2_TERMS = {
   histogram: 'Histograma',
 } as const;
 
+// Términos compartidos de Fase 3 (cuentas, registro inicial, banco
+// transparente). Reglas duras de copy añadidas (ux-writer, Fase 3):
+//  - "Cuenta" (nunca "perfil de usuario") e "Invitado" (nunca "anónimo").
+//  - "Nombre visible" para displayName; "usuario" (minúscula) para username.
+//  - "Poblado de salida" y "ficha" (número + recurso) para el registro
+//    inicial. "Mi 2º poblado" es el que recibe recursos al iniciar.
+//  - "Entregar carta" / "Forzar entrega" para las correcciones del banco;
+//    quien las hace es el "Encargado del banco".
+//  - El aviso público del banco siempre dice qué se entregó y a quién, en
+//    tono de transparencia, nunca de acusación. Jamás revela el tipo de una
+//    carta de desarrollo entregada.
+export const PHASE3_TERMS = {
+  account: 'Cuenta',
+  guest: 'Invitado',
+  displayName: 'Nombre visible',
+  preferredColor: 'Color preferido',
+  startingSettlement: 'Poblado de salida',
+  spot: 'Ficha',
+  giveCard: 'Entregar carta',
+  forceGive: 'Forzar entrega',
+  bankManager: 'Encargado del banco',
+} as const;
+
+// Frases canónicas de Fase 3 — una sola fuente para evitar derivas entre
+// pantallas (LoginScreen, ProfileScreen, App).
+export const DISPLAY_NAME_HELP = 'Es el nombre que verá la mesa al unirte.';
+export const SESSION_EXPIRED = 'Tu sesión expiró. Vuelve a entrar.';
+
 // Frase canónica para el bloque de puntos de victoria ocultos en la vista del
 // dueño. Se usa en `PlayDevModal` para evitar reinterpretaciones libres.
 export function hiddenVPCopy(n: number): string {

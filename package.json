@@ -10,7 +10,10 @@
     "build": "cd client && npm run build",
     "start": "cd server && npm start",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install",
-    "test": "cd server && npm test"
+    "test": "cd server && npm test",
+    "docker:db": "docker compose up -d mongo",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

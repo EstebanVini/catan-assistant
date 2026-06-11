@@ -39,7 +39,7 @@ export function TopBar(): JSX.Element | null {
             )}
           </div>
         </div>
-        <div className="flex-shrink-0 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-200">
+        <div className="flex-shrink-0 rounded-md border border-white/10 bg-surface-2 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-200">
           {PHASE_NAMES[state.phase]}
         </div>
         <div className="flex min-w-0 flex-col items-end leading-tight">

@@ -60,7 +60,7 @@ export function RobberFlow(): JSX.Element | null {
                   if (p.cardCount === 0) setConfirming(p.id);
                   else stealFrom(p.id);
                 }}
-                className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left transition-colors active:bg-white/10"
+                className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-left transition-colors active:bg-white/10"
               >
                 <ColorChip color={p.color} size={16} />
                 <span className="flex-1 text-sm font-medium">{p.name}</span>
@@ -120,7 +120,7 @@ function ConfirmEmptySteal({
           <button
             type="button"
             onClick={onCancel}
-            className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
           >
             Cancelar
           </button>

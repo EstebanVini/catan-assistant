@@ -16,6 +16,7 @@ import { MonopolyPickerModal } from '../components/MonopolyPickerModal';
 import { YearOfPlentyPickerModal } from '../components/YearOfPlentyPickerModal';
 import { RoadBuildingConfirmModal } from '../components/RoadBuildingConfirmModal';
 import { DiceStats } from '../components/DiceStats';
+import { CollapsibleSection } from '../components/CollapsibleSection';
 import { handTotal, totalVictoryPoints } from '../types';
 import { DEV_CARD_NAMES, hiddenVPCopy } from '../lib/spanish';
 import { safeVibrate } from '../lib/motion';
@@ -35,7 +36,6 @@ export function GameScreen(): JSX.Element | null {
   const pushToast = useStore((s) => s.pushToast);
   const showDisconnectedBanner = useStore((s) => s.showDisconnectedBanner);
   const [devSub, setDevSub] = useState<DevSubFlow>({ kind: 'none' });
-  const [statsOpen, setStatsOpen] = useState(false);
 
   // Vibración + toast al iniciar mi turno (cambio de turno con activeId == me.id).
   const prevTurnRef = useRef<string | null>(null);
@@ -122,8 +122,6 @@ export function GameScreen(): JSX.Element | null {
       <DiceStatsCollapsible
         stats={state.diceStats}
         lastNumber={state.lastRolledNumber}
-        open={statsOpen}
-        onToggle={() => setStatsOpen((v) => !v)}
       />
       <Log />
       <DiscardModal />
@@ -156,63 +154,45 @@ export function GameScreen(): JSX.Element | null {
 }
 
 // Sección colapsable del histograma de dados — visible para todos (brief §5.3).
-// Cerrada por defecto para no introducir ruido. Dentro de `BankPanel` el
+// Fase 3: preferencia persistente por dispositivo (`ui.collapse.diceStats`,
+// default colapsada — ya decidido en Fase 2). Dentro de `BankPanel` el
 // histograma sigue expandido por su uso operativo.
 function DiceStatsCollapsible({
   stats,
   lastNumber,
-  open,
-  onToggle,
 }: {
   stats: Record<number, number>;
   lastNumber: number | null;
-  open: boolean;
-  onToggle: () => void;
 }): JSX.Element {
   const total = Object.values(stats).reduce((a, b) => a + (b ?? 0), 0);
   return (
-    <section className="mx-3 mt-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] shadow-soft">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        aria-controls="dice-stats-panel"
-        className="flex w-full items-center justify-between rounded-t-xl px-3 py-3 transition-colors active:bg-white/[0.04]"
-      >
-        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-300">
-          Estadísticas de dados
+    <CollapsibleSection
+      id="diceStats"
+      title="Estadísticas de dados"
+      defaultCollapsed
+      summary={
+        <span className="nums text-[11px] text-neutral-400">
+          {total} {total === 1 ? 'tirada' : 'tiradas'}
         </span>
-        <span className="flex items-center gap-2 text-[11px] text-neutral-400">
-          <span className="nums">
-            {total} {total === 1 ? 'tirada' : 'tiradas'}
-          </span>
-          <span aria-hidden>{open ? '−' : '+'}</span>
-        </span>
-      </button>
-      {open ? (
-        <div
-          id="dice-stats-panel"
-          className="border-t border-white/10 px-3 pb-3 pt-2"
-        >
-          {total === 0 ? (
-            <p className="anim-fade-in text-center text-[11px] text-neutral-400">
-              Aún no hay tiradas.
-            </p>
-          ) : (
-            // `animateOnMount` activa el stagger de 30 ms por barra cada vez
-            // que se abre la sección. El `if (open)` exterior ya garantiza un
-            // re-mount limpio entre abrir y cerrar — el cierre simplemente
-            // desmonta el subárbol (fade implícito por el padre).
-            <DiceStats
-              stats={stats}
-              variant="default"
-              lastRolledNumber={lastNumber}
-              animateOnMount
-            />
-          )}
-        </div>
-      ) : null}
-    </section>
+      }
+    >
+      <div className="px-3 pb-3 pt-2">
+        {total === 0 ? (
+          <p className="anim-fade-in text-center text-[11px] text-neutral-400">
+            Aún no hay tiradas.
+          </p>
+        ) : (
+          // `animateOnMount` activa el stagger de 30 ms por barra cada vez
+          // que se abre la sección (el contenido se re-monta al abrir).
+          <DiceStats
+            stats={stats}
+            variant="default"
+            lastRolledNumber={lastNumber}
+            animateOnMount
+          />
+        )}
+      </div>
+    </CollapsibleSection>
   );
 }
 
@@ -354,7 +334,7 @@ function PlayDevModal({
           No puedes jugar una carta comprada este turno.
         </p>
         {rows.length === 0 ? (
-          <p className="mt-3 rounded-md border border-white/10 bg-white/[0.03] px-3 py-3 text-center text-xs text-neutral-300">
+          <p className="mt-3 rounded-md border border-white/10 bg-surface-1 px-3 py-3 text-center text-xs text-neutral-300">
             No tienes cartas de desarrollo jugables.
           </p>
         ) : (
@@ -377,8 +357,8 @@ function PlayDevModal({
                   className={
                     'flex min-h-[56px] w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors ' +
                     (disabled
-                      ? 'cursor-not-allowed border-white/[0.06] bg-white/[0.02] opacity-50'
-                      : 'border-white/12 bg-white/[0.05] active:bg-white/[0.09]')
+                      ? 'cursor-not-allowed border-white/[0.06] bg-surface-1 opacity-50'
+                      : 'border-white/12 bg-surface-2 active:bg-white/[0.09]')
                   }
                 >
                   <div className="min-w-0 flex-1 pr-3">
@@ -424,7 +404,7 @@ function PlayDevModal({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[44px] rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm"
+            className="min-h-[44px] rounded-lg border border-white/10 bg-surface-3 px-4 py-2 text-sm"
           >
             Cerrar
           </button>

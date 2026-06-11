@@ -45,7 +45,7 @@ export function HandView(): JSX.Element | null {
   const devTotal = devCardsTotal(me.devCards);
 
   return (
-    <section className="mx-3 mt-3 rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-3 shadow-card">
+    <section className="mx-3 mt-3 rounded-xl border border-white/10 bg-surface-2 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-3 shadow-card">
       <div className="mb-2.5 flex items-baseline justify-between">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
           Tu mano
@@ -115,7 +115,7 @@ export function HandView(): JSX.Element | null {
                 return (
                   <span
                     key={card}
-                    className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs text-neutral-200"
+                    className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-surface-3 px-2 py-1 text-xs text-neutral-200"
                   >
                     {DEV_CARD_NAMES[card]}
                     <span className="nums font-bold text-neutral-50">×{n}</span>

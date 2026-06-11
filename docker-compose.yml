@@ -1,0 +1,29 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-catan}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-catan-dev-password}
+    volumes:
+      - mongo-data:/data/db
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    env_file:
+      - .env
+    environment:
+      # Dentro de la red de compose, mongo se resuelve por nombre de servicio.
+      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-catan}:${MONGO_INITDB_ROOT_PASSWORD:-catan-dev-password}@mongo:27017/catan?authSource=admin
+    ports:
+      - '${PORT:-3001}:${PORT:-3001}'
+
+volumes:
+  mongo-data:

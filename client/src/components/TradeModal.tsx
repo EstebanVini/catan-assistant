@@ -148,7 +148,7 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
                         'flex min-h-[44px] flex-col items-center rounded-md border px-1 py-2 ' +
                         (selected
                           ? 'border-emerald-400 bg-emerald-500/10'
-                          : 'border-white/10 bg-white/5')
+                          : 'border-white/10 bg-surface-3')
                       }
                     >
                       <ResourceIcon resource={r} size={18} />
@@ -191,7 +191,7 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
                         'flex min-h-[44px] flex-col items-center rounded-md border px-1 py-2 ' +
                         (selected
                           ? 'border-emerald-400 bg-emerald-500/10'
-                          : 'border-white/10 bg-white/5') +
+                          : 'border-white/10 bg-surface-3') +
                         (disabled ? ' opacity-40' : '')
                       }
                     >
@@ -265,7 +265,7 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
                     'rounded-md border px-2 py-1.5 text-xs ' +
                     (toId === null
                       ? 'border-emerald-400 bg-emerald-500/10'
-                      : 'border-white/10 bg-white/5')
+                      : 'border-white/10 bg-surface-3')
                   }
                 >
                   A todos
@@ -279,7 +279,7 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
                       'inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs ' +
                       (toId === p.id
                         ? 'border-emerald-400 bg-emerald-500/10'
-                        : 'border-white/10 bg-white/5')
+                        : 'border-white/10 bg-surface-3')
                     }
                   >
                     <ColorChip color={p.color} size={10} />
@@ -354,7 +354,7 @@ function ResourceSteppers({
               onClick={() => onChange(r, -1)}
               disabled={cur === 0}
               aria-label={`Quitar 1 ${RESOURCE_NAMES[r]}`}
-              className="h-11 w-11 rounded-md border border-white/10 bg-white/5 text-base disabled:opacity-40"
+              className="h-11 w-11 rounded-md border border-white/10 bg-surface-3 text-base disabled:opacity-40"
             >
               <span aria-hidden>−</span>
             </button>
@@ -369,7 +369,7 @@ function ResourceSteppers({
               onClick={() => onChange(r, +1)}
               disabled={cur >= max}
               aria-label={`Agregar 1 ${RESOURCE_NAMES[r]}`}
-              className="h-11 w-11 rounded-md border border-white/10 bg-white/5 text-base disabled:opacity-40"
+              className="h-11 w-11 rounded-md border border-white/10 bg-surface-3 text-base disabled:opacity-40"
             >
               <span aria-hidden>+</span>
             </button>

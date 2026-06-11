@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { ColorChip } from './ColorChip';
+import { CollapsibleSection, useCollapsePref } from './CollapsibleSection';
 
 // Log invertido (más reciente arriba), colapsable. Badge si hay nuevas.
+//
+// Fase 3: la preferencia de colapso persiste por dispositivo
+// (`ui.collapse.log`, default colapsado). Se usa el modo controlado de
+// `CollapsibleSection` porque el contador de "nuevas" debe resetearse al abrir.
 export function Log(): JSX.Element | null {
   const view = useStore((s) => s.view);
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, toggleCollapsed] = useCollapsePref('log', true);
   const [newCount, setNewCount] = useState(0);
   const lastSeenLenRef = useRef<number | null>(null);
 
@@ -67,37 +72,34 @@ export function Log(): JSX.Element | null {
   const reversed = [...state.log].reverse();
 
   return (
-    <section className="mx-3 mb-6 mt-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.02] shadow-soft">
-      <button
-        type="button"
-        onClick={() => {
-          if (collapsed) {
-            lastSeenLenRef.current = state.log.length;
-            setNewCount(0);
-          }
-          setCollapsed((c) => !c);
-        }}
-        aria-expanded={!collapsed}
-        aria-controls="log-list"
-        className="flex w-full items-center justify-between px-3 py-3 transition-colors active:bg-white/[0.04]"
-      >
-        <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
-          Registro
-          {newCount > 0 && collapsed ? (
-            <span className="anim-badge-pulse nums rounded-full bg-emerald-400 px-1.5 py-0.5 text-[10px] font-bold text-neutral-950">
-              +{newCount} {newCount === 1 ? 'nueva' : 'nuevas'}
-            </span>
-          ) : null}
-        </span>
-        <span className="nums text-xs text-neutral-500">
-          {state.log.length} {collapsed ? '+' : '−'}
-        </span>
-      </button>
-      {!collapsed ? (
+    <CollapsibleSection
+      id="log"
+      title="Registro"
+      defaultCollapsed
+      collapsed={collapsed}
+      onToggleCollapsed={() => {
+        if (collapsed) {
+          lastSeenLenRef.current = state.log.length;
+          setNewCount(0);
+        }
+        toggleCollapsed();
+      }}
+      className="mb-6"
+      titleBadge={
+        newCount > 0 && collapsed ? (
+          <span className="anim-badge-pulse nums rounded-full bg-emerald-400 px-1.5 py-0.5 text-[10px] font-bold text-neutral-950">
+            +{newCount} {newCount === 1 ? 'nueva' : 'nuevas'}
+          </span>
+        ) : null
+      }
+      summary={
+        <span className="nums text-xs text-neutral-500">{state.log.length}</span>
+      }
+    >
         <ul
           id="log-list"
           aria-live="polite"
-          className="max-h-[280px] space-y-2 overflow-y-auto border-t border-white/10 px-3 py-2.5"
+          className="max-h-[280px] space-y-2 overflow-y-auto px-3 py-2.5"
         >
           {reversed.length === 0 ? (
             <li className="py-3 text-center text-xs leading-relaxed text-neutral-400">
@@ -132,8 +134,7 @@ export function Log(): JSX.Element | null {
             );
           })}
         </ul>
-      ) : null}
-    </section>
+    </CollapsibleSection>
   );
 }
 

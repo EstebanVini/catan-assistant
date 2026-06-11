@@ -13,6 +13,31 @@
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior-y: none;
     font-feature-settings: 'ss01', 'cv11';
+    /* Color de respaldo bajo el océano (si el pseudo-elemento no pinta). */
+    background-color: #07243a;
+  }
+
+  /*
+   * Océano de Catán — el mar que rodea el tablero, constante en TODAS las
+   * pantallas. Capa fija (no repinta al hacer scroll, barato en móvil):
+   *  1. Olas: SVG inline diminuto (data-URI, <1 KB) repetido, trazos al
+   *     3.5–5% de opacidad — textura, nunca fondo de lectura.
+   *  2. Degradado radial: más luz arriba (horizonte) y profundidad abajo.
+   * Regla dura del brief: NINGÚN texto se apoya directamente en esta capa;
+   * todo contenido vive en superficies de madera sólidas (tokens surface-*).
+   */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: #07243a;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='70' viewBox='0 0 140 70'%3E%3Cg fill='none' stroke='%23ffffff' stroke-linecap='round'%3E%3Cpath d='M0 18 q17.5 -9 35 0 t35 0 t35 0 t35 0' stroke-opacity='0.05' stroke-width='1.5'/%3E%3Cpath d='M-17.5 53 q17.5 -9 35 0 t35 0 t35 0 t35 0' stroke-opacity='0.035' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E"),
+      radial-gradient(130% 90% at 50% -10%, #176087 0%, #0c3553 48%, #07243a 100%);
+    background-repeat: repeat, no-repeat;
+    background-size: 140px 70px, 100% 100%;
   }
 
   /*
@@ -30,12 +55,14 @@
     font-size: 16px;
   }
 
-  /* Accesibilidad: focus-visible global suave. Componentes pueden override. */
+  /* Accesibilidad: focus-visible global suave. Anillo dorado: visible tanto
+     sobre madera (cálida) como sobre el océano (azul). Componentes pueden
+     hacer override. */
   :where(button, a, input, textarea, select, [role='button']):focus-visible {
     outline: none;
     box-shadow:
-      0 0 0 2px rgb(15 17 21),
-      0 0 0 4px rgba(110, 168, 254, 0.85);
+      0 0 0 2px rgb(25 19 16),
+      0 0 0 4px rgba(236, 195, 95, 0.9);
     border-radius: 0.5rem;
   }
 }
@@ -52,6 +79,49 @@
   .nums {
     font-variant-numeric: tabular-nums;
     font-feature-settings: 'tnum' 1, 'lnum' 1;
+  }
+
+  /*
+   * Veta de madera sutilísima para paneles grandes (mano, lobby, modales).
+   * Solo gradientes repetidos (cero imágenes, cero blur). NO combinar con
+   * utilidades bg-gradient-* de Tailwind (ambas usan background-image).
+   */
+  .texture-wood {
+    background-image:
+      repeating-linear-gradient(
+        92deg,
+        rgba(255, 226, 178, 0.016) 0px,
+        rgba(255, 226, 178, 0.016) 2px,
+        transparent 2px,
+        transparent 7px
+      ),
+      repeating-linear-gradient(
+        88deg,
+        rgba(0, 0, 0, 0.05) 0px,
+        rgba(0, 0, 0, 0.05) 1px,
+        transparent 1px,
+        transparent 11px
+      );
+  }
+
+  /*
+   * Océano como fondo de un contenedor propio (WinnerScreen y overlays a
+   * pantalla completa que tapan el body). Mismas capas que body::before.
+   */
+  .bg-ocean {
+    background-color: #07243a;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='70' viewBox='0 0 140 70'%3E%3Cg fill='none' stroke='%23ffffff' stroke-linecap='round'%3E%3Cpath d='M0 18 q17.5 -9 35 0 t35 0 t35 0 t35 0' stroke-opacity='0.05' stroke-width='1.5'/%3E%3Cpath d='M-17.5 53 q17.5 -9 35 0 t35 0 t35 0 t35 0' stroke-opacity='0.035' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E"),
+      radial-gradient(130% 90% at 50% -10%, #176087 0%, #0c3553 48%, #07243a 100%);
+    background-repeat: repeat, no-repeat;
+    background-size: 140px 70px, 100% 100%;
+  }
+
+  /* Título display dorado (marca, código de sala, GANADOR). El dorado está
+     RESERVADO a estos usos + insignias. */
+  .title-gold {
+    color: #ecc35f;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
   }
 }
 

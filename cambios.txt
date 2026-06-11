@@ -1,0 +1,7 @@
+Cambios:
+
+Al iniciar el juego, todos los jugadores tienen que recibir 1 carta de cada recurso en el que tienen poblados. 
+
+Cuando un jugador manda una oferta de intercambio al resto de jugadores, si un jugador rechaza la oferta, la notificación desaparece para todos los jugadores, necesito que la notificación solo desaparezca para la persona que la rechazó, pero el resto de jugadores tienen que seguir viéndola hazta que la acepten o la rechacen
+
+Cualquier jugador puede agregar fichas o poblados a voluntad, aún sin contar con los recursos necesarios, además no quiero que se llame "Tabla de producción" quiero que se llame "Tabla de construcción" y que venga una lista de poblados y una de ciudades y en cada lista puedas agregar el número y el recurso que te da cada ciudad o poblado. Que en esa tabla solo puedas ver las tuyas y que simplemente en la lista de jugadores venga el recuento de cuántas ciudades y poblados tiene cada jugador

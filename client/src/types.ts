@@ -78,6 +78,52 @@ export interface PublicPlayer {
   knightsPlayed: number;
   ports: PortType[];
   victoryPoints: VictoryPoints;
+  // Fase 3: identidad y registro inicial.
+  avatarUrl?: string;
+  isRegistered: boolean;
+  setupComplete: boolean;
+}
+
+// Fase 3 — Registro de construcciones iniciales (lobby).
+export interface InitialBuildingSpot {
+  number: number; // 2–12 sin 7
+  resource: Resource;
+}
+
+export interface InitialBuilding {
+  id: string;
+  type: 'settlement' | 'city';
+  spots: InitialBuildingSpot[]; // 1–3 fichas
+  grantsStartingResources: boolean; // exactamente uno de los dos en true
+}
+
+// Fase 3 — Notice público (banner prominente para todos).
+export type NoticeLevel = 'info' | 'warn';
+
+export interface NoticePayload {
+  level: NoticeLevel;
+  text: string;
+}
+
+// Fase 3 — Cuentas de usuario (REST /api/auth y /api/users).
+export interface UserStats {
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+  longestRoadBadges: number;
+  largestArmyBadges: number;
+  totalVictoryPoints: number;
+}
+
+export interface User {
+  id: string;
+  username: string;
+  email?: string | null;
+  displayName: string;
+  avatarUrl?: string | null;
+  color?: PlayerColor | null;
+  stats: UserStats;
+  createdAt: string;
 }
 
 export interface MeView {
@@ -89,6 +135,8 @@ export interface MeView {
   devCardsBoughtThisTurn: DevCardType[];
   ports: PortType[];
   sessionToken?: string;
+  // Fase 3: mis construcciones iniciales (hidratación al reconectar).
+  initialBuildings?: InitialBuilding[];
 }
 
 export interface PublicGameState {

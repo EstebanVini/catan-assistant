@@ -1,16 +1,21 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../store';
 import { Hex, RESOURCES, Resource } from '../types';
-import { RESOURCE_NAMES } from '../lib/spanish';
+import { RESOURCE_NAMES, RESOURCE_NAMES_LOWER } from '../lib/spanish';
 import { ColorChip } from './ColorChip';
 import { ResourceIcon } from './ResourceIcon';
 import { useModalA11y } from '../lib/useModalA11y';
+import { CollapsibleSection } from './CollapsibleSection';
 
 // Lista editable de hexes. No mapa.
+//
+// Fase 3: colapsable persistente por dispositivo (`ui.collapse.productionTable`,
+// default colapsada). La fase de ladrón la fuerza abierta SIN escribir la
+// preferencia; el resumen cerrado siempre indica dónde está el ladrón para que
+// nunca quede invisible.
 export function ProductionTable(): JSX.Element | null {
   const view = useStore((s) => s.view);
   const moveRobber = useStore((s) => s.moveRobber);
-  const [collapsed, setCollapsed] = useState(true);
   const [editHexId, setEditHexId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   if (!view) return null;
@@ -18,27 +23,39 @@ export function ProductionTable(): JSX.Element | null {
 
   const isRobberPhase = state.phase === 'robber' && state.pendingRobberMove;
   const isMyTurn = !!me && state.turnOrder[state.currentTurnIndex] === me.id;
-  // Forzar abierto durante fase de ladrón.
-  const open = !collapsed || isRobberPhase;
+
+  const robberHex = state.hexes.find((h) => h.robber) ?? null;
+  const robberLabel = robberHex
+    ? robberHex.number !== null && robberHex.resource
+      ? `${robberHex.number} ${RESOURCE_NAMES_LOWER[robberHex.resource]}`
+      : 'desierto'
+    : null;
 
   return (
-    <section className="mx-3 mt-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] shadow-soft">
-      <button
-        type="button"
-        onClick={() => setCollapsed((c) => !c)}
-        aria-expanded={open}
-        aria-controls="production-list"
-        className="flex w-full items-center justify-between px-3 py-3 transition-colors active:bg-white/[0.04]"
+    <>
+      <CollapsibleSection
+        id="productionTable"
+        title="Tabla de producción"
+        defaultCollapsed
+        forceOpen={isRobberPhase}
+        summary={
+          <span className="nums text-xs text-neutral-500">
+            {state.hexes.length} fichas
+          </span>
+        }
+        collapsedSummary={
+          robberLabel ? (
+            <span className="flex items-center gap-1 text-xs text-neutral-400">
+              <span
+                className="inline-block h-1.5 w-1.5 rounded-full bg-red-500"
+                aria-hidden
+              />
+              ladrón en {robberLabel}
+            </span>
+          ) : null
+        }
       >
-        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
-          Tabla de producción
-        </span>
-        <span className="nums text-xs text-neutral-500">
-          {state.hexes.length} fichas {open ? '−' : '+'}
-        </span>
-      </button>
-      {open ? (
-        <div id="production-list" className="border-t border-white/10 p-3">
+        <div className="p-3">
           <ul className="space-y-2">
             {state.hexes.length === 0 ? (
               <li className="rounded-md border border-dashed border-white/10 px-3 py-3 text-center text-xs text-neutral-400">
@@ -61,12 +78,12 @@ export function ProductionTable(): JSX.Element | null {
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="mt-3 min-h-[44px] w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm transition-colors active:bg-white/10"
+            className="mt-3 min-h-[44px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm transition-colors active:bg-white/10"
           >
             Agregar ficha
           </button>
         </div>
-      ) : null}
+      </CollapsibleSection>
       {editHexId ? (
         <EditHexModal
           hexId={editHexId}
@@ -76,7 +93,7 @@ export function ProductionTable(): JSX.Element | null {
       {creating ? (
         <EditHexModal hexId={null} onClose={() => setCreating(false)} />
       ) : null}
-    </section>
+    </>
   );
 }
 
@@ -109,7 +126,7 @@ function HexRow({
           'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border ' +
           (isHot
             ? 'border-amber-400/80 bg-amber-500/20 text-amber-100 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.2)]'
-            : 'border-white/15 bg-white/[0.06] text-neutral-100')
+            : 'border-white/15 bg-surface-3 text-neutral-100')
         }
       >
         <span className={'nums leading-none ' + (isHot ? 'text-base font-bold' : 'text-sm font-semibold')}>
@@ -135,7 +152,7 @@ function HexRow({
                 return (
                   <span
                     key={o.playerId}
-                    className="inline-flex items-center gap-0.5 rounded bg-white/5 px-1.5 py-0.5 text-[10px]"
+                    className="inline-flex items-center gap-0.5 rounded bg-surface-3 px-1.5 py-0.5 text-[10px]"
                   >
                     <ColorChip color={p?.color ?? null} size={10} />
                     <span className="font-medium uppercase">
@@ -160,7 +177,7 @@ function HexRow({
             e.stopPropagation();
             onEdit();
           }}
-          className="min-h-[44px] rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs"
+          className="min-h-[44px] rounded-md border border-white/10 bg-surface-3 px-2.5 py-1 text-xs"
         >
           Editar
         </button>
@@ -236,7 +253,7 @@ function EditHexModal({
                   'min-h-[40px] min-w-[40px] rounded-md border px-2 py-1 text-sm ' +
                   (number === n
                     ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100'
-                    : 'border-white/10 bg-white/5 text-neutral-100')
+                    : 'border-white/10 bg-surface-3 text-neutral-100')
                 }
               >
                 {n}
@@ -249,7 +266,7 @@ function EditHexModal({
                 'min-h-[40px] rounded-md border px-2 py-1 text-sm ' +
                 (number === null
                   ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100'
-                  : 'border-white/10 bg-white/5 text-neutral-100')
+                  : 'border-white/10 bg-surface-3 text-neutral-100')
               }
             >
               Desierto
@@ -271,7 +288,7 @@ function EditHexModal({
                   'flex min-h-[44px] items-center gap-2 rounded-md border px-2 py-1 text-sm ' +
                   (resource === r
                     ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100'
-                    : 'border-white/10 bg-white/5 text-neutral-100')
+                    : 'border-white/10 bg-surface-3 text-neutral-100')
                 }
               >
                 <ResourceIcon resource={r} size={18} />
@@ -285,7 +302,7 @@ function EditHexModal({
                 'min-h-[44px] rounded-md border px-2 py-1 text-sm ' +
                 (resource === null
                   ? 'border-emerald-400 bg-emerald-500/15 text-emerald-100'
-                  : 'border-white/10 bg-white/5 text-neutral-100')
+                  : 'border-white/10 bg-surface-3 text-neutral-100')
               }
             >
               Ninguno
@@ -306,7 +323,7 @@ function EditHexModal({
                 return (
                   <li
                     key={o.playerId}
-                    className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/5 px-2 py-1.5"
+                    className="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-surface-3 px-2 py-1.5"
                   >
                     <span className="flex items-center gap-1.5 text-sm">
                       <ColorChip color={p?.color ?? null} size={14} />
@@ -325,7 +342,7 @@ function EditHexModal({
                             o.type === 'city' ? 'settlement' : 'city'
                           )
                         }
-                        className="rounded border border-white/10 bg-white/5 px-2 py-1 text-xs"
+                        className="rounded border border-white/10 bg-surface-3 px-2 py-1 text-xs"
                       >
                         {o.type === 'city' ? 'Bajar a poblado' : 'Subir a ciudad'}
                       </button>
@@ -354,7 +371,7 @@ function EditHexModal({
                       key={p.id}
                       type="button"
                       onClick={() => addOwner(existing.id, p.id, 'settlement')}
-                      className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs"
+                      className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-surface-3 px-2 py-1 text-xs"
                     >
                       <ColorChip color={p.color} size={12} />
                       {p.name}
@@ -381,7 +398,7 @@ function EditHexModal({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
+            className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
           >
             Cancelar
           </button>

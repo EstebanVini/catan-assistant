@@ -6,12 +6,16 @@ import { ColorChip } from './ColorChip';
 import { portLabel } from '../lib/spanish';
 import { playerHex } from '../lib/playerColors';
 import { BadgeChip, BadgeIcon } from './BadgeIcon';
+import { CollapsibleSection } from './CollapsibleSection';
 
 // Estado público por jugador. Manos ajenas nunca se muestran (privacidad).
+//
+// Fase 3: colapsable persistente (`ui.collapse.publicPlayers`, default
+// EXPANDIDO: es el marcador de la partida). Cerrado muestra "N jugadores ·
+// va X" — cerrado nunca significa ciego.
 export function PublicPlayersPanel(): JSX.Element | null {
   const view = useStore((s) => s.view);
   const setLongestRoad = useStore((s) => s.setLongestRoad);
-  const [collapsed, setCollapsed] = useState(false);
   const [editingLongest, setEditingLongest] = useState(false);
   // Flash de confirmación inline tras asignar el Camino más largo.
   // Texto efímero (≈1 s) en lugar de toast global para mantener el foco
@@ -119,23 +123,21 @@ export function PublicPlayersPanel(): JSX.Element | null {
     .filter((p): p is PublicPlayer => !!p);
   const canEditLongest = !!me && (me.id === state.bankManagerId || me.id === state.hostId);
   const activeId = state.turnOrder[state.currentTurnIndex];
+  const activePlayer = state.players.find((p) => p.id === activeId) ?? null;
 
   return (
-    <section className="mx-3 mt-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] shadow-soft">
-      <button
-        type="button"
-        onClick={() => setCollapsed((c) => !c)}
-        aria-expanded={!collapsed}
-        aria-controls="players-list"
-        className="flex w-full items-center justify-between rounded-t-xl px-3 py-3 transition-colors active:bg-white/[0.04]"
-      >
-        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-300">
-          Jugadores
+    <CollapsibleSection
+      id="publicPlayers"
+      title="Jugadores"
+      defaultCollapsed={false}
+      collapsedSummary={
+        <span className="text-xs text-neutral-400">
+          {ordered.length} jugadores
+          {activePlayer ? ` · va ${activePlayer.name}` : ''}
         </span>
-        <span className="text-xs text-neutral-500">{collapsed ? '+' : '−'}</span>
-      </button>
-      {!collapsed ? (
-        <div id="players-list" className="space-y-2 border-t border-white/10 p-3">
+      }
+    >
+      <div className="space-y-2 p-3">
           {ordered.map((p) => {
             const isActive = p.id === activeId;
             const vpVisible =
@@ -291,7 +293,7 @@ export function PublicPlayersPanel(): JSX.Element | null {
                 <button
                   type="button"
                   onClick={() => setEditingLongest(true)}
-                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-neutral-200 transition-colors active:bg-white/[0.10]"
+                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-xs font-medium text-neutral-200 transition-colors active:bg-white/[0.10]"
                 >
                   <BadgeIcon variant="road" size={14} />
                   {(() => {
@@ -319,7 +321,7 @@ export function PublicPlayersPanel(): JSX.Element | null {
                         setEditingLongest(false);
                         setLongestFlash('Camino más largo: sin dueño.');
                       }}
-                      className="min-h-[36px] rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs"
+                      className="min-h-[36px] rounded-md border border-white/10 bg-surface-3 px-2 py-1.5 text-xs"
                     >
                       Sin dueño
                     </button>
@@ -332,7 +334,7 @@ export function PublicPlayersPanel(): JSX.Element | null {
                           setEditingLongest(false);
                           setLongestFlash(`Camino más largo: ${p.name}.`);
                         }}
-                        className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs"
+                        className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-white/10 bg-surface-3 px-2 py-1.5 text-xs"
                       >
                         <ColorChip color={p.color} size={10} />
                         {p.name}
@@ -350,9 +352,8 @@ export function PublicPlayersPanel(): JSX.Element | null {
               )}
             </div>
           ) : null}
-        </div>
-      ) : null}
-    </section>
+      </div>
+    </CollapsibleSection>
   );
 }
 
@@ -365,7 +366,7 @@ function Badge({
 }): JSX.Element {
   const cls =
     tone === 'muted'
-      ? 'bg-white/5 text-neutral-300 border-white/10'
+      ? 'bg-surface-3 text-neutral-300 border-white/10'
       : tone === 'warn'
         ? 'bg-amber-500/15 text-amber-200 border-amber-500/30'
         : 'bg-sky-500/15 text-sky-200 border-sky-500/30';

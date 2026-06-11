@@ -3,7 +3,11 @@ import { useStore, wireSocket } from './store';
 import { HomeScreen } from './screens/HomeScreen';
 import { LobbyScreen } from './screens/LobbyScreen';
 import { GameScreen } from './screens/GameScreen';
+import { LoginScreen } from './screens/LoginScreen';
+import { ProfileScreen } from './screens/ProfileScreen';
 import { WinnerScreen } from './components/WinnerScreen';
+import { NoticeBanner } from './components/NoticeBanner';
+import { getMe } from './api';
 
 // Cablear el socket lo antes posible (a nivel de módulo), para no perder eventos.
 wireSocket();
@@ -19,6 +23,11 @@ export function App(): JSX.Element {
   const dismissToast = useStore((s) => s.dismissToast);
   const forgetSession = useStore((s) => s.forgetSession);
   const pushToast = useStore((s) => s.pushToast);
+  const authToken = useStore((s) => s.authToken);
+  const authUser = useStore((s) => s.authUser);
+  const guestMode = useStore((s) => s.guestMode);
+  const homeView = useStore((s) => s.homeView);
+  const showLogin = useStore((s) => s.showLogin);
 
   // Reconexión silenciosa al cargar: si hay sesión guardada y aún no se intentó.
   useEffect(() => {
@@ -41,13 +50,68 @@ export function App(): JSX.Element {
     return undefined;
   }, [reconnectFailed, session, forgetSession, pushToast]);
 
-  // Determinar pantalla.
+  // Validación del JWT en segundo plano (brief §1): si el token expiró o es
+  // inválido (401), limpiar y avisar — se mostrará el Login. Si falla por red,
+  // Home funciona en modo degradado con el usuario cacheado.
+  useEffect(() => {
+    const token = useStore.getState().authToken;
+    if (!token) return;
+    let cancelled = false;
+    void getMe(token).then((res) => {
+      if (cancelled) return;
+      if (res.ok) {
+        useStore.getState().updateAuthUser(res.user);
+      } else if (res.status === 401) {
+        useStore.getState().clearAuthSession();
+        useStore
+          .getState()
+          .pushToast('error', 'Tu sesión expiró. Vuelve a entrar.');
+      }
+      // Red caída / 503: modo degradado silencioso, el cache manda.
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Solo al montar: la validación es del arranque de la app.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Dos pestañas: detectar login/logout hechos en otra pestaña vía el evento
+  // `storage` y refrescar el header sin forzar recarga (brief §1).
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (
+        e.key === null ||
+        e.key === 'auth.token' ||
+        e.key === 'auth.user' ||
+        e.key === 'guestMode'
+      ) {
+        useStore.getState().refreshAuthFromStorage();
+      }
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  // Determinar pantalla. Precedencia de entrada (brief §1):
+  //   1. Login pedido explícitamente (invitado que quiere cuenta).
+  //   2. Sesión de sala activa — la partida en curso manda.
+  //   3. JWT válido → Home logueado (o Perfil).
+  //   4. Modo invitado elegido previamente → Home.
+  //   5. Nada → Login.
   let screen: JSX.Element | null;
-  if (session && !initialSyncReceived && !reconnectFailed) {
+  if (showLogin) {
+    screen = <LoginScreen />;
+  } else if (session && !initialSyncReceived && !reconnectFailed) {
     // Espera silenciosa de la primera actualización tras reconectar.
     screen = <SyncingScreen />;
   } else if (!view || !view.me) {
-    screen = <HomeScreen />;
+    if (session || authToken || guestMode) {
+      screen =
+        homeView === 'profile' && authUser ? <ProfileScreen /> : <HomeScreen />;
+    } else {
+      screen = <LoginScreen />;
+    }
   } else if (view.state.status === 'lobby') {
     screen = <LobbyScreen />;
   } else if (view.state.status === 'ended') {
@@ -61,6 +125,8 @@ export function App(): JSX.Element {
   return (
     <>
       {screen}
+      {/* Notice público: full-width arriba, por encima de cualquier modal. */}
+      <NoticeBanner />
       <div
         role="status"
         aria-live="polite"
@@ -100,4 +166,3 @@ function SyncingScreen(): JSX.Element {
     </main>
   );
 }
-

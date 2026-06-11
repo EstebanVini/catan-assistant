@@ -12,32 +12,49 @@ Varios jugadores entran desde sus celulares a la **misma sesión** mediante un *
 
 ## Stack obligatorio
 
-- **Backend:** Node.js + Express + **Socket.IO** para tiempo real. Estado de cada partida **en memoria** (un `Map` de `code -> GameState`). No uses base de datos en el MVP.
+- **Backend:** Node.js + Express + **Socket.IO** para tiempo real. El **estado en vivo de cada partida** vive **en memoria** (un `Map` de `code -> GameState`) por velocidad; **MongoDB** se usa para lo que debe persistir entre sesiones (usuarios, historial de partidas, estadísticas).
+- **Base de datos:** **MongoDB** (driver oficial `mongodb` o **Mongoose**, tu elección; prefiero Mongoose por los esquemas). Se levanta con Docker (ver sección Docker). La URL de conexión va por variable de entorno `MONGODB_URI`.
+- **Autenticación:** cuentas de usuario con **login simple basado en JWT**. Las contraseñas se guardan **hasheadas con sal** usando **bcrypt** (`bcryptjs` o `bcrypt`; bcrypt ya incorpora la sal en el hash) — **nunca** en texto plano. El JWT se firma con `JWT_SECRET` (variable de entorno) y se envía en el `Authorization: Bearer <token>` o se pasa en el handshake de Socket.IO (`auth.token`).
 - **Frontend:** React + **Vite** + `socket.io-client`. Mobile-first. Estado global con Context o Zustand (tu elección, prefiero Zustand por simplicidad).
 - **El backend sirve el frontend ya compilado.** Express debe servir los archivos estáticos de `client/dist` y tener un fallback SPA (`app.get('*', ...)`) para que las rutas de React funcionen. Un solo proceso, un solo comando para producción.
 - TypeScript en ambos lados (preferido). Si te resulta más rápido y robusto, adelante.
+- **Toda la app (cliente, servidor y MongoDB) se levanta con `docker compose up`** (ver sección Docker y Docker Compose).
 
 ## Estructura de proyecto sugerida
 
 ```
 catan-assistant/
   package.json            # scripts raíz: dev, build, start
+  docker-compose.yml      # levanta mongo + server (+ build del client)
+  .env.example            # MONGODB_URI, JWT_SECRET, PORT, etc.
   server/
+    Dockerfile            # imagen del backend (multi-stage: build client + server)
     index.js|ts           # Express + Socket.IO, sirve client/dist
+    db/
+      connection.js|ts    # conexión a MongoDB (Mongoose), lee MONGODB_URI
+      models/
+        User.js|ts        # esquema de usuario (perfil, stats, credenciales)
+        Match.js|ts       # historial de partidas terminadas (resultados, ganador)
+    auth/
+      auth.js|ts          # registro/login: hash+sal (bcrypt), firma/verifica JWT
+      middleware.js|ts    # middleware Express + guard del handshake Socket.IO
     game/
       state.js|ts         # modelos y creación de GameState
       rules.js|ts         # lógica pura de Catán (costos, distribución, 7, robo)
       rooms.js|ts         # gestión de salas en memoria
+      setup.js|ts         # construcciones iniciales -> recursos de inicio
     socket/
       handlers.js|ts      # registro de todos los eventos de Socket.IO
   client/
+    Dockerfile            # (opcional) imagen para servir el client en dev
     index.html
     src/
       main.tsx
-      socket.ts           # instancia única del cliente Socket.IO
+      socket.ts           # instancia única del cliente Socket.IO (envía el JWT)
       store.ts            # estado global (Zustand)
-      screens/            # Home, Lobby, Game
-      components/         # HandView, ProductionTable, DiceInput, Log, etc.
+      api.ts              # llamadas REST de auth (register/login)
+      screens/            # Login, Home, Lobby, Game, Profile
+      components/         # HandView, ProductionTable, DiceInput, Log, InitialBuildSetup, etc.
 ```
 
 Scripts raíz deseados:
@@ -45,11 +62,14 @@ Scripts raíz deseados:
 - `npm run build` → compila el client a `client/dist`.
 - `npm start` → corre solo el server, que sirve `client/dist` (producción).
 
-## Identidad y reconexión (importante, es móvil)
+## Cuentas, identidad y reconexión (importante, es móvil)
 
-- No hay cuentas ni login. Al crear/unirse, el servidor asigna un `playerId` y un `sessionToken`. El cliente guarda `{ code, playerId, sessionToken }` en `localStorage`.
-- Al recargar o si se cae la red del celular, el cliente reenvía esos datos y **recupera su identidad y su mano**. Maneja `disconnect`/`reconnect` de Socket.IO sin perder estado.
+- **Hay cuentas de usuario con login simple (JWT).** El usuario se registra/inicia sesión con `username` (o email) + contraseña; el cliente guarda el **JWT** en `localStorage` y lo manda en cada conexión de Socket.IO (`auth.token`) y en las llamadas REST. Con el token, el servidor sabe **quién** es sin pedir nombre de nuevo.
+- **Permite también jugar como invitado (opcional):** si no hay token, el flujo de crear/unirse sigue funcionando pidiendo solo un `name` (sin persistir stats). Útil para alguien que no quiere registrarse en la mesa. Un invitado **no** acumula victorias ni perfil.
+- Al crear/unirse, el servidor asigna un `playerId` y un `sessionToken` de **esa partida** (independiente del JWT). El cliente guarda `{ code, playerId, sessionToken }` en `localStorage` para reconectar a la sala.
+- Al recargar o si se cae la red del celular, el cliente reenvía esos datos y **recupera su identidad y su mano**. Maneja `disconnect`/`reconnect` de Socket.IO sin perder estado. Si además hay JWT, el `Player` queda vinculado a su `userId`.
 - Marca a los jugadores como `connected: true/false` y muéstralo en la UI, pero **no** elimines a un jugador desconectado de la partida.
+- Al **terminar** una partida (`status = 'ended'`), persiste el resultado en MongoDB y actualiza las **estadísticas** de los usuarios registrados que participaron (victorias, partidas jugadas, etc.).
 
 ---
 
@@ -59,12 +79,25 @@ Scripts raíz deseados:
 type Resource = 'brick' | 'lumber' | 'wool' | 'grain' | 'ore';
 type Hand = Record<Resource, number>; // conteos
 
+// Una construcción inicial registrada por el jugador en el lobby.
+// Representa un poblado/ciudad colocado en el tablero físico durante la fase de colocación.
+interface InitialBuilding {
+  id: string;
+  type: 'settlement' | 'city';       // en la colocación inicial normalmente 'settlement'
+  // Cada construcción toca 1..3 fichas; el jugador registra el número y recurso de cada una.
+  spots: Array<{ number: number; resource: Resource }>; // p. ej. [{number:6,resource:'ore'},{number:9,resource:'wool'}]
+  grantsStartingResources: boolean;  // true para el SEGUNDO poblado: otorga recursos al iniciar (regla oficial)
+}
+
 interface Player {
   id: string;
+  userId?: string;          // _id del User en MongoDB si está autenticado; ausente si juega como invitado
   sessionToken: string;     // privado, no enviar a otros
   name: string;
+  avatarUrl?: string;       // foto de perfil del usuario (PÚBLICA en la partida), si está registrado
   color: string;            // hex o nombre; único por partida
   connected: boolean;
+  initialBuildings: InitialBuilding[]; // construcciones iniciales registradas en el lobby (ver setup)
   hand: Hand;               // PRIVADO: solo se envía al dueño
   cardCount: number;        // derivado, PÚBLICO (suma de hand)
   ports: Array<'3:1' | Resource>; // puertos activos del jugador
@@ -107,9 +140,90 @@ interface GameState {
 
 ---
 
+## Usuarios, autenticación y persistencia (MongoDB)
+
+El estado en vivo de la partida sigue en memoria; MongoDB guarda **usuarios** y **resultados de partidas**.
+
+### Modelo `User` (colección `users`)
+
+```ts
+interface User {
+  _id: string;
+  username: string;          // único, índice único
+  email?: string;            // opcional, único si se provee
+  passwordHash: string;      // bcrypt (incluye la sal); NUNCA texto plano
+  displayName: string;       // nombre visible en la mesa (editable)
+  avatarUrl?: string;        // foto de perfil (URL); ver nota de almacenamiento abajo
+  color?: string;            // color preferido (se intenta usar en el lobby si está libre)
+  stats: {
+    gamesPlayed: number;
+    wins: number;
+    losses: number;          // partidas terminadas en las que participó y no ganó
+    longestRoadBadges: number;
+    largestArmyBadges: number;
+    totalVictoryPoints: number; // acumulado histórico (opcional, para promedios)
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+> **Foto de perfil:** para el MVP basta con guardar una `avatarUrl` (el usuario pega una URL o se usa un avatar generado). Si quieres subida real de archivos, deja el gancho: endpoint `POST /api/users/me/avatar` que reciba la imagen (multipart) y la guarde en disco/volumen montado o en un bucket, devolviendo la URL. No bloquees el MVP con esto.
+
+### Modelo `Match` (colección `matches`)
+
+```ts
+interface Match {
+  _id: string;
+  code: string;              // código de la sala
+  extension56: boolean;
+  startedAt: Date;
+  endedAt: Date;
+  winner: { userId?: string; name: string };
+  players: Array<{
+    userId?: string;         // ausente si era invitado
+    name: string;
+    color: string;
+    victoryPoints: number;
+    longestRoad: boolean;
+    largestArmy: boolean;
+    knightsPlayed: number;
+  }>;
+}
+```
+
+### Flujo de autenticación (JWT + bcrypt)
+
+- `POST /api/auth/register { username, password, displayName?, email? }`
+  - Valida que `username` no exista. Hashea la contraseña con **bcrypt** (`bcrypt.hash(password, saltRounds)`, p. ej. 10–12 rounds — la sal queda dentro del hash). Crea el `User` con `stats` en cero. Devuelve `{ token, user }` (sin `passwordHash`).
+- `POST /api/auth/login { username, password }`
+  - Busca el usuario, compara con `bcrypt.compare`. Si coincide, firma un **JWT** (`jwt.sign({ sub: user._id, username }, JWT_SECRET, { expiresIn: '30d' })`). Devuelve `{ token, user }`.
+- `GET /api/users/me` (requiere JWT) → devuelve el perfil propio (sin `passwordHash`).
+- `PATCH /api/users/me` (requiere JWT) → editar `displayName`, `avatarUrl`, `color`, etc.
+- **Middleware de auth:** verifica el `Authorization: Bearer <token>` en REST y el `socket.handshake.auth.token` en Socket.IO. En Socket.IO, si el token es válido, adjunta `socket.data.userId`; si no hay token, el socket sigue permitido como **invitado**.
+- **Nunca** devuelvas `passwordHash` ni la sal al cliente. Maneja errores con mensajes claros ("usuario ya existe", "credenciales inválidas").
+
+### Persistencia de resultados
+
+- Al declarar victoria (`status = 'ended'`), crea un documento `Match` y, para cada jugador con `userId`, incrementa atómicamente sus `stats` (`$inc`): `gamesPlayed`, `wins`/`losses`, insignias y VP. Los invitados (sin `userId`) se guardan en `Match.players` pero no actualizan ningún `User`.
+
+---
+
 ## Reglas de Catán que el servidor debe hacer cumplir (edición base)
 
 Toda la lógica de reglas vive en el servidor (`rules.js`). El cliente nunca decide reglas, solo muestra y envía intenciones.
+
+### Colocación inicial y recursos de inicio (registro de construcciones iniciales)
+
+En Catán físico, cada jugador coloca **2 poblados y 2 caminos** al empezar, y el **segundo poblado** otorga recursos de inicio (1 carta por cada ficha adyacente a ese poblado). Como el tablero es físico, la app no decide dónde se coloca: **cada jugador registra sus construcciones iniciales desde su celular en el lobby** y el servidor reparte los recursos correspondientes al iniciar.
+
+1. **En el lobby**, antes de iniciar, cada jugador llena su **registro de construcciones iniciales** (`player.initialBuildings`): para cada uno de sus 2 poblados, registra las **fichas que toca** indicando el **número (2–12)** y el **recurso** de cada una (un poblado toca 1, 2 o 3 fichas; el desierto no se registra). Marca **cuál es el segundo poblado** (`grantsStartingResources = true`).
+2. **Validación del servidor:** cada jugador debe registrar exactamente **2 poblados** y marcar **uno solo** como el que otorga recursos de inicio, antes de que el host pueda iniciar. Los números deben ser válidos (2–12, sin 7).
+3. **Al iniciar (`game:start`):** por cada `spot` del poblado marcado con `grantsStartingResources`, el jugador recibe **1 carta** de ese recurso (descontándola del banco, respetando el inventario). Registra en el log "Recursos de inicio de [jugador]".
+4. **Sembrar la tabla de producción:** con todas las construcciones iniciales registradas, **rellena automáticamente `hexes`** (crea/une las fichas por `number`+`resource` y agrega a cada jugador como `owner` tipo `settlement`). Así, durante la partida los jugadores **reciben materiales según vaya saliendo cada número** sin tener que editar la tabla a mano. La tabla sigue siendo editable después (para construir más, mejorar a ciudad, etc.).
+5. Si dos fichas distintas comparten número (posible en la extensión), trátalas como `hexes` separados; ambas producen cuando sale ese número.
+
+> Implementa la lógica de sembrado y reparto inicial en `server/game/setup.js`, como función pura testeable que toma los `initialBuildings` de todos y devuelve los `hexes` iniciales + el reparto de recursos de inicio.
 
 ### Costos de construcción
 - Camino: 1 lumber + 1 brick
@@ -180,7 +294,9 @@ Activable desde el lobby. Cambia lo siguiente respecto a la base; **todo lo dem�
 
 ## Contrato de eventos Socket.IO
 
-Diseña eventos claros cliente→servidor y servidor→cliente. Sugerencia (ajústala como mejor funcione):
+Diseña eventos claros cliente→servidor y servidor→cliente. Sugerencia (ajústala como mejor funcione).
+
+> **Auth:** el registro/login se hace por **REST** (`/api/auth/register`, `/api/auth/login`, ver sección de Usuarios), no por Socket.IO. El cliente conecta el socket pasando el JWT en `auth: { token }`; el servidor lo verifica en el middleware y adjunta `socket.data.userId` (o lo trata como invitado si no hay token).
 
 **Cliente → Servidor**
 - `game:create { name }` → crea sala, devuelve `{ code, playerId, sessionToken, you }`
@@ -189,6 +305,7 @@ Diseña eventos claros cliente→servidor y servidor→cliente. Sugerencia (ajú
 - `lobby:setColor { color }`
 - `lobby:setTurnOrder { orderedPlayerIds }` (solo host) — además permite que el orden inicial se decida tirando dados o arrastrando para reordenar
 - `lobby:setBankManager { playerId }` (solo host)
+- `lobby:setInitialBuildings { initialBuildings }` — el jugador registra/actualiza sus 2 poblados iniciales (número + recurso de cada ficha, y cuál es el 2º que da recursos). El servidor valida.
 - `lobby:setExtension56 { enabled }` (solo host, solo en lobby) — activa/desactiva la extensión 5-6; ajusta máx. jugadores (6), banco (24) y mazo (34)
 - `game:start` (solo host)
 - `hex:upsert { hex }` / `hex:addOwner { hexId, playerId, type }` / `hex:removeOwner {...}` — editar la tabla de producción durante la partida
@@ -205,6 +322,7 @@ Diseña eventos claros cliente→servidor y servidor→cliente. Sugerencia (ajú
 - `specialBuild:done` — el jugador en turno de la cola termina su construcción especial y pasa al siguiente
 - `specialBuild:skip { playerId }` (bank manager/host) — salta a un jugador que se tarda en la fase especial
 - `vp:setLongestRoad { playerId | null }` (manual, bank manager)
+- `admin:giveCard { targetPlayerId, kind: 'resource'|'dev', resource?, devCard? }` (solo host/bank manager) — entrega manualmente **en cualquier momento** una carta de recurso o de desarrollo a cualquier jugador (correcciones, casos especiales, repartos manuales). Descuenta del banco/mazo si hay; si no, permite forzarlo (configurable). **Siempre** genera un evento público y un `toast` a **todos** (anti-trampas, ver abajo).
 - `action:undo` (solo bank manager/host) — deshacer la última acción que modificó manos/banco
 - `game:declareWin` (jugador activo si ≥10)
 
@@ -213,14 +331,35 @@ Diseña eventos claros cliente→servidor y servidor→cliente. Sugerencia (ajú
 - `you:hand { hand, devCards }` — la mano privada solo a su dueño (o inclúyela dentro de su vista personalizada).
 - `error { message }`
 - `toast { message }` — notificaciones ligeras (p. ej. "Es tu turno").
+- `notice { level: 'info'|'warn', text }` — **notificación pública prominente a todos los jugadores**. Úsala para acciones manuales del admin/banco que deben ser transparentes, p. ej. cuando el banco entrega una carta a alguien (`admin:giveCard`): *"⚠️ El banco entregó 1 trigo a Ana"*. Toda entrega manual queda **también** en el `log`. La idea es que ningún reparto manual sea secreto: si el banco se equivoca o intenta hacer trampa, **toda la mesa lo ve**.
 
 Implementa **undo** guardando snapshots ligeros del estado antes de cada acción mutadora (una pila de los últimos N estados), suficiente para revertir errores humanos comunes.
 
 ---
 
+## Estética y diseño visual (tema Catán)
+
+La app debe **sentirse como estar dentro de Catán**, no como una utilidad genérica. Toma toda la dirección visual del propio juego.
+
+- **Ambiente "dentro del juego":** el **fondo** de la app es un **océano** (el mar que rodea el tablero de Catán): un azul profundo con textura/olas suaves, idealmente un degradado o una ilustración sutil que evoque el agua. Puede tener un leve movimiento/parallax muy discreto, pero **nunca** debe distraer ni competir con el contenido. Opcionalmente, bordes/marcos que recuerden las piezas de costa hexagonales.
+- **Legibilidad por encima de todo (cuidado con el fondo):** todos los elementos de UI (tarjetas, paneles, texto, botones) deben ir sobre **superficies semiopacas/sólidas** (paneles tipo "pergamino"/madera claros, o tarjetas con sombra y suficiente contraste) para que **nada se pierda contra el océano**. Garantiza contraste **WCAG AA** mínimo en texto y controles. Nada de texto claro flotando directamente sobre el agua.
+- **Paleta tomada de Catán:**
+  - **Recursos:** brick = terracota/rojo arcilla, lumber = verde bosque, wool = verde claro/lima de pastura, grain = amarillo dorado/trigo, ore = gris pizarra/azulado. Usa estos colores de forma consistente en íconos, fichas y conteos de mano.
+  - **Colores de jugador:** rojo, azul, blanco, naranja (+ verde y café/marrón en extensión), como en las piezas reales.
+  - **Neutros / superficies:** tonos madera y arena/pergamino para paneles; mar (azules) para fondo; acentos en dorado para títulos/insignias (Camino más largo / Ejército más grande).
+- **Tipografía con carácter:** un titular con aire de mapa/aventura (serif o display temática) para encabezados y el código de sala; una sans legible para datos y números. Sin exagerar: la legibilidad manda.
+- **Íconos de recursos y cartas (reemplazar los actuales):** los íconos actuales **no** gustan; cámbialos. En orden de preferencia:
+  1. **Arte de las cartas de Catán** (carátulas de las cartas de recurso y de desarrollo) como imágenes de los recursos/cartas. Si las usas, guárdalas en `client/src/assets/cards/` y respeta que sean para uso personal/no comercial; documenta la fuente.
+  2. Si no consigues el arte oficial, usa un **set de íconos temáticos** (estilo ilustrado: ladrillo, tronco/árbol, oveja, espiga de trigo, roca/mena; y para desarrollo: caballero, punto de victoria, monopolio, año de la abundancia, construcción de caminos) — por ejemplo de bibliotecas de íconos libres (game-icons.net u similar, con licencia compatible). Mantén un estilo uniforme entre todos.
+  3. **Como último recurso, emojis** consistentes: 🧱 brick, 🌲 lumber, 🐑 wool, 🌾 grain, ⛰️ ore; desarrollo: ⚔️ caballero, 🏆 punto de victoria, 💰 monopolio, 🎁 año de la abundancia, 🛤️ construcción de caminos.
+  - Centraliza la asignación recurso/carta → asset en un solo módulo (p. ej. `client/src/assets/icons.ts`) para poder intercambiar el set sin tocar los componentes. Provee un **fallback** (emoji) por si una imagen no carga.
+- **Microdetalle temático:** botones que recuerden madera/piedra, el ladrón con su ícono, insignias con aspecto de medalla/sello. Animaciones suaves al repartir cartas o al cambiar de turno, sin sacrificar rendimiento en celulares.
+
+> Mantén un tema CSS centralizado (variables CSS o tokens de Tailwind) con la paleta y las superficies, para que toda la app sea coherente y fácil de ajustar.
+
 ## Pantallas y UX (mobile-first)
 
-Diseña para pantallas de celular: objetivos táctiles grandes (mín. 44px), una columna, navegación inferior, tipografía legible, contraste alto. Usa los colores de las piezas de cada jugador como acento de su identidad. Evita que el contenido importante quede tapado por el teclado.
+Diseña para pantallas de celular: objetivos táctiles grandes (mín. 44px), una columna, navegación inferior, tipografía legible, contraste alto. Usa los colores de las piezas de cada jugador como acento de su identidad. Evita que el contenido importante quede tapado por el teclado. **Aplica el tema visual de la sección anterior (océano + paleta Catán) en todas las pantallas.**
 
 ### 1. Home
 - Botón grande **"Crear partida"** (pide nombre) y **"Unirse"** (pide código + nombre).
@@ -232,7 +371,8 @@ Diseña para pantallas de celular: objetivos táctiles grandes (mín. 44px), una
 - Lista de jugadores conectados, cada uno elige su **color** (no repetible). Paleta base: rojo, azul, blanco, naranja; con extensión se suman verde y café/marrón.
 - **Orden de turnos:** arrastrar para reordenar, o botón "Decidir por dados". Visualiza claramente quién va después de quién.
 - El host designa al **encargado del banco** (por defecto él).
-- Botón **"Iniciar"** (solo host) cuando haya ≥3 jugadores con color (máx. 4 sin extensión, máx. 6 con extensión).
+- **Registro de construcciones iniciales (cada jugador, en su celular):** un formulario claro donde cada quien registra sus **2 poblados** de salida. Para cada poblado, agrega las fichas que toca con su **número** (selector 2–12) y su **recurso** (íconos: brick/lumber/wool/grain/ore). Un botón **"Marcar como mi 2º poblado (recibe recursos al iniciar)"** indica cuál otorga los recursos de inicio. Muestra un check verde cuando el registro del jugador está completo y válido (2 poblados, 1 marcado). El host ve el progreso de todos ("3/4 listos"). Hazlo a prueba de errores: números grandes y táctiles, no permitir 7, no permitir más de un poblado marcado como inicial.
+- Botón **"Iniciar"** (solo host) **habilitado solo cuando** haya ≥3 jugadores con color **y todos hayan completado su registro de construcciones iniciales** (máx. 4 sin extensión, máx. 6 con extensión). Al iniciar, el servidor reparte los recursos del 2º poblado y siembra la tabla de producción (ver "Colocación inicial y recursos de inicio").
 
 ### 3. Pantalla de juego (la principal)
 Layout sugerido con secciones colapsables/pestañas:
@@ -244,8 +384,8 @@ Layout sugerido con secciones colapsables/pestañas:
   - Intercambio con banco/puerto y con jugadores.
   - Jugar carta de desarrollo.
   - "Terminar turno".
-- **Panel del encargado del banco:** teclado numérico grande para ingresar el número del dado (2–12) y repartir. Botón de **deshacer**.
-- **Tabla de producción (visible para todos):** lista de fichas (`hexes`) con su número, recurso (ícono/color) y quién tiene poblado/ciudad. Editable: agregar/quitar dueños y marcar tipo. Indicador visual de la ficha con el **ladrón**.
+- **Panel del encargado del banco:** teclado numérico grande para ingresar el número del dado (2–12) y repartir. Botón de **deshacer**. **"Entregar carta" (solo admin/banco):** selector de jugador + elegir recurso (los 5) o carta de desarrollo, y confirmar; entrega la carta **en cualquier momento** (no solo en su turno). Al confirmar, **todos** reciben una notificación prominente (`notice`) y queda en el log. Pensado para correcciones y casos especiales, con total transparencia anti-trampas.
+- **Tabla de producción (visible para todos, colapsable):** lista de fichas (`hexes`) con su número, recurso (ícono/color) y quién tiene poblado/ciudad. Editable: agregar/quitar dueños y marcar tipo. Indicador visual de la ficha con el **ladrón**. Incluye un botón de **ocultar/mostrar** (toggle) para **colapsarla y liberar la vista** cuando la mesa no la necesite, de modo que la pantalla no se sature; recuerda el estado (colapsada/expandida) por dispositivo. Aplica el mismo patrón colapsable a otras secciones densas si ayuda a despejar la vista en celular.
 - **Estado público de jugadores:** para cada jugador, su color, **número total de cartas** (no el tipo), puertos activos, caballeros jugados, e insignias (Camino más largo / Ejército más grande). Marcador de puntos de victoria (los visibles).
 - **Secuencia del 7:** cuando aplique, UI clara para descartar (cada quién en su pantalla), luego para que el jugador activo coloque el ladrón y use **"Robar carta"** eligiendo objetivo.
 - **Fase de Construcción Especial (solo extensión 5-6):** banner claro indicando "Construcción especial: turno de [jugador]". El jugador en turno de la cola ve sus botones de construir/comprar habilitados (intercambio y jugar desarrollo deshabilitados) y un botón **"Listo"**. Los demás ven a quién le toca y su posición en la cola.
@@ -258,35 +398,61 @@ Añade **vibración + toast** cuando empieza el turno de un jugador en su propio
 
 ## Prioridades de implementación (constrúyelo en este orden)
 
+**Fase 0 — Infraestructura (base para lo demás)**
+0a. **Docker + docker-compose** para mongo y el server; `.env.example`. Que `docker compose up -d mongo` y `npm run dev` funcionen de inmediato.
+0b. **MongoDB + auth:** modelos `User`/`Match`, registro/login con **bcrypt (hash+sal)** y **JWT**, middleware REST y guard del handshake de Socket.IO (con modo invitado).
+
 **Fase 1 — MVP jugable**
 1. Backend con salas en memoria, Socket.IO, vistas personalizadas (ocultar manos ajenas), y Express sirviendo el client.
-2. Home → crear/unirse con código → Lobby (colores, orden de turnos, encargado del banco) → Iniciar.
-3. Reconexión por `localStorage`.
-4. Tabla de producción editable (hexes con dueños) y puertos por jugador.
-5. Ingreso del número por el banco → distribución automática de recursos (con banco limitado).
-6. Mano privada por jugador + conteo público de cartas.
-7. Turnos: solo el jugador activo puede intercambiar/construir; "Terminar turno".
-8. Secuencia del 7 completa: descarte elegido por cada jugador + mover ladrón + **botón Robar carta** (robo aleatorio).
-9. Intercambio con banco/puertos y entre jugadores (oferta/aceptar).
-10. Construcción que descuenta recursos. Registro (log) y **deshacer**.
+2. Pantalla de **Login/registro** (o entrar como invitado) → Home → crear/unirse con código → Lobby (colores, orden de turnos, encargado del banco, **registro de construcciones iniciales**) → Iniciar.
+3. Reconexión por `localStorage` (token JWT + datos de sala).
+4. **Registro de construcciones iniciales:** reparto de recursos del 2º poblado al iniciar y **sembrado automático** de la tabla de producción.
+5. Tabla de producción editable (hexes con dueños) y puertos por jugador.
+6. Ingreso del número por el banco → distribución automática de recursos (con banco limitado).
+7. Mano privada por jugador + conteo público de cartas.
+8. Turnos: solo el jugador activo puede intercambiar/construir; "Terminar turno".
+9. Secuencia del 7 completa: descarte elegido por cada jugador + mover ladrón + **botón Robar carta** (robo aleatorio).
+10. Intercambio con banco/puertos y entre jugadores (oferta/aceptar).
+11. Construcción que descuenta recursos. Registro (log) y **deshacer**.
 
 **Fase 2 — Recomendadas**
-11. Cartas de desarrollo completas (mazo, comprar, Knight/Monopoly/Year of Plenty/Road Building) y conteo de caballeros.
-12. Marcador de puntos de victoria + insignias (Ejército más grande automático, Camino más largo manual) + declarar victoria a 10.
-13. **Extensión 5–6 jugadores:** toggle en lobby, hasta 6 jugadores + colores verde/café, banco 24, mazo 34, y **Fase de Construcción Especial** tras cada turno. Diseña desde el inicio el flujo de turnos para que insertar esta fase no requiera reescribir la lógica.
-14. Estadísticas de dados (histograma).
-15. Notificación/vibración de turno.
+12. Cartas de desarrollo completas (mazo, comprar, Knight/Monopoly/Year of Plenty/Road Building) y conteo de caballeros.
+13. Marcador de puntos de victoria + insignias (Ejército más grande automático, Camino más largo manual) + declarar victoria a 10.
+14. **Persistencia de resultados y perfil:** al terminar, guardar el `Match` y actualizar `stats` de los usuarios. Pantalla de **perfil** (foto, victorias, partidas jugadas).
+15. **Tema visual Catán:** fondo océano, paleta del juego, superficies legibles y **nuevos íconos** de recursos y cartas de desarrollo (arte de cartas / set temático / emojis como fallback), centralizados para intercambiarlos fácil. Aplícalo a todas las pantallas.
+16. **Entrega manual de cartas por el admin/banco** (`admin:giveCard`) con **notificación pública** a todos (anti-trampas) y registro en log.
+17. **Tabla de producción colapsable** (y otras secciones densas) para liberar la vista en celular.
+18. **Extensión 5–6 jugadores:** toggle en lobby, hasta 6 jugadores + colores verde/café, banco 24, mazo 34, y **Fase de Construcción Especial** tras cada turno. Diseña desde el inicio el flujo de turnos para que insertar esta fase no requiera reescribir la lógica.
+19. Estadísticas de dados (histograma).
+20. Notificación/vibración de turno.
 
 **Fase 3 — Futuro (deja ganchos, no lo implementes ahora)**
-15. Tomar **foto del tablero** y autocompletar los `hexes` (números, recursos y dueños) por visión. Diseña el modelo de `hexes` para que esto encaje sin reescribir nada.
+21. Tomar **foto del tablero** y autocompletar los `hexes` (números, recursos y dueños) por visión. Diseña el modelo de `hexes` para que esto encaje sin reescribir nada.
 
 ---
+
+## Docker y Docker Compose
+
+Todo debe poder levantarse con Docker, tanto la **base de datos** como el **proyecto**.
+
+- **`docker-compose.yml`** con al menos dos servicios:
+  - **`mongo`**: imagen oficial `mongo:7` (o similar). Expone el puerto `27017`, usa un **volumen** nombrado para persistir datos (`mongo-data:/data/db`), y credenciales por variables (`MONGO_INITDB_ROOT_USERNAME` / `MONGO_INITDB_ROOT_PASSWORD`). `restart: unless-stopped`.
+  - **`server`**: construido desde `server/Dockerfile`. Depende de `mongo` (`depends_on`), lee `MONGODB_URI`, `JWT_SECRET` y `PORT` del entorno (`env_file: .env`), expone el puerto de la app (p. ej. `3001`). Sirve el client compilado (un solo proceso en producción).
+  - (Opcional) un servicio **`client`** solo para desarrollo con Vite en modo host; en producción no hace falta porque el `server` ya sirve `client/dist`.
+- **`server/Dockerfile`** **multi-stage**: una etapa instala dependencias y **compila el client** (`npm run build`) y el server (TS→JS); la etapa final copia `client/dist` + el server compilado y corre `npm start`. Imagen base `node:20-alpine`. Usuario no-root.
+- **`.env.example`** con todas las variables necesarias y valores de ejemplo (sin secretos reales): `MONGODB_URI`, `JWT_SECRET`, `PORT`, credenciales de mongo. El `.env` real va en `.gitignore`.
+- **Dos modos de uso documentados en el README:**
+  - **Solo la base de datos en Docker** (para desarrollo local del código fuera de contenedor): `docker compose up -d mongo`, y luego `npm run dev` apuntando `MONGODB_URI` a `localhost:27017`.
+  - **Todo en Docker** (la app completa + mongo): `docker compose up --build`.
+- Añade un **`.dockerignore`** (node_modules, dist, .env, etc.) para imágenes ligeras.
+- Scripts raíz útiles: `docker compose up`, `docker compose down`, y opcionalmente `npm run docker:db` para levantar solo mongo.
 
 ## Calidad y entregables
 
 - Código limpio, lógica de reglas en módulos puros y testeables; idealmente unos tests unitarios de `rules.js` (distribución, costos, 7, robo, banco limitado).
 - Maneja errores y casos límite con mensajes claros al usuario (no alcanza, no es tu turno, color repetido, etc.).
-- README con instrucciones: `npm install`, `npm run dev` (desarrollo), `npm run build` + `npm start` (producción en un solo proceso/puerto).
+- README con instrucciones: `npm install`, copiar `.env.example` a `.env`, levantar mongo (`docker compose up -d mongo`), `npm run dev` (desarrollo), `npm run build` + `npm start` (producción en un solo proceso/puerto) y **`docker compose up --build`** (todo en contenedores). Documenta las variables de entorno (`MONGODB_URI`, `JWT_SECRET`, `PORT`).
+- **Seguridad básica:** nunca loguear contraseñas ni tokens; `JWT_SECRET` fuerte por entorno; bcrypt con sal; validar entradas de auth. `.env` en `.gitignore`.
 - Mobile-first real: pruébalo mentalmente en 360–414px de ancho.
 
 Empieza por la **Fase 1** y ve mostrándome el avance por partes para que pueda probar antes de seguir.

@@ -1,11 +1,15 @@
 import { GameState, Player, emptyHand, emptyDevCards, handTotal, devCardsTotal } from '../game/state';
+import { playerSetupComplete } from '../game/setup';
 
 // Vista personalizada: oculta manos y devCards ajenas; muestra solo conteos.
 export interface PublicPlayer {
   id: string;
   name: string;
+  avatarUrl?: string;
+  isRegistered: boolean; // tiene cuenta (userId); los invitados no acumulan stats
   color: Player['color'];
   connected: boolean;
+  setupComplete: boolean; // registro de construcciones iniciales válido (lobby)
   cardCount: number;
   devCardsCount: number;
   knightsPlayed: number;
@@ -22,6 +26,7 @@ export interface PlayerView {
     devCards: Player['devCards'];
     devCardsBoughtThisTurn: Player['devCardsBoughtThisTurn'];
     ports: Player['ports'];
+    initialBuildings: Player['initialBuildings'];
     sessionToken?: string; // solo se manda en el handshake inicial
   } | null;
   state: {
@@ -62,6 +67,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
           devCards: me.devCards,
           devCardsBoughtThisTurn: me.devCardsBoughtThisTurn,
           ports: me.ports,
+          initialBuildings: me.initialBuildings,
         }
       : null,
     state: {
@@ -96,8 +102,11 @@ function toPublic(p: Player, revealHidden: boolean = false): PublicPlayer {
   return {
     id: p.id,
     name: p.name,
+    avatarUrl: p.avatarUrl,
+    isRegistered: !!p.userId,
     color: p.color,
     connected: p.connected,
+    setupComplete: playerSetupComplete(p),
     cardCount: handTotal(p.hand),
     devCardsCount: devCardsTotal(p.devCards),
     knightsPlayed: p.knightsPlayed,

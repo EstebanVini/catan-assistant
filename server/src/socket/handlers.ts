@@ -34,6 +34,7 @@ import {
   validateTradeOffer,
 } from '../game/rules';
 import {
+  UserProfileInfo,
   colorAvailable,
   createRoom,
   getRoom,
@@ -43,12 +44,36 @@ import {
   reconnect,
   setPlayerConnection,
 } from '../game/rooms';
+import { InitialBuilding, DevCardType } from '../game/state';
+import { applyInitialSetup, playerSetupComplete, validateInitialBuildings } from '../game/setup';
 import { buildViewWithOwnHidden } from './views';
+import { isDbConnected } from '../db/connection';
+import { User } from '../db/models/User';
+import { persistMatchResult } from '../db/persistMatch';
 
 // Trackea qué socket pertenece a qué playerId / code
 interface SocketData {
   code?: string;
   playerId?: string;
+  userId?: string; // adjuntado por el guard del handshake si el JWT es válido
+}
+
+// Perfil del usuario autenticado (displayName, avatar, color preferido) para crear/unirse.
+async function loadProfile(socket: Socket): Promise<(UserProfileInfo & { displayName?: string }) | undefined> {
+  const userId = (socket.data as SocketData).userId;
+  if (!userId || !isDbConnected()) return undefined;
+  try {
+    const user = await User.findById(userId);
+    if (!user) return undefined;
+    return {
+      userId,
+      avatarUrl: user.avatarUrl ?? undefined,
+      preferredColor: user.color ?? undefined,
+      displayName: user.displayName,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 // Broadcast vista personalizada a cada socket de una sala
@@ -124,14 +149,16 @@ function checkAllDiscardsDone(state: GameState): void {
 }
 
 export function registerHandlers(io: Server, socket: Socket): void {
-  socket.data = {} as SocketData;
+  // No reiniciar socket.data: el guard del handshake ya adjuntó userId si había JWT.
 
-  socket.on('game:create', ({ name }: { name: string }, cb?: (res: unknown) => void) => {
-    if (!name || typeof name !== 'string') {
+  socket.on('game:create', async ({ name }: { name?: string }, cb?: (res: unknown) => void) => {
+    const profile = await loadProfile(socket);
+    const finalName = (typeof name === 'string' && name.trim()) || profile?.displayName || '';
+    if (!finalName) {
       cb?.({ error: 'Escribe tu nombre para continuar.' });
       return;
     }
-    const { state, hostId, sessionToken } = createRoom(name);
+    const { state, hostId, sessionToken } = createRoom(finalName, profile);
     socket.data.code = state.code;
     socket.data.playerId = hostId;
     socket.join(state.code);
@@ -139,12 +166,14 @@ export function registerHandlers(io: Server, socket: Socket): void {
     broadcastState(io, state);
   });
 
-  socket.on('game:join', ({ code, name }: { code: string; name: string }, cb?: (res: unknown) => void) => {
-    if (!code || !name) {
+  socket.on('game:join', async ({ code, name }: { code: string; name?: string }, cb?: (res: unknown) => void) => {
+    const profile = await loadProfile(socket);
+    const finalName = (typeof name === 'string' && name.trim()) || profile?.displayName || '';
+    if (!code || !finalName) {
       cb?.({ error: 'Necesitas un código y tu nombre.' });
       return;
     }
-    const result = joinRoom(code, name);
+    const result = joinRoom(code, finalName, profile);
     if ('error' in result) {
       cb?.({ error: result.error });
       return;
@@ -251,6 +280,26 @@ export function registerHandlers(io: Server, socket: Socket): void {
     broadcastState(io, state);
   });
 
+  // Registro de construcciones iniciales (cada jugador, desde su celular, en el lobby)
+  socket.on('lobby:setInitialBuildings', ({ initialBuildings }: { initialBuildings: InitialBuilding[] }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || state.status !== 'lobby') return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    const val = validateInitialBuildings(initialBuildings);
+    if (!val.ok) {
+      socket.emit('error', { message: val.reason });
+      return;
+    }
+    player.initialBuildings = initialBuildings.map((b) => ({
+      id: b.id || nanoid(8),
+      type: b.type,
+      spots: b.spots.map((s) => ({ number: s.number, resource: s.resource })),
+      grantsStartingResources: b.grantsStartingResources,
+    }));
+    broadcastState(io, state);
+  });
+
   socket.on('game:start', () => {
     const state = getRoom(socket.data.code ?? '');
     if (!state || state.status !== 'lobby') return;
@@ -264,9 +313,37 @@ export function registerHandlers(io: Server, socket: Socket): void {
       socket.emit('error', { message: 'Falta que todos elijan color.' });
       return;
     }
+    const incomplete = state.players.filter((p) => !playerSetupComplete(p));
+    if (incomplete.length > 0) {
+      socket.emit('error', {
+        message: `Falta el registro de poblados iniciales de: ${incomplete.map((p) => p.name).join(', ')}.`,
+      });
+      return;
+    }
     state.status = 'playing';
     state.phase = 'roll';
     state.currentTurnIndex = 0;
+    state.startedAt = Date.now();
+
+    // Sembrar la tabla de producción y repartir los recursos del 2º poblado
+    const setup = applyInitialSetup(state.players, state.bank);
+    state.hexes = setup.hexes;
+    for (const player of state.players) {
+      const grant = setup.grants[player.id];
+      if (!grant) continue;
+      const parts = (Object.entries(grant) as [Resource, number][])
+        .filter(([, n]) => n > 0)
+        .map(([r, n]) => {
+          player.hand[r] += n;
+          return `${n} ${esResource(r)}`;
+        });
+      if (parts.length > 0) logAction(state, `Recursos de inicio de ${player.name}: ${parts.join(', ')}.`, player.id);
+    }
+    for (const s of setup.shortages) {
+      const p = findPlayer(state, s.playerId);
+      logAction(state, `El banco no tenía ${esResource(s.resource)} para los recursos de inicio de ${p?.name ?? 'jugador'}.`);
+    }
+    recomputeVictoryPoints(state);
     logAction(state, `Empieza la partida. Turno de ${activePlayer(state)?.name}.`);
     broadcastState(io, state);
   });
@@ -781,7 +858,73 @@ export function registerHandlers(io: Server, socket: Socket): void {
     state.winnerId = player.id;
     logAction(state, `${player.name} declaró victoria con ${totalVictoryPoints(player)} puntos.`, player.id);
     broadcastState(io, state);
+    // Persistir resultado y stats en MongoDB (no bloquea la partida si falla)
+    void persistMatchResult(state);
   });
+
+  // === Entrega manual de cartas (admin/banco, en cualquier momento) ===
+  // Anti-trampas: SIEMPRE notifica a todos (notice) y queda en el log.
+  socket.on(
+    'admin:giveCard',
+    ({
+      targetPlayerId,
+      kind,
+      resource,
+      devCard,
+      force,
+    }: {
+      targetPlayerId: string;
+      kind: 'resource' | 'dev';
+      resource?: Resource;
+      devCard?: DevCardType;
+      force?: boolean;
+    }) => {
+      const state = getRoom(socket.data.code ?? '');
+      if (!state || state.status === 'ended') return;
+      if (!ensureBankManager(state, socket.data.playerId) && !ensureHost(state, socket.data.playerId)) {
+        socket.emit('error', { message: 'Solo el anfitrión o el encargado del banco pueden entregar cartas.' });
+        return;
+      }
+      const target = findPlayer(state, targetPlayerId);
+      if (!target) return;
+      const giver = findPlayer(state, socket.data.playerId ?? '');
+      if (kind === 'resource') {
+        if (!resource || !RESOURCES.includes(resource)) {
+          socket.emit('error', { message: 'Elige un recurso válido.' });
+          return;
+        }
+        if (state.bank[resource] < 1 && !force) {
+          socket.emit('error', { message: `El banco no tiene ${esResource(resource)}. Puedes forzar la entrega si la mesa lo acuerda.` });
+          return;
+        }
+        pushSnapshot(state);
+        if (state.bank[resource] >= 1) state.bank[resource] -= 1;
+        target.hand[resource] += 1;
+        const text = `⚠️ El banco entregó 1 ${esResource(resource)} a ${target.name}`;
+        logAction(state, `${text} (entrega manual de ${giver?.name ?? 'banco'}).`, target.id);
+        io.to(state.code).emit('notice', { level: 'warn', text });
+      } else {
+        const validDev: DevCardType[] = ['knight', 'vp', 'roadBuilding', 'yearOfPlenty', 'monopoly'];
+        if (!devCard || !validDev.includes(devCard)) {
+          socket.emit('error', { message: 'Elige una carta de desarrollo válida.' });
+          return;
+        }
+        const idxInDeck = state.devDeck.indexOf(devCard);
+        if (idxInDeck === -1 && !force) {
+          socket.emit('error', { message: 'No quedan cartas de ese tipo en el mazo. Puedes forzar la entrega si la mesa lo acuerda.' });
+          return;
+        }
+        pushSnapshot(state);
+        if (idxInDeck !== -1) state.devDeck.splice(idxInDeck, 1);
+        target.devCards[devCard] += 1;
+        if (devCard === 'vp') target.victoryPoints.hiddenVP += 1;
+        const text = `⚠️ El banco entregó 1 carta de desarrollo a ${target.name}`;
+        logAction(state, `${text} (entrega manual de ${giver?.name ?? 'banco'}).`, target.id);
+        io.to(state.code).emit('notice', { level: 'warn', text });
+      }
+      broadcastState(io, state);
+    }
+  );
 
   // === Undo ===
   socket.on('action:undo', () => {

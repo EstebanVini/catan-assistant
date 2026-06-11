@@ -87,7 +87,7 @@ export function DiscardModal(): JSX.Element | null {
                   onClick={() => adjust(r, -1)}
                   disabled={picked === 0}
                   aria-label={`Quitar 1 ${RESOURCE_NAMES[r]} del descarte`}
-                  className="h-11 w-11 rounded-md border border-white/12 bg-white/5 text-xl font-medium transition-colors active:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="h-11 w-11 rounded-md border border-white/12 bg-surface-3 text-xl font-medium transition-colors active:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <span aria-hidden>−</span>
                 </button>
@@ -102,7 +102,7 @@ export function DiscardModal(): JSX.Element | null {
                   onClick={() => adjust(r, +1)}
                   disabled={picked >= have || total >= required}
                   aria-label={`Agregar 1 ${RESOURCE_NAMES[r]} al descarte`}
-                  className="h-11 w-11 rounded-md border border-white/12 bg-white/5 text-xl font-medium transition-colors active:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="h-11 w-11 rounded-md border border-white/12 bg-surface-3 text-xl font-medium transition-colors active:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <span aria-hidden>+</span>
                 </button>

@@ -26,7 +26,7 @@ export function NumericKeypad({ onPress, disabled }: Props): JSX.Element {
                 ? 'border-red-500/45 bg-red-500/15 text-red-200 shadow-soft active:bg-red-500/25'
                 : isHot
                   ? 'border-amber-500/45 bg-amber-500/15 text-amber-100 shadow-soft active:bg-amber-500/25'
-                  : 'border-white/12 bg-white/[0.06] text-neutral-50 shadow-soft active:bg-white/[0.12]')
+                  : 'border-white/12 bg-surface-3 text-neutral-50 shadow-soft active:bg-white/[0.12]')
             }
           >
             {n}

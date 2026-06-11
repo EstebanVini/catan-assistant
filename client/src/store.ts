@@ -5,22 +5,45 @@ import {
   DevCardType,
   Hand,
   Hex,
+  InitialBuilding,
+  NoticeLevel,
+  NoticePayload,
   PersistedSession,
   PlayerColor,
   PlayerView,
   PortType,
   Resource,
+  User,
 } from './types';
 import {
   CreateOrJoinResponse,
   emitWithAck,
+  refreshSocketAuth,
   socket,
 } from './socket';
-import { clearSession, getSession, setSession } from './lib/persistence';
+import {
+  clearAuth,
+  clearSession,
+  getAuthToken,
+  getCachedUser,
+  getGuestMode,
+  getSession,
+  setAuth as persistAuth,
+  setCachedUser,
+  setGuestMode as persistGuestMode,
+  setSession,
+} from './lib/persistence';
 
 interface Toast {
   id: number;
   kind: 'info' | 'error' | 'success';
+  text: string;
+}
+
+// Notice público (Fase 3): cola FIFO, uno visible a la vez (NoticeBanner).
+export interface ActiveNotice {
+  id: number;
+  level: NoticeLevel;
   text: string;
 }
 
@@ -37,20 +60,43 @@ interface StoreState {
   reconnectFailed: boolean;
   // Toasts
   toasts: Toast[];
+  // Notices públicos (Fase 3)
+  notices: ActiveNotice[];
   // Sync
   initialSyncReceived: boolean;
+
+  // Cuenta (Fase 3). Independiente de la sesión de sala (principio 17).
+  authToken: string | null;
+  authUser: User | null;
+  guestMode: boolean;
+  // Navegación fuera de partida: Home ↔ Perfil, y Login forzado (p. ej.
+  // invitado que decide crear cuenta con sala activa).
+  homeView: 'home' | 'profile';
+  showLogin: boolean;
 
   // Helpers de sesión
   setSession: (s: PersistedSession | null) => void;
   pushToast: (kind: Toast['kind'], text: string) => void;
   dismissToast: (id: number) => void;
+  pushNotice: (n: NoticePayload) => void;
+  shiftNotice: () => void;
   setView: (v: PlayerView) => void;
   setConnectionStatus: (s: ConnectionStatus) => void;
   setShowDisconnectedBanner: (v: boolean) => void;
 
+  // Cuenta
+  setAuth: (token: string, user: User) => void;
+  updateAuthUser: (user: User) => void;
+  clearAuthSession: () => void;
+  logout: () => void;
+  enterGuestMode: () => void;
+  setHomeView: (v: 'home' | 'profile') => void;
+  setShowLogin: (v: boolean) => void;
+  refreshAuthFromStorage: () => void;
+
   // Emisores
-  createGame: (name: string) => Promise<CreateOrJoinResponse>;
-  joinGame: (code: string, name: string) => Promise<CreateOrJoinResponse>;
+  createGame: (name?: string) => Promise<CreateOrJoinResponse>;
+  joinGame: (code: string, name?: string) => Promise<CreateOrJoinResponse>;
   reconnectGame: () => Promise<{ ok?: boolean; error?: string }>;
   forgetSession: () => void;
 
@@ -61,6 +107,16 @@ interface StoreState {
   setExtension56: (enabled: boolean) => void;
   rollOrderByDice: () => void;
   startGame: () => void;
+  setInitialBuildings: (initialBuildings: InitialBuilding[]) => void;
+
+  // Banco (Fase 3): entrega manual de cartas, en cualquier momento.
+  giveCard: (payload: {
+    targetPlayerId: string;
+    kind: 'resource' | 'dev';
+    resource?: Resource;
+    devCard?: DevCardType;
+    force?: boolean;
+  }) => void;
 
   // Tabla
   upsertHex: (hex: Hex) => void;
@@ -96,6 +152,7 @@ interface StoreState {
 }
 
 let toastSeq = 1;
+let noticeSeq = 1;
 
 export const useStore = create<StoreState>((set, get) => ({
   session: getSession(),
@@ -105,7 +162,14 @@ export const useStore = create<StoreState>((set, get) => ({
   attemptedReconnect: false,
   reconnectFailed: false,
   toasts: [],
+  notices: [],
   initialSyncReceived: false,
+
+  authToken: getAuthToken(),
+  authUser: getCachedUser(),
+  guestMode: getGuestMode(),
+  homeView: 'home',
+  showLogin: false,
 
   setSession: (s) => {
     if (s) setSession(s);
@@ -124,22 +188,91 @@ export const useStore = create<StoreState>((set, get) => ({
   dismissToast: (id) =>
     set((st) => ({ toasts: st.toasts.filter((t) => t.id !== id) })),
 
+  pushNotice: (n) => {
+    const id = noticeSeq++;
+    set((st) => ({
+      notices: [...st.notices, { id, level: n.level, text: n.text }],
+    }));
+  },
+
+  shiftNotice: () => set((st) => ({ notices: st.notices.slice(1) })),
+
   setView: (v) => set({ view: v, initialSyncReceived: true }),
 
   setConnectionStatus: (s) => set({ connectionStatus: s }),
   setShowDisconnectedBanner: (v) => set({ showDisconnectedBanner: v }),
 
+  setAuth: (token, user) => {
+    persistAuth(token, user);
+    persistGuestMode(false);
+    set({
+      authToken: token,
+      authUser: user,
+      guestMode: false,
+      showLogin: false,
+      homeView: 'home',
+    });
+    // Reciclar el socket para que el handshake lleve el token nuevo. La sesión
+    // de sala (si existe) se recupera sola por la rutina de reconexión.
+    refreshSocketAuth();
+  },
+
+  updateAuthUser: (user) => {
+    setCachedUser(user);
+    set({ authUser: user });
+  },
+
+  // Limpia solo la sesión de cuenta (token expirado/ inválido). No toca la
+  // sala ni el flag de invitado.
+  clearAuthSession: () => {
+    clearAuth();
+    set({ authToken: null, authUser: null, homeView: 'home' });
+    refreshSocketAuth();
+  },
+
+  // Cerrar sesión explícito: limpia JWT y guestMode; NUNCA la sesión de sala.
+  logout: () => {
+    clearAuth();
+    persistGuestMode(false);
+    set({
+      authToken: null,
+      authUser: null,
+      guestMode: false,
+      homeView: 'home',
+    });
+    refreshSocketAuth();
+  },
+
+  enterGuestMode: () => {
+    persistGuestMode(true);
+    set({ guestMode: true, showLogin: false });
+  },
+
+  setHomeView: (v) => set({ homeView: v }),
+  setShowLogin: (v) => set({ showLogin: v }),
+
+  // Sincronización entre pestañas: el evento `storage` de window relee las
+  // claves de cuenta (login/logout hecho en otra pestaña).
+  refreshAuthFromStorage: () => {
+    set({
+      authToken: getAuthToken(),
+      authUser: getCachedUser(),
+      guestMode: getGuestMode(),
+    });
+  },
+
   createGame: async (name) => {
-    const trimmed = name.trim();
+    const trimmed = (name ?? '').trim();
     const res = await emitWithAck<CreateOrJoinResponse>('game:create', {
-      name: trimmed,
+      // Logueado, el nombre es opcional: el servidor usa el displayName.
+      name: trimmed.length > 0 ? trimmed : undefined,
     });
     if (res.code && res.playerId && res.sessionToken) {
       const session: PersistedSession = {
         code: res.code,
         playerId: res.playerId,
         sessionToken: res.sessionToken,
-        name: trimmed,
+        name: trimmed || get().authUser?.displayName || 'Jugador',
       };
       setSession(session);
       set({ session, reconnectFailed: false });
@@ -148,18 +281,18 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   joinGame: async (code, name) => {
-    const trimmed = name.trim();
+    const trimmed = (name ?? '').trim();
     const upper = code.trim().toUpperCase();
     const res = await emitWithAck<CreateOrJoinResponse>('game:join', {
       code: upper,
-      name: trimmed,
+      name: trimmed.length > 0 ? trimmed : undefined,
     });
     if (res.code && res.playerId && res.sessionToken) {
       const session: PersistedSession = {
         code: res.code,
         playerId: res.playerId,
         sessionToken: res.sessionToken,
-        name: trimmed,
+        name: trimmed || get().authUser?.displayName || 'Jugador',
       };
       setSession(session);
       set({ session, reconnectFailed: false });
@@ -203,6 +336,10 @@ export const useStore = create<StoreState>((set, get) => ({
     socket.emit('lobby:setExtension56', { enabled }),
   rollOrderByDice: () => socket.emit('lobby:rollOrderByDice'),
   startGame: () => socket.emit('game:start'),
+  setInitialBuildings: (initialBuildings) =>
+    socket.emit('lobby:setInitialBuildings', { initialBuildings }),
+
+  giveCard: (payload) => socket.emit('admin:giveCard', payload),
 
   upsertHex: (hex) => socket.emit('hex:upsert', { hex }),
   removeHex: (hexId) => socket.emit('hex:remove', { hexId }),
@@ -292,5 +429,14 @@ export function wireSocket(): void {
   socket.on('error', (e: { message?: string }) => {
     const msg = e?.message ?? 'Algo salió mal.';
     store.getState().pushToast('error', msg);
+  });
+
+  // Notice público (Fase 3): banner prominente para todos. Se suprime en la
+  // pantalla de ganador (la partida terminó; queda en el log).
+  socket.on('notice', (n: NoticePayload) => {
+    if (!n || typeof n.text !== 'string') return;
+    const st = store.getState();
+    if (st.view?.state.status === 'ended') return;
+    st.pushNotice(n);
   });
 }
