@@ -8,6 +8,6 @@ Cualquier jugador puede agregar fichas o poblados a voluntad, aún sin contar co
 
 Cambios 2:
 
-Cambiar los íconos genéricos por los que acabo de agregar el la carpeta client/src/public/icons (los subí en png y svg pero no sé cuál convenga más)
+Cambiar los íconos genéricos por los que acabo de agregar el la carpeta client/src/public/icons (los subí en png y svg pero no sé cuál convenga más), utiliza a los agentes de diseño para integrarlos y que se vean lo mejor posible
 
 Que la aplicación se ajuste mejor a pantallas más anchas ej: tablet, laptop, computadora porque si lo abro en una pantalla más grande se ve mal porque solo está hecha en el tamaño de celular
