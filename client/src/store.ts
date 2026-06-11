@@ -98,6 +98,7 @@ interface StoreState {
   joinGame: (code: string, name?: string) => Promise<CreateOrJoinResponse>;
   reconnectGame: () => Promise<{ ok?: boolean; error?: string }>;
   forgetSession: () => void;
+  leaveRoom: () => void;
 
   // Lobby
   setColor: (color: PlayerColor) => void;
@@ -325,6 +326,18 @@ export const useStore = create<StoreState>((set, get) => ({
     });
   },
 
+  leaveRoom: () => {
+    socket.emit('lobby:leave');
+    clearSession();
+    set({
+      session: null,
+      view: null,
+      reconnectFailed: false,
+      attemptedReconnect: false,
+      initialSyncReceived: false,
+    });
+  },
+
   setColor: (color) => socket.emit('lobby:setColor', { color }),
   setTurnOrder: (orderedPlayerIds) =>
     socket.emit('lobby:setTurnOrder', { orderedPlayerIds }),
@@ -426,6 +439,18 @@ export function wireSocket(): void {
 
   // Notice público (Fase 3): banner prominente para todos. Se suprime en la
   // pantalla de ganador (la partida terminó; queda en el log).
+  socket.on('lobby:cancelled', () => {
+    store.getState().pushToast('info', 'El anfitrión canceló la sala.');
+    clearSession();
+    store.setState({
+      session: null,
+      view: null,
+      reconnectFailed: false,
+      attemptedReconnect: false,
+      initialSyncReceived: false,
+    });
+  });
+
   socket.on('notice', (n: NoticePayload) => {
     if (!n || typeof n.text !== 'string') return;
     const st = store.getState();

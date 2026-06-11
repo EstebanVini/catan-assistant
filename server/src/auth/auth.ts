@@ -95,7 +95,7 @@ authRouter.patch('/api/users/me', requireAuth, async (req: Request, res: Respons
   const { displayName, avatarUrl, color } = req.body ?? {};
   const update: Record<string, string> = {};
   if (typeof displayName === 'string' && displayName.trim()) update.displayName = displayName.trim().slice(0, 20);
-  if (typeof avatarUrl === 'string') update.avatarUrl = avatarUrl.trim().slice(0, 500);
+  if (typeof avatarUrl === 'string') update.avatarUrl = avatarUrl.trim().slice(0, 200_000);
   if (typeof color === 'string') update.color = color.trim().slice(0, 20);
   const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true });
   if (!user) {

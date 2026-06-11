@@ -24,3 +24,22 @@ Agrega un contador en la parte superior para que el jugador vea cuántos puntos 
 
 
 También agrega una sección debajo de la tabla de construcciones que sea "Cartas de desarrollo" y que ahí puedas ver qué cartas de desarrollo tienes y si le das click a una te abra una ventana con un preview de la carta, que se vea la imágen más grande y abajo un texto que describa lo que hace cada carta
+
+Cambios 4:
+
+Una vez que creas una sala de espera, ya no puedes "cancelarla" y regresar a la pantalla de inicio. Agrega un botón de "Cancelar" y también si no eres host y ya te uniste a una partida, que también tengas la opción de salirte de la sala y regresar a la pantalla principal.
+
+Agrega la capacidad para subir archivos PNG a las fotos de perfil, no que funcione únicamente por url
+
+Al crear un usuario, que pida confirmación de contraseña (escribirla 2 veces)
+
+Cambios 5:
+
+No hay forma de agregar puertos una vez en la partida. Que sea posible agregarlo desde la tabla de construcciones, que sea una ficha que se pueda agregar a un poblado, pero que sean limitados y que si pones un puerto solo puedes poner como máximo 2 fichas de de recursos
+
+Que cada vez que alguien construya algo a todos les llegue una notificación silenciosa y sutil de que esa persona construyó 
+
+y cuando se utilice una carta de desarrollo, que a todos les aparezca una notificación de qué carta utilizó. También si cambian de lugar al ladrón
+
+
+

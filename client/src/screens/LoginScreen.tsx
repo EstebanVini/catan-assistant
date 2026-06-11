@@ -305,6 +305,8 @@ function RegisterForm({
   const [usernameTouched, setUsernameTouched] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [optionalsOpen, setOptionalsOpen] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -314,7 +316,8 @@ function RegisterForm({
 
   const validUser = usernameValid(username);
   const validPassword = password.length >= 8;
-  const canSubmit = validUser && validPassword && !submitting;
+  const passwordsMatch = validPassword && confirmPassword === password;
+  const canSubmit = validUser && passwordsMatch && !submitting;
 
   async function submit() {
     if (!canSubmit) return;
@@ -428,6 +431,33 @@ function RegisterForm({
       >
         Mínimo 8 caracteres.
       </p>
+
+      <label
+        htmlFor="reg-confirm-password"
+        className="mt-3 block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-300"
+      >
+        Confirmar contraseña
+      </label>
+      <div className="relative mt-1.5">
+        <input
+          id="reg-confirm-password"
+          type={showConfirmPassword ? 'text' : 'password'}
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          autoComplete="new-password"
+          disabled={submitting}
+          className="w-full rounded-lg border border-white/12 bg-neutral-950 py-2.5 pl-3 pr-12 text-base text-neutral-50 outline-none transition-colors focus:border-emerald-400 disabled:opacity-60"
+        />
+        <PasswordToggle
+          shown={showConfirmPassword}
+          onToggle={() => setShowConfirmPassword((v) => !v)}
+        />
+      </div>
+      {confirmPassword.length > 0 && confirmPassword !== password ? (
+        <p className="mt-1.5 text-[12px] font-medium text-amber-300">
+          Las contraseñas no coinciden.
+        </p>
+      ) : null}
 
       <button
         type="button"

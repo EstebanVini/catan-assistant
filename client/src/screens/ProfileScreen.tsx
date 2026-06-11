@@ -220,18 +220,17 @@ function AvatarUrlEditor({
   onSave: (fields: { avatarUrl?: string }) => Promise<'ok' | 'expired' | 'error'>;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<'file' | 'url'>('file');
   const [url, setUrl] = useState('');
-  const [preview, setPreview] = useState<'idle' | 'loading' | 'ok' | 'fail'>(
-    'idle'
-  );
+  const [preview, setPreview] = useState<'idle' | 'loading' | 'ok' | 'fail'>('idle');
   const [save, setSave] = useState<SaveState>('idle');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<number | null>(null);
 
   const trimmed = url.trim();
 
-  // Preview con timeout de 5 s: una URL lenta/pesada se trata como fallo
-  // (brief §2, casos extremos).
   useEffect(() => {
+    if (tab !== 'url') return;
     if (timeoutRef.current !== null) {
       window.clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
@@ -247,23 +246,70 @@ function AvatarUrlEditor({
     return () => {
       if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
     };
-  }, [trimmed]);
+  }, [trimmed, tab]);
+
+  function switchTab(t: 'file' | 'url') {
+    setTab(t);
+    setUrl('');
+    setPreview('idle');
+    setSave('idle');
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSave('idle');
+    setPreview('loading');
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      const SIZE = 256;
+      const canvas = document.createElement('canvas');
+      canvas.width = SIZE;
+      canvas.height = SIZE;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { setPreview('fail'); URL.revokeObjectURL(objectUrl); return; }
+      const min = Math.min(img.width, img.height);
+      const sx = (img.width - min) / 2;
+      const sy = (img.height - min) / 2;
+      ctx.drawImage(img, sx, sy, min, min, 0, 0, SIZE, SIZE);
+      URL.revokeObjectURL(objectUrl);
+      setUrl(canvas.toDataURL('image/jpeg', 0.85));
+      setPreview('ok');
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      setPreview('fail');
+    };
+    img.src = objectUrl;
+  }
 
   async function doSave() {
     if (preview !== 'ok' || save === 'saving') return;
     setSave('saving');
-    const result = await onSave({ avatarUrl: trimmed });
+    const result = await onSave({ avatarUrl: trimmed || url });
     if (result === 'ok') {
       setSave('saved');
       window.setTimeout(() => {
         setSave('idle');
         setOpen(false);
         setUrl('');
+        setPreview('idle');
       }, 1200);
     } else if (result === 'error') {
       setSave('error');
     }
   }
+
+  function closePanel() {
+    setOpen(false);
+    setUrl('');
+    setPreview('idle');
+    setSave('idle');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  const canSave = preview === 'ok' && save !== 'saving';
 
   return (
     <div className="mt-2 w-full">
@@ -274,65 +320,105 @@ function AvatarUrlEditor({
           aria-expanded={open}
           className="min-h-[44px] px-3 text-xs font-semibold text-emerald-300 underline-offset-2 active:underline"
         >
-          Cambiar foto (URL)
+          Cambiar foto
         </button>
       </div>
       {open ? (
         <div className="anim-fade-in mt-1 rounded-lg border border-white/10 bg-surface-1 p-3">
-          <label
-            htmlFor="avatar-url"
-            className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400"
-          >
-            URL de la imagen
-          </label>
-          <input
-            id="avatar-url"
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              setSave('idle');
-            }}
-            inputMode="url"
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck={false}
-            placeholder="https://…"
-            className="mt-1.5 w-full rounded-lg border border-white/12 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-50 outline-none transition-colors focus:border-emerald-400"
-          />
-          {trimmed ? (
+          {/* Tabs */}
+          <div className="mb-3 flex rounded-lg border border-white/10 bg-neutral-950/60 p-0.5">
+            {(['file', 'url'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => switchTab(t)}
+                className={
+                  'flex-1 rounded-md py-1.5 text-xs font-semibold transition-colors ' +
+                  (tab === t
+                    ? 'bg-surface-3 text-neutral-100 shadow-soft'
+                    : 'text-neutral-400 active:text-neutral-200')
+                }
+              >
+                {t === 'file' ? 'Subir archivo' : 'URL'}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'file' ? (
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="sr-only"
+                onChange={handleFile}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="min-h-[44px] w-full rounded-lg border border-white/12 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-300 transition-colors active:bg-white/[0.06]"
+              >
+                {preview === 'ok' ? 'Cambiar archivo' : 'Elegir imagen PNG / JPG'}
+              </button>
+              <p className="mt-1 text-[11px] text-neutral-500">
+                Se recortará y guardará como 256×256 px.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label
+                htmlFor="avatar-url"
+                className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400"
+              >
+                URL de la imagen
+              </label>
+              <input
+                id="avatar-url"
+                value={url}
+                onChange={(e) => { setUrl(e.target.value); setSave('idle'); }}
+                inputMode="url"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder="https://…"
+                className="mt-1.5 w-full rounded-lg border border-white/12 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-50 outline-none transition-colors focus:border-emerald-400"
+              />
+            </div>
+          )}
+
+          {/* Preview */}
+          {(preview !== 'idle') ? (
             <div className="mt-2.5 flex items-center gap-3">
-              {/* Dimensiones fijas para evitar saltos de layout. */}
               <span
                 className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-neutral-950"
                 aria-hidden
               >
                 {preview === 'fail' ? (
-                  <Avatar
-                    seed={user.username}
-                    name={user.displayName}
-                    size={64}
-                  />
+                  <Avatar seed={user.username} name={user.displayName} size={64} />
                 ) : (
                   <img
-                    key={trimmed}
-                    src={trimmed}
+                    key={url}
+                    src={url}
                     alt=""
                     referrerPolicy="no-referrer"
-                    onLoad={() => setPreview('ok')}
-                    onError={() => setPreview('fail')}
+                    onLoad={() => tab === 'url' && setPreview('ok')}
+                    onError={() => tab === 'url' && setPreview('fail')}
                     className="h-16 w-16 object-cover"
                   />
                 )}
               </span>
               <p className="flex-1 text-[11px] leading-snug text-neutral-400">
                 {preview === 'loading'
-                  ? 'Cargando vista previa…'
+                  ? 'Procesando…'
                   : preview === 'ok'
                     ? 'Así se verá tu avatar.'
-                    : 'No pudimos cargar esa imagen. Revisa la URL.'}
+                    : tab === 'url'
+                      ? 'No pudimos cargar esa imagen. Revisa la URL.'
+                      : 'No pudimos procesar el archivo.'}
               </p>
             </div>
           ) : null}
+
           {save === 'error' ? (
             <p role="alert" className="mt-2 text-[12px] font-medium text-red-300">
               No se guardó.{' '}
@@ -345,34 +431,27 @@ function AvatarUrlEditor({
               </button>
             </p>
           ) : null}
+
           <div className="mt-3 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                setOpen(false);
-                setUrl('');
-                setSave('idle');
-              }}
+              onClick={closePanel}
               className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-xs font-medium"
             >
               Cancelar
             </button>
             <button
               type="button"
-              disabled={preview !== 'ok' || save === 'saving'}
+              disabled={!canSave}
               onClick={() => void doSave()}
               className={
                 'min-h-[44px] flex-1 rounded-lg px-3 py-2 text-xs font-bold transition-all ' +
-                (preview === 'ok' && save !== 'saving'
+                (canSave
                   ? 'bg-emerald-500 text-neutral-950'
                   : 'cursor-not-allowed border border-white/10 bg-surface-1 text-neutral-500')
               }
             >
-              {save === 'saving'
-                ? 'Guardando…'
-                : save === 'saved'
-                  ? 'Guardado'
-                  : 'Guardar'}
+              {save === 'saving' ? 'Guardando…' : save === 'saved' ? 'Guardado' : 'Guardar'}
             </button>
           </div>
         </div>

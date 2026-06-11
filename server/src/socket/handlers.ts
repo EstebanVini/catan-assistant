@@ -37,6 +37,7 @@ import {
   UserProfileInfo,
   colorAvailable,
   createRoom,
+  deleteRoom,
   getRoom,
   joinRoom,
   popSnapshot,
@@ -983,6 +984,30 @@ export function registerHandlers(io: Server, socket: Socket): void {
       logAction(state, 'El banco deshizo la última acción.');
       broadcastState(io, state);
     }
+  });
+
+  // === Salir de sala de espera ===
+  socket.on('lobby:leave', () => {
+    const code = socket.data.code ?? '';
+    const playerId = socket.data.playerId ?? '';
+    const state = getRoom(code);
+    if (!state || state.status !== 'lobby') return;
+
+    if (state.hostId === playerId) {
+      deleteRoom(code);
+      io.to(code).emit('lobby:cancelled');
+    } else {
+      const player = findPlayer(state, playerId);
+      const name = player?.name ?? 'Jugador';
+      state.players = state.players.filter((p) => p.id !== playerId);
+      state.turnOrder = state.turnOrder.filter((id) => id !== playerId);
+      if (state.bankManagerId === playerId) state.bankManagerId = state.hostId;
+      socket.leave(code);
+      logAction(state, `${name} salió de la sala.`);
+      broadcastState(io, state);
+    }
+    socket.data.code = undefined;
+    socket.data.playerId = undefined;
   });
 
   // === Desconexión ===

@@ -24,9 +24,11 @@ export function LobbyScreen(): JSX.Element | null {
   const setTurnOrder = useStore((s) => s.setTurnOrder);
   const rollOrderByDice = useStore((s) => s.rollOrderByDice);
   const startGame = useStore((s) => s.startGame);
+  const leaveRoom = useStore((s) => s.leaveRoom);
   const setPorts = useStore((s) => s.setPorts);
   const toasts = useStore((s) => s.toasts);
   const [portsOpen, setPortsOpen] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
   // Snap-back de conflicto de color: si el servidor responde con un error
   // dentro de ~700 ms después de que el usuario tapeó un color, ese chip
@@ -435,50 +437,86 @@ export function LobbyScreen(): JSX.Element | null {
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-neutral-950/95 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur">
-        <div className="mx-auto max-w-md">
+        <div className="mx-auto max-w-md space-y-2">
           {isHost ? (
-            <button
-              type="button"
-              // Cuando lo único pendiente son registros de salida, el botón
-              // sigue tapeable: el tap responde con los nombres que faltan
-              // (el host puede gritárselos a la mesa — es presencial).
-              disabled={!canStart && allSetupComplete}
-              aria-disabled={!canStart}
-              title={startReason ?? undefined}
-              onClick={() => {
-                if (canStart) {
-                  startGame();
-                  return;
+            <>
+              <button
+                type="button"
+                disabled={!canStart && allSetupComplete}
+                aria-disabled={!canStart}
+                title={startReason ?? undefined}
+                onClick={() => {
+                  if (canStart) {
+                    startGame();
+                    return;
+                  }
+                  if (!allSetupComplete && setupMissingNames.length > 0) {
+                    pushToast('info', `Faltan: ${joinList(setupMissingNames)}.`);
+                  }
+                }}
+                className={
+                  'min-h-[56px] w-full rounded-xl px-3 py-3 text-base font-bold tracking-tight transition-all active:scale-[0.99] ' +
+                  (canStart
+                    ? 'bg-emerald-500 text-neutral-950 shadow-cta active:bg-emerald-400'
+                    : 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-400')
                 }
-                if (!allSetupComplete && setupMissingNames.length > 0) {
-                  pushToast('info', `Faltan: ${joinList(setupMissingNames)}.`);
-                }
-              }}
-              className={
-                'min-h-[56px] w-full rounded-xl px-3 py-3 text-base font-bold tracking-tight transition-all active:scale-[0.99] ' +
-                (canStart
-                  ? 'bg-emerald-500 text-neutral-950 shadow-cta active:bg-emerald-400'
-                  : 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-400')
-              }
-            >
-              {startReason ?? 'Iniciar partida'}
-            </button>
-          ) : !mySetupComplete ? (
-            <button
-              type="button"
-              onClick={() =>
-                document
-                  .getElementById('initial-build-setup')
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              }
-              className="min-h-[56px] w-full rounded-xl border border-amber-500/40 bg-amber-500/[0.08] px-3 py-3 text-center text-sm font-semibold text-amber-200 transition-all active:scale-[0.99] active:bg-amber-500/[0.14]"
-            >
-              Te falta registrar tus poblados ↓
-            </button>
+              >
+                {startReason ?? 'Iniciar partida'}
+              </button>
+              {confirmLeave ? (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmLeave(false)}
+                    className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium text-neutral-300"
+                  >
+                    Volver
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => leaveRoom()}
+                    className="min-h-[44px] flex-1 rounded-lg border border-red-500/40 bg-red-500/[0.08] px-3 py-2 text-sm font-semibold text-red-300 active:bg-red-500/[0.14]"
+                  >
+                    Sí, cancelar sala
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmLeave(true)}
+                  className="min-h-[44px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-xs font-medium text-neutral-400 active:text-neutral-200"
+                >
+                  Cancelar sala
+                </button>
+              )}
+            </>
           ) : (
-            <div className="rounded-xl border border-white/10 bg-surface-2 py-3.5 text-center text-sm font-medium text-neutral-300">
-              Espera a que el anfitrión inicie la partida.
-            </div>
+            <>
+              {!mySetupComplete ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    document
+                      .getElementById('initial-build-setup')
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
+                  className="min-h-[56px] w-full rounded-xl border border-amber-500/40 bg-amber-500/[0.08] px-3 py-3 text-center text-sm font-semibold text-amber-200 transition-all active:scale-[0.99] active:bg-amber-500/[0.14]"
+                >
+                  Te falta registrar tus poblados ↓
+                </button>
+              ) : (
+                <div className="rounded-xl border border-white/10 bg-surface-2 py-3.5 text-center text-sm font-medium text-neutral-300">
+                  Espera a que el anfitrión inicie la partida.
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => leaveRoom()}
+                className="min-h-[44px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-xs font-medium text-neutral-400 active:text-neutral-200"
+              >
+                Salir de la sala
+              </button>
+            </>
           )}
         </div>
       </div>
