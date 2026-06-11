@@ -26,7 +26,8 @@ export interface DevCardCounts {
 export interface Building {
   id: string;
   type: 'settlement' | 'city';
-  spots: Array<{ number: number; resource: Resource }>; // 0..3 fichas (el desierto no se registra)
+  spots: Array<{ number: number; resource: Resource }>; // 0..3 fichas (0..2 si tiene puerto)
+  port?: PortType | null;
 }
 
 export interface Player {

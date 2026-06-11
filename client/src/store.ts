@@ -457,4 +457,11 @@ export function wireSocket(): void {
     if (st.view?.state.status === 'ended') return;
     st.pushNotice(n);
   });
+
+  socket.on('build:notify', (n: { text: string }) => {
+    if (!n || typeof n.text !== 'string') return;
+    const st = store.getState();
+    if (st.view?.state.status === 'ended') return;
+    st.pushToast('info', n.text);
+  });
 }

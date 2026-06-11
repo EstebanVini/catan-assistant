@@ -6,6 +6,7 @@ import { Building, Hand, Hex, Player, Resource, RESOURCES, emptyHand } from './s
 // inicio (1 carta por cada ficha que tocan los poblados registrados).
 
 const VALID_NUMBERS = new Set([2, 3, 4, 5, 6, 8, 9, 10, 11, 12]);
+const VALID_PORT_TYPES = new Set<string>(['3:1', 'brick', 'lumber', 'wool', 'grain', 'ore']);
 
 // Validación laxa: cualquier edición de la tabla durante el lobby o la
 // partida. No exige cantidades — los jugadores agregan poblados/ciudades a
@@ -18,8 +19,12 @@ export function validateBuildings(buildings: Building[]): { ok: true } | { ok: f
     if (b.type !== 'settlement' && b.type !== 'city') {
       return { ok: false, reason: 'Tipo de construcción inválido.' };
     }
-    if (!Array.isArray(b.spots) || b.spots.length > 3) {
-      return { ok: false, reason: 'Cada construcción toca entre 0 y 3 fichas (el desierto no se registra).' };
+    if (b.port != null && !VALID_PORT_TYPES.has(b.port)) {
+      return { ok: false, reason: 'Tipo de puerto inválido.' };
+    }
+    const maxSpots = b.port ? 2 : 3;
+    if (!Array.isArray(b.spots) || b.spots.length > maxSpots) {
+      return { ok: false, reason: `Una construcción con puerto toca entre 0 y 2 fichas.` };
     }
     for (const spot of b.spots) {
       if (!VALID_NUMBERS.has(spot.number)) {

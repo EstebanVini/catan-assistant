@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { Building, Hex, Resource } from '../types';
+import { Building, Hex, PortType, Resource, RESOURCES } from '../types';
 import { RESOURCE_NAMES_LOWER } from '../lib/spanish';
 import { ColorChip } from './ColorChip';
 import { ResourceIcon } from './ResourceIcon';
@@ -23,11 +23,22 @@ import { BuildingGlyph, DesertGlyph, RobberGlyph } from '../assets/icons';
 
 type SheetState = { buildingId: string; spotIdx: number | null };
 
+const PORT_SHORT: Record<PortType, string> = {
+  '3:1': 'Puerto 3:1',
+  brick: 'Puerto Ladrillo',
+  lumber: 'Puerto Madera',
+  wool: 'Puerto Lana',
+  grain: 'Puerto Trigo',
+  ore: 'Puerto Mineral',
+};
+
 export function ConstructionTable(): JSX.Element | null {
   const view = useStore((s) => s.view);
   const setBuildings = useStore((s) => s.setBuildings);
+  const setPorts = useStore((s) => s.setPorts);
   const moveRobber = useStore((s) => s.moveRobber);
   const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [portSheet, setPortSheet] = useState<string | null>(null); // buildingId
   if (!view) return null;
   const { state, me } = view;
 
@@ -78,8 +89,29 @@ export function ConstructionTable(): JSX.Element | null {
     setBuildings(buildings.filter((b) => b.id !== buildingId));
   }
 
+  function confirmPort(buildingId: string, port: PortType | null): void {
+    const updated = buildings.map((b) => {
+      if (b.id !== buildingId) return b;
+      const newB = { ...b, port: port ?? undefined };
+      // Si el nuevo puerto limita a 2 fichas y tenía 3, recortar.
+      if (port && newB.spots.length > 2) {
+        newB.spots = newB.spots.slice(0, 2);
+      }
+      return newB;
+    });
+    setBuildings(updated);
+    // Sincronizar player.ports con todos los puertos de los edificios.
+    const derivedPorts = updated.filter((b) => b.port).map((b) => b.port as PortType);
+    setPorts(derivedPorts);
+    setPortSheet(null);
+  }
+
   const sheetBuilding = sheet
     ? buildings.find((b) => b.id === sheet.buildingId) ?? null
+    : null;
+
+  const portSheetBuilding = portSheet
+    ? buildings.find((b) => b.id === portSheet) ?? null
     : null;
 
   return (
@@ -123,6 +155,7 @@ export function ConstructionTable(): JSX.Element | null {
                 onEditSpot={(id, j) => setSheet({ buildingId: id, spotIdx: j })}
                 onRemoveSpot={removeSpot}
                 onRemove={removeBuilding}
+                onSetPort={(id) => setPortSheet(id)}
               />
               <BuildingList
                 title="Ciudades"
@@ -132,6 +165,7 @@ export function ConstructionTable(): JSX.Element | null {
                 onEditSpot={(id, j) => setSheet({ buildingId: id, spotIdx: j })}
                 onRemoveSpot={removeSpot}
                 onRemove={removeBuilding}
+                onSetPort={(id) => setPortSheet(id)}
               />
               <p className="text-[11px] leading-snug text-neutral-500">
                 Aquí solo ves tus construcciones y editas sus fichas. Los
@@ -162,6 +196,15 @@ export function ConstructionTable(): JSX.Element | null {
           onConfirm={confirmSheet}
         />
       ) : null}
+
+      {portSheetBuilding ? (
+        <PortPickerSheet
+          current={portSheetBuilding.port ?? null}
+          buildLabel={portSheetBuilding.type === 'city' ? 'Ciudad' : 'Poblado'}
+          onClose={() => setPortSheet(null)}
+          onConfirm={(port) => confirmPort(portSheetBuilding.id, port)}
+        />
+      ) : null}
     </>
   );
 }
@@ -174,6 +217,7 @@ function BuildingList({
   onEditSpot,
   onRemoveSpot,
   onRemove,
+  onSetPort,
 }: {
   title: string;
   emptyCopy: string;
@@ -182,6 +226,7 @@ function BuildingList({
   onEditSpot: (buildingId: string, spotIdx: number) => void;
   onRemoveSpot: (buildingId: string, spotIdx: number) => void;
   onRemove: (buildingId: string) => void;
+  onSetPort: (buildingId: string) => void;
 }): JSX.Element {
   return (
     <div>
@@ -195,97 +240,237 @@ function BuildingList({
         </p>
       ) : (
         <ul className="mt-1.5 space-y-2">
-          {buildings.map((b, i) => (
-            <li
-              key={b.id}
-              className="rounded-xl border border-white/10 bg-neutral-900/50 p-2.5"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-neutral-100">
-                  {title === 'Poblados' ? 'Poblado' : 'Ciudad'} {i + 1}
-                </p>
+          {buildings.map((b, i) => {
+            const maxSpots = b.port ? 2 : 3;
+            return (
+              <li
+                key={b.id}
+                className="rounded-xl border border-white/10 bg-neutral-900/50 p-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-neutral-100">
+                    {title === 'Poblados' ? 'Poblado' : 'Ciudad'} {i + 1}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onRemove(b.id)}
+                    className="min-h-[36px] rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] text-red-200 transition-colors active:bg-red-500/20"
+                  >
+                    Quitar
+                  </button>
+                </div>
+
+                {/* Puerto badge */}
                 <button
                   type="button"
-                  onClick={() => onRemove(b.id)}
-                  className="min-h-[36px] rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] text-red-200 transition-colors active:bg-red-500/20"
+                  onClick={() => onSetPort(b.id)}
+                  className={
+                    'mt-1.5 flex w-full items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left transition-colors active:bg-white/[0.08] ' +
+                    (b.port
+                      ? 'border-sky-500/40 bg-sky-500/10 text-sky-200'
+                      : 'border-white/10 bg-surface-2 text-neutral-400')
+                  }
                 >
-                  Quitar
+                  <span className="text-base leading-none">⚓</span>
+                  <span className="text-[11px] font-medium">
+                    {b.port ? PORT_SHORT[b.port] : 'Sin puerto'}
+                  </span>
+                  <span className="ml-auto text-[10px] opacity-60">editar</span>
                 </button>
-              </div>
-              {b.spots.length === 0 ? (
-                <p className="mt-1.5 rounded-md border border-dashed border-white/15 px-2.5 py-2 text-center text-[11px] text-neutral-400">
-                  Sin fichas todavía
-                </p>
-              ) : (
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {b.spots.map((s, j) => {
-                    const hot = s.number === 6 || s.number === 8;
-                    return (
-                      <span
-                        key={`${j}-${s.number}-${s.resource}`}
-                        className="inline-flex min-h-[44px] items-center gap-1 rounded-lg border border-white/15 bg-surface-2 pr-1"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => onEditSpot(b.id, j)}
-                          aria-label={`Editar ficha ${s.number} ${RESOURCE_NAMES_LOWER[s.resource]}`}
-                          className="flex min-h-[44px] items-center gap-1.5 rounded-l-lg pl-1.5 pr-0.5 transition-colors active:bg-white/[0.08]"
+
+                {b.spots.length === 0 ? (
+                  <p className="mt-1.5 rounded-md border border-dashed border-white/15 px-2.5 py-2 text-center text-[11px] text-neutral-400">
+                    Sin fichas todavía
+                  </p>
+                ) : (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {b.spots.map((s, j) => {
+                      const hot = s.number === 6 || s.number === 8;
+                      return (
+                        <span
+                          key={`${j}-${s.number}-${s.resource}`}
+                          className="inline-flex min-h-[44px] items-center gap-1 rounded-lg border border-white/15 bg-surface-2 pr-1"
                         >
-                          <span
-                            className={
-                              'relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border ' +
-                              (hot
-                                ? 'border-amber-400/80 bg-amber-500/20 text-amber-100'
-                                : 'border-white/15 bg-surface-3 text-neutral-100')
-                            }
+                          <button
+                            type="button"
+                            onClick={() => onEditSpot(b.id, j)}
+                            aria-label={`Editar ficha ${s.number} ${RESOURCE_NAMES_LOWER[s.resource]}`}
+                            className="flex min-h-[44px] items-center gap-1.5 rounded-l-lg pl-1.5 pr-0.5 transition-colors active:bg-white/[0.08]"
                           >
                             <span
                               className={
-                                'nums leading-none ' +
-                                (hot ? 'text-sm font-bold' : 'text-xs font-semibold')
+                                'relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border ' +
+                                (hot
+                                  ? 'border-amber-400/80 bg-amber-500/20 text-amber-100'
+                                  : 'border-white/15 bg-surface-3 text-neutral-100')
                               }
                             >
-                              {s.number}
+                              <span
+                                className={
+                                  'nums leading-none ' +
+                                  (hot ? 'text-sm font-bold' : 'text-xs font-semibold')
+                                }
+                              >
+                                {s.number}
+                              </span>
                             </span>
-                          </span>
-                          <ResourceIcon resource={s.resource} size={24} />
-                          <span className="text-xs text-neutral-100">
-                            {RESOURCE_NAMES_LOWER[s.resource]}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onRemoveSpot(b.id, j)}
-                          aria-label={`Quitar ficha ${s.number} ${RESOURCE_NAMES_LOWER[s.resource]}`}
-                          className="flex h-11 w-11 items-center justify-center rounded-r-lg text-neutral-400 transition-colors active:bg-white/[0.08] active:text-neutral-100"
-                        >
-                          <svg width={12} height={12} viewBox="0 0 24 24" aria-hidden>
-                            <path
-                              d="M6 6 L18 18 M18 6 L6 18"
-                              stroke="currentColor"
-                              strokeWidth={2.4}
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                        </button>
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-              {b.spots.length < 3 ? (
-                <button
-                  type="button"
-                  onClick={() => onAddSpot(b.id)}
-                  className="mt-2 min-h-[44px] w-full rounded-lg border border-white/12 bg-surface-2 px-3 py-2 text-xs font-medium text-neutral-100 transition-colors active:bg-white/10"
-                >
-                  + Agregar ficha
-                </button>
-              ) : null}
-            </li>
-          ))}
+                            <ResourceIcon resource={s.resource} size={24} />
+                            <span className="text-xs text-neutral-100">
+                              {RESOURCE_NAMES_LOWER[s.resource]}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onRemoveSpot(b.id, j)}
+                            aria-label={`Quitar ficha ${s.number} ${RESOURCE_NAMES_LOWER[s.resource]}`}
+                            className="flex h-11 w-11 items-center justify-center rounded-r-lg text-neutral-400 transition-colors active:bg-white/[0.08] active:text-neutral-100"
+                          >
+                            <svg width={12} height={12} viewBox="0 0 24 24" aria-hidden>
+                              <path
+                                d="M6 6 L18 18 M18 6 L6 18"
+                                stroke="currentColor"
+                                strokeWidth={2.4}
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                {b.spots.length < maxSpots ? (
+                  <button
+                    type="button"
+                    onClick={() => onAddSpot(b.id)}
+                    className="mt-2 min-h-[44px] w-full rounded-lg border border-white/12 bg-surface-2 px-3 py-2 text-xs font-medium text-neutral-100 transition-colors active:bg-white/10"
+                  >
+                    + Agregar ficha
+                    {b.port ? <span className="ml-1 text-[10px] text-neutral-400">(máx. 2 con puerto)</span> : null}
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       )}
+    </div>
+  );
+}
+
+function PortPickerSheet({
+  current,
+  buildLabel,
+  onClose,
+  onConfirm,
+}: {
+  current: PortType | null;
+  buildLabel: string;
+  onClose: () => void;
+  onConfirm: (port: PortType | null) => void;
+}): JSX.Element {
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex flex-col justify-end"
+      onClick={onClose}
+    >
+      <div
+        className="rounded-t-2xl border-t border-white/10 bg-surface-1 p-4 pb-safe-bottom"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm font-semibold text-neutral-100">
+            Puerto — {buildLabel}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 transition-colors active:bg-white/10"
+          >
+            <svg width={14} height={14} viewBox="0 0 24 24" aria-hidden>
+              <path
+                d="M6 6 L18 18 M18 6 L6 18"
+                stroke="currentColor"
+                strokeWidth={2.5}
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <p className="mb-3 text-[11px] text-neutral-400">
+          Un poblado con puerto puede tener máximo 2 fichas de recursos. El tipo de puerto determina tu ratio de intercambio.
+        </p>
+        <div className="space-y-1.5">
+          {/* Opción: sin puerto */}
+          <button
+            type="button"
+            onClick={() => onConfirm(null)}
+            className={
+              'flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors active:bg-white/[0.08] ' +
+              (current === null
+                ? 'border-neutral-500/60 bg-neutral-500/20 text-neutral-100'
+                : 'border-white/10 bg-surface-2 text-neutral-300')
+            }
+          >
+            <span className="text-lg leading-none">🚫</span>
+            <span className="text-sm font-medium">Sin puerto</span>
+            {current === null ? (
+              <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                actual
+              </span>
+            ) : null}
+          </button>
+
+          {/* Opción: 3:1 */}
+          <button
+            type="button"
+            onClick={() => onConfirm('3:1')}
+            className={
+              'flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors active:bg-white/[0.08] ' +
+              (current === '3:1'
+                ? 'border-sky-500/60 bg-sky-500/20 text-sky-100'
+                : 'border-white/10 bg-surface-2 text-neutral-300')
+            }
+          >
+            <span className="text-lg leading-none">⚓</span>
+            <div className="flex-1">
+              <p className="text-sm font-medium">Puerto 3:1</p>
+              <p className="text-[10px] text-neutral-400">Intercambia cualquier recurso 3:1</p>
+            </div>
+            {current === '3:1' ? (
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-400">
+                actual
+              </span>
+            ) : null}
+          </button>
+
+          {/* Opciones de recurso 2:1 */}
+          <div className="grid grid-cols-2 gap-1.5">
+            {RESOURCES.map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => onConfirm(r)}
+                className={
+                  'flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition-colors active:bg-white/[0.08] ' +
+                  (current === r
+                    ? 'border-sky-500/60 bg-sky-500/20 text-sky-100'
+                    : 'border-white/10 bg-surface-2 text-neutral-300')
+                }
+              >
+                <ResourceIcon resource={r} size={20} />
+                <div>
+                  <p className="text-xs font-medium">{RESOURCE_NAMES_LOWER[r]}</p>
+                  <p className="text-[10px] text-neutral-400">2:1</p>
+                </div>
+                {current === r ? (
+                  <span className="ml-auto text-[10px] text-sky-400">✓</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

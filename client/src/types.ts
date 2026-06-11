@@ -99,7 +99,8 @@ export interface BuildingSpot {
 export interface Building {
   id: string;
   type: 'settlement' | 'city';
-  spots: BuildingSpot[]; // 0–3 fichas
+  spots: BuildingSpot[]; // 0–3 fichas (0–2 si tiene puerto)
+  port?: PortType | null;
 }
 
 // Fase 3 — Notice público (banner prominente para todos).

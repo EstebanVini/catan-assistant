@@ -320,7 +320,13 @@ export function registerHandlers(io: Server, socket: Socket): void {
       id: b.id || nanoid(8),
       type: b.type,
       spots: b.spots.map((s) => ({ number: s.number, resource: s.resource })),
+      ...(b.port ? { port: b.port } : {}),
     }));
+    // Sincronizar puertos derivados de los edificios con puerto registrado.
+    const buildingPorts = player.buildings.filter((b) => b.port).map((b) => b.port as PortType);
+    if (buildingPorts.length > 0) {
+      player.ports = buildingPorts;
+    }
     if (playing) {
       state.hexes = rebuildHexes(state.players, state.hexes);
       recomputeVictoryPoints(state);
@@ -532,6 +538,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
     state.pendingRobberMove = false;
     const active = activePlayer(state)!;
     logAction(state, `${active.name} movió el ladrón.`, active.id);
+    io.to(state.code).emit('notice', { level: 'warn', text: `${active.name} movió el ladrón a ${targetHex.resource ? `${targetHex.number} ${esResource(targetHex.resource)}` : 'el desierto'}.` });
 
     // Verificar si hay a quién robar
     const candidates = targetHex.owners.filter((o) => o.playerId !== active.id);
@@ -628,18 +635,22 @@ export function registerHandlers(io: Server, socket: Socket): void {
         // devCardsBoughtThisTurn (pueden usarse el mismo turno).
         if (card !== 'vp') player.devCardsBoughtThisTurn.push(card);
         logAction(state, `${player.name} compró una carta de desarrollo.`, player.id);
+        io.to(state.code).emit('build:notify', { text: `${player.name} compró una carta de desarrollo.` });
       } else if (type === 'settlement') {
         player.buildings.push({ id: nanoid(8), type: 'settlement', spots: [] });
         state.hexes = rebuildHexes(state.players, state.hexes);
         recomputeVictoryPoints(state);
         logAction(state, `${player.name} construyó un Poblado. Le falta registrar sus fichas.`, player.id);
+        io.to(state.code).emit('build:notify', { text: `${player.name} construyó un Poblado.` });
       } else if (type === 'city') {
         targetSettlement!.type = 'city';
         state.hexes = rebuildHexes(state.players, state.hexes);
         recomputeVictoryPoints(state);
         logAction(state, `${player.name} construyó una Ciudad (subió un poblado).`, player.id);
+        io.to(state.code).emit('build:notify', { text: `${player.name} construyó una Ciudad.` });
       } else {
         logAction(state, `${player.name} construyó un Camino.`, player.id);
+        io.to(state.code).emit('build:notify', { text: `${player.name} construyó un Camino.` });
       }
       broadcastState(io, state);
       checkVictory(io, state, player);
@@ -683,6 +694,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
       state.phase = 'robber';
       state.pendingRobberMove = true;
       logAction(state, `${player.name} jugó un Caballero.`, player.id);
+      io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó un Caballero.` });
     } else if (card === 'monopoly') {
       const res = payload?.resource as Resource;
       if (!RESOURCES.includes(res)) {
@@ -697,6 +709,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
       }
       player.hand[res] += total;
       logAction(state, `${player.name} declaró Monopolio de ${esResource(res)} y se llevó ${total} cartas.`, player.id);
+      io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} declaró Monopolio de ${esResource(res)} (${total} cartas).` });
     } else if (card === 'yearOfPlenty') {
       const picks = (payload?.resources as Resource[]) ?? [];
       if (picks.length !== 2 || picks.some((r) => !RESOURCES.includes(r))) {
@@ -709,13 +722,15 @@ export function registerHandlers(io: Server, socket: Socket): void {
         player.hand[r] += 1;
       }
       logAction(state, `${player.name} jugó Año de la abundancia: tomó ${picks.map(esResource).join(' y ')}.`, player.id);
+      io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Año de la abundancia: ${picks.map(esResource).join(' y ')}.` });
     } else if (card === 'roadBuilding') {
       logAction(state, `${player.name} jugó Construcción de caminos.`, player.id);
-      // El tablero es físico; no descontamos recursos. Si quisiéramos llevar conteo, iría aquí.
+      io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Construcción de caminos.` });
     } else if (card === 'vp') {
       // Usar la carta la hace pública: +1 al marcador de todos a la vista.
       player.victoryPoints.vpCards += 1;
       logAction(state, `${player.name} usó una carta de Punto de victoria: +1 punto.`, player.id);
+      io.to(state.code).emit('notice', { level: 'info', text: `${player.name} usó una carta de Punto de victoria.` });
     }
     broadcastState(io, state);
     checkVictory(io, state, player);
