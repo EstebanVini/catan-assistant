@@ -22,6 +22,7 @@ import { DEV_CARD_NAMES, vpCardsCopy } from '../lib/spanish';
 import { DevCardGlyph } from '../assets/icons';
 import { DevCardPreview } from '../components/DevCardPreview';
 import { DevCardsPanel } from '../components/DevCardsPanel';
+import { EndGameButton } from '../components/EndGameButton';
 import { safeVibrate } from '../lib/motion';
 import { useModalA11y } from '../lib/useModalA11y';
 
@@ -143,6 +144,7 @@ export function GameScreen(): JSX.Element | null {
             lastNumber={state.lastRolledNumber}
           />
           <Log />
+          <EndGameButton />
         </div>
       </div>
       <DiscardModal />

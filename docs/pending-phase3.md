@@ -54,6 +54,8 @@ Estado (2026-06-10, cierre): pases de qa-auditor, visual-designer y motion-engin
 4. **Marcador propio en el TopBar**: nombre + color + "N pts" siempre visibles.
 5. **Sección "Cartas de desarrollo"** bajo la Tabla de construcción: lista mis cartas con preview de solo lectura (arte grande + descripción); `DevCardPreview` extraído como componente compartido con el modal de jugar.
 - Verificado con smoke E2E real (12 checks): compra de poblado/ciudad, rechazo de altas a mano, edición de fichas, banco que nunca bloquea.
+6. **Finalizar partida sin ganador** (`game:end`, solo anfitrión, con confirmación): cierra la partida para todos sin winnerId; no se persiste Match ni stats. `WinnerScreen` muestra la variante "Partida finalizada" (sin dorado, con métricas de mesa). Botón al final del GameScreen (`EndGameButton`). Smoke E2E: 7 checks.
+7. **docker-compose**: Mongo ya no expone el 27017 al host (el server le llega por la red interna); pensado para el despliegue en homelab detrás de Cloudflare Tunnel.
 
 ### 4c. Cambios previos (2026-06-11, pedidos por Esteban)
 1. **Íconos más grandes**: +30–40% en mano, descarte, pickers, trades, recetas y tabla de construcción.

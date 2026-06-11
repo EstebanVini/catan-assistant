@@ -894,6 +894,23 @@ export function registerHandlers(io: Server, socket: Socket): void {
     void persistMatchResult(state);
   });
 
+  // El anfitrión puede finalizar la partida SIN ganador (acuerdo de mesa:
+  // se hizo tarde, se deshizo el tablero, etc.). No se persiste el Match ni
+  // las stats — persistMatchResult ignora partidas sin winnerId.
+  socket.on('game:end', () => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || state.status !== 'playing') return;
+    if (!ensureHost(state, socket.data.playerId)) {
+      socket.emit('error', { message: 'Solo el anfitrión puede finalizar la partida.' });
+      return;
+    }
+    const host = findPlayer(state, socket.data.playerId ?? '');
+    state.status = 'ended';
+    state.winnerId = undefined;
+    logAction(state, `${host?.name ?? 'El anfitrión'} finalizó la partida. Nadie ganó.`);
+    broadcastState(io, state);
+  });
+
   // === Entrega manual de cartas (admin/banco, en cualquier momento) ===
   // Anti-trampas: SIEMPRE notifica a todos (notice) y queda en el log.
   socket.on(

@@ -35,7 +35,11 @@ export function WinnerScreen(): JSX.Element | null {
   if (state.status !== 'ended') return null;
   const winner = state.players.find((p) => p.id === state.winnerId);
   if (!winner) {
-    // Estado degradado: ganador no encontrado. Mostrar mínimo viable.
+    // Sin winnerId: el anfitrión finalizó la partida sin ganador.
+    if (!state.winnerId) {
+      return <EndedWithoutWinner onBack={forgetSession} />;
+    }
+    // Estado degradado: winnerId presente pero el jugador no está. Mínimo viable.
     return (
       <ErrorPartial onBack={forgetSession} />
     );
@@ -342,6 +346,110 @@ function MetricCard({
       {sub ? (
         <p className="mt-1 truncate text-[10px] text-neutral-400">{sub}</p>
       ) : null}
+    </div>
+  );
+}
+
+// Fin de partida SIN ganador (el anfitrión la finalizó). Sobrio: sin dorado
+// ni acento de jugador — no hay victoria que celebrar. Conserva las métricas
+// de la mesa (turnos, robos, tiradas e histograma) y el CTA de salida.
+function EndedWithoutWinner({ onBack }: { onBack: () => void }): JSX.Element | null {
+  const view = useStore((s) => s.view);
+  if (!view) return null;
+  const { state } = view;
+
+  const stealsEntries = Object.entries(state.stealsByPlayer ?? {}) as [
+    string,
+    number,
+  ][];
+  const topSteal = stealsEntries.reduce<{ id: string; n: number } | null>(
+    (acc, [id, n]) => (n > (acc?.n ?? 0) ? { id, n } : acc),
+    null
+  );
+  const topStealPlayer =
+    topSteal !== null
+      ? state.players.find((p) => p.id === topSteal.id) ?? null
+      : null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ended-title"
+      className="anim-fade-in fixed inset-0 z-50 flex min-h-[100dvh] flex-col bg-neutral-950"
+    >
+      <div aria-hidden className="h-1 w-full flex-shrink-0 bg-white/10" />
+      <header className="anim-slide-up px-5 pt-7 pb-5 md:mx-auto md:w-full md:max-w-3xl">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-500">
+          Fin de la partida
+        </p>
+        <h1
+          id="ended-title"
+          className="mt-3 font-display text-[34px] font-bold leading-[1.05] tracking-tight text-neutral-100"
+        >
+          Partida finalizada
+        </h1>
+        <p className="mt-2 text-sm font-medium text-neutral-300">
+          El anfitrión finalizó la partida. Nadie ganó y no se guardará
+          resultado.
+        </p>
+      </header>
+
+      <div className="flex-1 overflow-y-auto px-4 pt-1 pb-4">
+        <div className="md:mx-auto md:max-w-3xl">
+          <section
+            className="anim-slide-up grid grid-cols-3 gap-2"
+            style={{ animationDelay: '120ms' }}
+          >
+            <MetricCard label="Turnos" value={state.turnsPlayed} />
+            {topStealPlayer ? (
+              <MetricCard
+                label="Más robos"
+                value={topStealPlayer.name}
+                sub={`${topSteal!.n} ${topSteal!.n === 1 ? 'robo' : 'robos'}`}
+              />
+            ) : (
+              <MetricCard label="Más robos" value="—" sub="Nadie robó" />
+            )}
+            <MetricCard
+              label="Tiradas"
+              value={Object.values(state.diceStats).reduce(
+                (a, b) => a + (b ?? 0),
+                0
+              )}
+            />
+          </section>
+
+          <section
+            className="anim-slide-up mt-3 rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card"
+            style={{ animationDelay: '200ms' }}
+          >
+            <h2 className="font-display text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+              Estadísticas de dados
+            </h2>
+            <p className="mb-3 mt-0.5 text-[10px] leading-snug text-neutral-500">
+              Cuántas veces salió cada número durante la partida.
+            </p>
+            <DiceStats
+              stats={state.diceStats}
+              variant="expanded"
+              lastRolledNumber={state.lastRolledNumber}
+              animateOnMount
+            />
+          </section>
+        </div>
+        <div className="h-24" aria-hidden />
+      </div>
+
+      <div className="anim-fade-in sticky bottom-0 border-t border-white/10 bg-neutral-950/95 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur md:flex md:justify-center">
+        <button
+          type="button"
+          onClick={onBack}
+          className="min-h-[56px] w-full rounded-xl bg-emerald-500 px-3 py-3 text-base font-bold tracking-tight text-neutral-950 shadow-cta transition-all active:scale-[0.99] active:bg-emerald-400 md:max-w-md"
+        >
+          Volver al inicio
+        </button>
+      </div>
     </div>
   );
 }

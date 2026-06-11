@@ -142,6 +142,8 @@ interface StoreState {
   // Insignias y victoria
   setLongestRoad: (playerId: string | null) => void;
   declareWin: () => void;
+  // Finalizar sin ganador (solo anfitrión).
+  endGame: () => void;
 
   // Undo
   undo: () => void;
@@ -365,6 +367,7 @@ export const useStore = create<StoreState>((set, get) => ({
   setLongestRoad: (playerId) =>
     socket.emit('vp:setLongestRoad', { playerId }),
   declareWin: () => socket.emit('game:declareWin'),
+  endGame: () => socket.emit('game:end'),
 
   undo: () => socket.emit('action:undo'),
 }));

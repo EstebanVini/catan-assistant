@@ -2,8 +2,8 @@ services:
   mongo:
     image: mongo:7
     restart: unless-stopped
-    ports:
-      - '27017:27017'
+    # Sin ports: el server le llega por la red interna de compose; no hay
+    # razón para exponer MongoDB al host (ni a la LAN) en un despliegue.
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-catan}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-catan-dev-password}
