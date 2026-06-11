@@ -69,7 +69,7 @@ export function BankPanel(): JSX.Element | null {
           (panelPulseKey > 0 ? 'anim-pulse-scale' : '')
         }
       >
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-200">
+        <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-200">
           Panel del banco
         </h2>
         {lastNumber !== null ? (
@@ -112,7 +112,7 @@ export function BankPanel(): JSX.Element | null {
       </button>
       <div className="mt-3">
         <div className="mb-1.5 flex items-baseline justify-between">
-          <h3 className="text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
+          <h3 className="font-display text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
             Estadísticas de dados
           </h3>
           <button

@@ -293,7 +293,7 @@ export function GiveCardModal({ onClose }: { onClose: () => void }): JSX.Element
               <button
                 type="button"
                 onClick={() => emit(true)}
-                className="min-h-[44px] flex-1 rounded-lg bg-red-500 px-3 py-2 text-xs font-bold text-white"
+                className="min-h-[44px] flex-1 rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white"
               >
                 Forzar entrega sin banco
               </button>

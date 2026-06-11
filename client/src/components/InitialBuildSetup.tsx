@@ -174,12 +174,12 @@ export function InitialBuildSetup(): JSX.Element | null {
       }
     >
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
+        <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
           Tus poblados de salida
         </h2>
         {serverComplete ? (
-          <span className="anim-scale-in" aria-hidden>
-            <CheckIcon size={18} />
+          <span aria-hidden>
+            <CheckIcon size={18} animated />
           </span>
         ) : null}
       </div>
@@ -250,7 +250,7 @@ export function InitialBuildSetup(): JSX.Element | null {
                           type="button"
                           onClick={() => removeSpot(idx, j)}
                           aria-label={`Quitar ficha ${s.number} ${RESOURCE_NAMES_LOWER[s.resource]}`}
-                          className="flex h-11 w-8 items-center justify-center rounded-r-lg text-neutral-400 transition-colors active:bg-white/[0.08] active:text-neutral-100"
+                          className="flex h-11 w-11 items-center justify-center rounded-r-lg text-neutral-400 transition-colors active:bg-white/[0.08] active:text-neutral-100"
                         >
                           <svg width={12} height={12} viewBox="0 0 24 24" aria-hidden>
                             <path
@@ -302,7 +302,7 @@ export function InitialBuildSetup(): JSX.Element | null {
       >
         {serverComplete ? (
           <>
-            <CheckIcon size={13} />
+            <CheckIcon size={13} animated />
             Registro completo
           </>
         ) : localComplete ? (
@@ -499,9 +499,26 @@ function SpotPickerSheet({
   );
 }
 
-export function CheckIcon({ size = 16 }: { size?: number }): JSX.Element {
+// `animated`: pop con micro-rebote del badge + tick que se dibuja con
+// stroke-dashoffset (clases anim-check-* en index.css; en reduced-motion cae
+// a un fade corto con el tick ya dibujado). Úsalo solo cuando el check
+// confirma algo que ACABA de pasar; los checks estáticos (listas, badges
+// persistentes) lo omiten.
+export function CheckIcon({
+  size = 16,
+  animated = false,
+}: {
+  size?: number;
+  animated?: boolean;
+}): JSX.Element {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden
+      className={animated ? 'anim-check-pop' : undefined}
+    >
       <circle cx="12" cy="12" r="10" fill="#10b981" />
       <path
         d="M7.5 12.5 L10.5 15.5 L16.5 9"
@@ -510,6 +527,7 @@ export function CheckIcon({ size = 16 }: { size?: number }): JSX.Element {
         strokeWidth={2.6}
         strokeLinecap="round"
         strokeLinejoin="round"
+        className={animated ? 'anim-check-draw' : undefined}
       />
     </svg>
   );

@@ -106,7 +106,7 @@ export function WinnerScreen(): JSX.Element | null {
             <ColorChip color={winner.color} size={28} />
             <h1
               id="winner-title"
-              className="text-[34px] font-bold leading-[1.05] tracking-tight text-neutral-50"
+              className="title-gold font-display text-[34px] font-bold leading-[1.05] tracking-tight"
             >
               {iWon ? `Ganaste, ${winner.name}` : `Ganó ${winner.name}`}
             </h1>
@@ -139,7 +139,7 @@ export function WinnerScreen(): JSX.Element | null {
           className="anim-slide-up rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card"
           style={{ animationDelay: '120ms' }}
         >
-          <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+          <h2 className="font-display text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
             Desglose de puntos
           </h2>
           <ul className="mt-2 divide-y divide-white/[0.06]">
@@ -224,7 +224,7 @@ export function WinnerScreen(): JSX.Element | null {
           className="anim-slide-up mt-3 rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card"
           style={{ animationDelay: '260ms' }}
         >
-          <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+          <h2 className="font-display text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
             Estadísticas de dados
           </h2>
           <p className="mb-3 mt-0.5 text-[10px] leading-snug text-neutral-500">

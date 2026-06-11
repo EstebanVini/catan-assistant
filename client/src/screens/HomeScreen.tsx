@@ -48,7 +48,7 @@ export function HomeScreen(): JSX.Element {
     <main className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-4 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
       <div className="pt-12">
         <div className="flex items-start justify-between gap-3">
-          <h1 className="text-[28px] font-bold leading-none tracking-tight text-neutral-50">
+          <h1 className="title-gold font-display text-[28px] font-bold leading-none tracking-tight">
             Asistente de Catán
           </h1>
           {authUser ? (
@@ -70,7 +70,7 @@ export function HomeScreen(): JSX.Element {
             </button>
           ) : null}
         </div>
-        <p className="mt-2 text-sm leading-relaxed text-neutral-400">
+        <p className="mt-2 text-sm leading-relaxed text-neutral-300">
           Lleva la cuenta de tu partida presencial.
         </p>
       </div>
@@ -105,7 +105,7 @@ export function HomeScreen(): JSX.Element {
               </>
             ) : (
               <>
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-emerald-300">
+                <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-emerald-300">
                   Sigue donde lo dejaste
                 </h2>
                 <p className="mt-1.5 text-lg font-semibold tracking-tight text-neutral-50">
@@ -148,13 +148,13 @@ export function HomeScreen(): JSX.Element {
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-white/5 py-3 text-[11px] text-neutral-500">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-white/5 py-3 text-[11px] text-neutral-400">
         <span>v0.1.0 MVP</span>
         {!authUser ? (
           <button
             type="button"
             onClick={() => setShowLogin(true)}
-            className="text-neutral-400 underline-offset-2 hover:underline"
+            className="-my-2 inline-flex min-h-[44px] items-center text-neutral-400 underline-offset-2 hover:underline"
           >
             Iniciar sesión o crear cuenta
           </button>
@@ -163,7 +163,7 @@ export function HomeScreen(): JSX.Element {
           <button
             type="button"
             onClick={() => forgetSession()}
-            className="text-neutral-400 underline-offset-2 hover:underline"
+            className="-my-2 inline-flex min-h-[44px] items-center text-neutral-400 underline-offset-2 hover:underline"
           >
             Olvidar partida guardada
           </button>
@@ -277,7 +277,7 @@ function LogoutConfirmModal({
         <button
           type="button"
           onClick={onConfirm}
-          className="min-h-[44px] flex-1 rounded-lg bg-red-500 px-3 py-2 text-sm font-bold text-white"
+          className="min-h-[44px] flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white"
         >
           Sí, cerrar sesión
         </button>
@@ -321,7 +321,7 @@ function NameField({
             setName(accountName);
             setCustomizing(true);
           }}
-          className="ml-1 text-xs font-semibold text-emerald-300 underline-offset-2 active:underline"
+          className="-my-3 ml-1 inline-flex min-h-[44px] items-center px-1 text-xs font-semibold text-emerald-300 underline-offset-2 active:underline"
         >
           cambiar
         </button>

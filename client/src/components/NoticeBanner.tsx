@@ -34,7 +34,7 @@ export function NoticeBanner(): JSX.Element | null {
         'anim-slide-down fixed inset-x-0 top-0 z-[95] border-b shadow-lg ' +
         (warn
           ? 'border-amber-400/50 bg-amber-500 text-neutral-950'
-          : 'border-sky-400/50 bg-sky-600 text-white')
+          : 'border-sky-400/50 bg-sky-700 text-white')
       }
     >
       <div className="mx-auto flex max-w-2xl items-center gap-2.5 px-3 py-2.5">

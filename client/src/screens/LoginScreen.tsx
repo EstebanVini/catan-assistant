@@ -27,6 +27,10 @@ export function LoginScreen(): JSX.Element {
 
   const [view, setView] = useState<View>('login');
   const [prefillUsername, setPrefillUsername] = useState('');
+  // Remonta LoginForm SOLO cuando registro empuja un prefill ("ya existe →
+  // inicia sesión"); en los demás cambios de vista cada formulario conserva
+  // su estado (ambos viven montados para poder animar el slide de salida).
+  const [loginFormKey, setLoginFormKey] = useState(0);
   const [authUnavailable, setAuthUnavailable] = useState(false);
 
   // Si el Login se abrió explícitamente desde Home (invitado que quiere
@@ -45,10 +49,12 @@ export function LoginScreen(): JSX.Element {
             <span aria-hidden>←</span> Volver
           </button>
         ) : null}
-        <h1 className="text-[26px] font-bold leading-none tracking-tight text-neutral-50">
+        <h1 className="title-gold font-display text-[26px] font-bold leading-none tracking-tight">
           Asistente de Catán
         </h1>
-        <p className="mt-2 text-sm leading-relaxed text-neutral-400">
+        {/* Texto sobre el océano: mínimo neutral-300 (AA; ver
+            docs/contrast-verification.md). */}
+        <p className="mt-2 text-sm leading-relaxed text-neutral-300">
           Lleva la cuenta de tu partida presencial.
         </p>
       </div>
@@ -70,28 +76,41 @@ export function LoginScreen(): JSX.Element {
         >
           Jugar como invitado
         </button>
-        <p className="mt-1.5 text-center text-[11px] text-neutral-500">
+        <p className="mt-1.5 text-center text-[11px] text-neutral-300">
           Sin cuenta. No guarda tus estadísticas.
         </p>
       </div>
 
       <div className="mt-6 flex items-center gap-3" aria-hidden>
         <span className="h-px flex-1 bg-white/10" />
-        <span className="text-[11px] uppercase tracking-[0.1em] text-neutral-500">
+        <span className="text-[11px] uppercase tracking-[0.1em] text-neutral-300">
           o con tu cuenta
         </span>
         <span className="h-px flex-1 bg-white/10" />
       </div>
 
-      <div className="mt-5 flex-1 pb-8" key={view}>
-        {view === 'login' ? (
+      {/* Slide horizontal 200 ms login ↔ registro: login vive "a la
+          izquierda" y registro "a la derecha", así el saliente siempre se va
+          hacia su lado y el entrante llega desde ahí (ver .view-pane en
+          index.css). `overflow-x-clip` evita scroll horizontal durante el
+          desplazamiento sin crear un scroll container. */}
+      <div className="relative mt-5 flex-1 overflow-x-clip pb-8">
+        <div
+          className={paneClass(view === 'login', 'left')}
+          aria-hidden={view !== 'login'}
+        >
           <LoginForm
+            key={loginFormKey}
             prefillUsername={prefillUsername}
             onSuccess={(token, user) => setAuth(token, user)}
             onUnavailable={() => setAuthUnavailable(true)}
             onGoRegister={() => setView('register')}
           />
-        ) : (
+        </div>
+        <div
+          className={paneClass(view === 'register', 'right')}
+          aria-hidden={view !== 'register'}
+        >
           <RegisterForm
             hasActiveSession={session !== null}
             onSuccess={(token, user) => {
@@ -101,12 +120,25 @@ export function LoginScreen(): JSX.Element {
             onUnavailable={() => setAuthUnavailable(true)}
             onGoLogin={(username) => {
               setPrefillUsername(username);
+              setLoginFormKey((k) => k + 1);
               setView('login');
             }}
           />
-        )}
+        </div>
       </div>
     </main>
+  );
+}
+
+// Clases del panel del slide login ↔ registro. El activo fluye normal; el
+// inactivo queda absoluto (no afecta la altura), corrido 32px hacia su lado,
+// transparente y visibility:hidden (no focusable; el delay de visibility
+// vive en .view-pane-out, index.css).
+function paneClass(active: boolean, side: 'left' | 'right'): string {
+  if (active) return 'view-pane translate-x-0 opacity-100';
+  return (
+    'view-pane view-pane-out pointer-events-none absolute inset-x-0 top-0 opacity-0 ' +
+    (side === 'left' ? '-translate-x-8' : 'translate-x-8')
   );
 }
 
@@ -178,7 +210,7 @@ function LoginForm({
     >
       <label
         htmlFor="login-username"
-        className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400"
+        className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-300"
       >
         Usuario
       </label>
@@ -197,7 +229,7 @@ function LoginForm({
 
       <label
         htmlFor="login-password"
-        className="mt-3 block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400"
+        className="mt-3 block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-300"
       >
         Contraseña
       </label>
@@ -240,12 +272,12 @@ function LoginForm({
         {submitting ? 'Entrando…' : 'Iniciar sesión'}
       </button>
 
-      <p className="mt-4 text-center text-xs text-neutral-400">
+      <p className="mt-4 text-center text-xs text-neutral-300">
         ¿No tienes cuenta?{' '}
         <button
           type="button"
           onClick={onGoRegister}
-          className="font-semibold text-emerald-300 underline-offset-2 active:underline"
+          className="-my-3 inline-flex min-h-[44px] items-center px-1 font-semibold text-emerald-300 underline-offset-2 active:underline"
         >
           Crear cuenta →
         </button>
@@ -321,7 +353,7 @@ function RegisterForm({
     >
       <label
         htmlFor="reg-username"
-        className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400"
+        className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-300"
       >
         Usuario
       </label>
@@ -347,7 +379,7 @@ function RegisterForm({
           <button
             type="button"
             onClick={() => onGoLogin(username)}
-            className="font-semibold text-emerald-300 underline-offset-2 active:underline"
+            className="-my-3 inline-flex min-h-[44px] items-center px-1 font-semibold text-emerald-300 underline-offset-2 active:underline"
           >
             inicia sesión
           </button>
@@ -361,7 +393,7 @@ function RegisterForm({
 
       <label
         htmlFor="reg-password"
-        className="mt-3 block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400"
+        className="mt-3 block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-300"
       >
         Contraseña
       </label>
@@ -387,7 +419,7 @@ function RegisterForm({
           'mt-1.5 text-[12px] font-medium ' +
           (password.length > 0 && !validPassword
             ? 'text-amber-300'
-            : 'text-neutral-500')
+            : 'text-neutral-300')
         }
       >
         Mínimo 8 caracteres.
@@ -409,7 +441,7 @@ function RegisterForm({
           <div>
             <label
               htmlFor="reg-displayname"
-              className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400"
+              className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-300"
             >
               Nombre visible
             </label>
@@ -429,7 +461,7 @@ function RegisterForm({
           <div>
             <label
               htmlFor="reg-email"
-              className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-400"
+              className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-300"
             >
               Email
             </label>
@@ -475,11 +507,11 @@ function RegisterForm({
         {submitting ? 'Creando cuenta…' : 'Crear cuenta'}
       </button>
 
-      <p className="mt-4 text-center text-xs text-neutral-400">
+      <p className="mt-4 text-center text-xs text-neutral-300">
         <button
           type="button"
           onClick={() => onGoLogin('')}
-          className="font-semibold text-emerald-300 underline-offset-2 active:underline"
+          className="-my-3 inline-flex min-h-[44px] items-center px-1 font-semibold text-emerald-300 underline-offset-2 active:underline"
         >
           ← Ya tengo cuenta
         </button>

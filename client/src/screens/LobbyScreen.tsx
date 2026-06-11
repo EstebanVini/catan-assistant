@@ -131,7 +131,7 @@ export function LobbyScreen(): JSX.Element | null {
   return (
     <main className="mx-auto min-h-[100dvh] max-w-md pb-28">
       <header className="px-4 pt-6">
-        <h1 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
+        <h1 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
           Sala de espera
         </h1>
         <div className="mt-2 rounded-2xl border border-white/10 bg-surface-2 bg-gradient-to-b from-white/[0.07] to-white/[0.03] p-4 shadow-card">
@@ -212,7 +212,7 @@ export function LobbyScreen(): JSX.Element | null {
       </header>
 
       <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-surface-1 p-3 shadow-soft">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
+        <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
           Jugadores ({state.players.length}/{state.extension56 ? 6 : 4})
         </h2>
         <ul className="mt-2 space-y-1.5">
@@ -297,7 +297,7 @@ export function LobbyScreen(): JSX.Element | null {
       </section>
 
       <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-surface-1 p-3 shadow-soft">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
+        <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
           Tu color
         </h2>
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -370,7 +370,7 @@ export function LobbyScreen(): JSX.Element | null {
       {isHost ? (
         <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-surface-1 p-3 shadow-soft">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
+            <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
               Controles del anfitrión
             </h2>
             {/* Progreso de registros de salida — pulsa cuando sube. */}

@@ -20,6 +20,7 @@ export function App(): JSX.Element {
   const attemptedReconnect = useStore((s) => s.attemptedReconnect);
   const connectionStatus = useStore((s) => s.connectionStatus);
   const toasts = useStore((s) => s.toasts);
+  const noticeVisible = useStore((s) => s.notices.length > 0);
   const dismissToast = useStore((s) => s.dismissToast);
   const forgetSession = useStore((s) => s.forgetSession);
   const pushToast = useStore((s) => s.pushToast);
@@ -131,7 +132,13 @@ export function App(): JSX.Element {
         role="status"
         aria-live="polite"
         aria-atomic="false"
-        className="pointer-events-none fixed inset-x-0 top-2 z-[100] flex flex-col items-center gap-1 px-3"
+        className={
+          // Con un notice activo (banner full-width en top-0, ~64px de alto),
+          // la pila de toasts baja para no taparlo: el notice es transparencia
+          // pública y no se negocia (brief §4).
+          'pointer-events-none fixed inset-x-0 z-[100] flex flex-col items-center gap-1 px-3 transition-[top] duration-200 ' +
+          (noticeVisible ? 'top-[4.75rem]' : 'top-2')
+        }
       >
         {toasts.map((t) => (
           <button

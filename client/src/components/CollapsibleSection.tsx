@@ -97,7 +97,7 @@ export function CollapsibleSection({
         aria-controls={panelId}
         className="flex min-h-[44px] w-full items-center justify-between gap-2 px-3 py-3 transition-colors active:bg-white/[0.04]"
       >
-        <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
+        <span className="flex items-center gap-2 font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
           {title}
           {titleBadge}
         </span>

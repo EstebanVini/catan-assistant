@@ -3,6 +3,72 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * ─── Tokens del tema Catán (fuente de verdad CSS) ────────────────────────
+   * Decisión global ÚNICA: tema OSCURO "madera/noche" (brief fase 3 §6).
+   *
+   * Estos custom properties son el catálogo canónico de la paleta. Tienen
+   * DOS espejos obligados (documentados en cada uno):
+   *   1. `tailwind.config.js` — mismos hex como literales, porque Tailwind
+   *      necesita hex parseables para los modificadores de opacidad
+   *      (bg-gold/40, bg-amber-500/[0.08], …).
+   *   2. `lib/playerColors.ts` y `assets/icons.tsx` — estilos inline y fills
+   *      de SVG donde no llegan ni clases ni var().
+   * Si se ajusta un valor, se ajusta en los tres lugares.
+   */
+  :root {
+    /* Océano — ambiente de TODAS las pantallas. Nunca fondo de lectura. */
+    --ocean-deep: #07243a;
+    --ocean-mid: #0c3553;
+    --ocean-high: #176087;
+    /* Olas: SVG inline diminuto (<1 KB), trazos al 3.5–5% de opacidad. */
+    --ocean-waves: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='70' viewBox='0 0 140 70'%3E%3Cg fill='none' stroke='%23ffffff' stroke-linecap='round'%3E%3Cpath d='M0 18 q17.5 -9 35 0 t35 0 t35 0 t35 0' stroke-opacity='0.05' stroke-width='1.5'/%3E%3Cpath d='M-17.5 53 q17.5 -9 35 0 t35 0 t35 0 t35 0' stroke-opacity='0.035' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E");
+    /* Degradado del océano (más luz en el horizonte, profundidad abajo). */
+    --ocean-gradient: radial-gradient(130% 90% at 50% -10%, var(--ocean-high) 0%, var(--ocean-mid) 48%, var(--ocean-deep) 100%);
+    /* Capas compuestas del océano (olas + degradado), compartidas por el
+       fondo global y .bg-ocean para que jamás diverjan. Nota: el fondo
+       global las separa en body::before (degradado) + body::after (olas)
+       para poder animar la deriva de las olas con `transform` en el
+       compositor; visualmente es la misma composición. */
+    --ocean-layers: var(--ocean-waves), var(--ocean-gradient);
+
+    /* Superficies de madera oscura, SÓLIDAS y elevadas sobre el océano. */
+    --surface-0: #14100c;
+    --surface-1: #1f1812;
+    --surface-2: #271e15;
+    --surface-3: #2f2419;
+    --surface-4: #3a2c1e;
+
+    /* Tinta: extremos de la escala neutral cálida (arena ↔ nogal). */
+    --ink-light: #f8f1e3; /* neutral-50 */
+    --ink-dark: #191310; /* neutral-950 */
+
+    /* Dorado RESERVADO: títulos/marca, código de sala, victoria, insignias. */
+    --gold-light: #ecc35f;
+    --gold: #d9a93e;
+    --gold-deep: #a87b22;
+
+    /* Recursos (cartas): terracota, bosque, pastura, trigo, pizarra. */
+    --resource-brick: #c4663f;
+    --resource-lumber: #3a8049;
+    --resource-wool: #cfd8c2;
+    --resource-grain: #e6c453;
+    --resource-ore: #6c7682;
+
+    /* Identidad de jugadores (piezas reales). */
+    --player-red: #d64545;
+    --player-blue: #3b6dd1;
+    --player-white: #ececec;
+    --player-orange: #e58a3a;
+    --player-green: #3fa05a;
+    --player-brown: #9a6a4a;
+    /* Jugador sin color: piedra fría, jamás confundible con el café. */
+    --player-none: #3a3f47;
+
+    /* Anillo de foco dorado (visible sobre madera y sobre océano). */
+    --ring-focus: rgba(236, 195, 95, 0.9);
+  }
+
   html,
   body,
   #root {
@@ -14,14 +80,13 @@
     overscroll-behavior-y: none;
     font-feature-settings: 'ss01', 'cv11';
     /* Color de respaldo bajo el océano (si el pseudo-elemento no pinta). */
-    background-color: #07243a;
+    background-color: var(--ocean-deep);
   }
 
   /*
    * Océano de Catán — el mar que rodea el tablero, constante en TODAS las
    * pantallas. Capa fija (no repinta al hacer scroll, barato en móvil):
-   *  1. Olas: SVG inline diminuto (data-URI, <1 KB) repetido, trazos al
-   *     3.5–5% de opacidad — textura, nunca fondo de lectura.
+   *  1. Olas: textura sutil (var(--ocean-waves)), nunca fondo de lectura.
    *  2. Degradado radial: más luz arriba (horizonte) y profundidad abajo.
    * Regla dura del brief: NINGÚN texto se apoya directamente en esta capa;
    * todo contenido vive en superficies de madera sólidas (tokens surface-*).
@@ -32,12 +97,44 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background-color: #07243a;
-    background-image:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='70' viewBox='0 0 140 70'%3E%3Cg fill='none' stroke='%23ffffff' stroke-linecap='round'%3E%3Cpath d='M0 18 q17.5 -9 35 0 t35 0 t35 0 t35 0' stroke-opacity='0.05' stroke-width='1.5'/%3E%3Cpath d='M-17.5 53 q17.5 -9 35 0 t35 0 t35 0 t35 0' stroke-opacity='0.035' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E"),
-      radial-gradient(130% 90% at 50% -10%, #176087 0%, #0c3553 48%, #07243a 100%);
-    background-repeat: repeat, no-repeat;
-    background-size: 140px 70px, 100% 100%;
+    background-color: var(--ocean-deep);
+    background-image: var(--ocean-gradient);
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+  }
+
+  /*
+   * Olas con deriva: capa propia (body::after) para animarla con `transform`
+   * en el compositor — cero repaints, a diferencia de animar
+   * background-position. El pseudo-elemento se extiende exactamente un tile
+   * (140×70) hacia arriba-izquierda y deriva un tile completo hacia
+   * abajo-derecha, así el loop (52 s, lineal) cierra sin salto y el viewport
+   * queda cubierto en todo momento. ~2.7 px/s: se percibe como mar vivo solo
+   * si lo buscas. En `prefers-reduced-motion` la capa queda estática (ver
+   * bloque al final del archivo).
+   */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -70px;
+    right: 0;
+    bottom: 0;
+    left: -140px;
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--ocean-waves);
+    background-repeat: repeat;
+    background-size: 140px 70px;
+    animation: ocean-drift 52s linear infinite;
+  }
+
+  @keyframes ocean-drift {
+    0% {
+      transform: translate3d(0, 0, 0);
+    }
+    100% {
+      transform: translate3d(140px, 70px, 0);
+    }
   }
 
   /*
@@ -61,8 +158,8 @@
   :where(button, a, input, textarea, select, [role='button']):focus-visible {
     outline: none;
     box-shadow:
-      0 0 0 2px rgb(25 19 16),
-      0 0 0 4px rgba(236, 195, 95, 0.9);
+      0 0 0 2px var(--ink-dark),
+      0 0 0 4px var(--ring-focus);
     border-radius: 0.5rem;
   }
 }
@@ -109,10 +206,8 @@
    * pantalla completa que tapan el body). Mismas capas que body::before.
    */
   .bg-ocean {
-    background-color: #07243a;
-    background-image:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='70' viewBox='0 0 140 70'%3E%3Cg fill='none' stroke='%23ffffff' stroke-linecap='round'%3E%3Cpath d='M0 18 q17.5 -9 35 0 t35 0 t35 0 t35 0' stroke-opacity='0.05' stroke-width='1.5'/%3E%3Cpath d='M-17.5 53 q17.5 -9 35 0 t35 0 t35 0 t35 0' stroke-opacity='0.035' stroke-width='1.5'/%3E%3C/g%3E%3C/svg%3E"),
-      radial-gradient(130% 90% at 50% -10%, #176087 0%, #0c3553 48%, #07243a 100%);
+    background-color: var(--ocean-deep);
+    background-image: var(--ocean-layers);
     background-repeat: repeat, no-repeat;
     background-size: 140px 70px, 100% 100%;
   }
@@ -120,7 +215,7 @@
   /* Título display dorado (marca, código de sala, GANADOR). El dorado está
      RESERVADO a estos usos + insignias. */
   .title-gold {
-    color: #ecc35f;
+    color: var(--gold-light);
     text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
   }
 }
@@ -359,6 +454,75 @@
   .anim-bar-grow {
     animation: bar-grow 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
+
+  /*
+   * Slide horizontal login ↔ registro (LoginScreen). Los dos paneles viven
+   * montados: el activo fluye normal; el inactivo queda absoluto, corrido
+   * hacia su lado (login a la izquierda, registro a la derecha) y oculto.
+   * Al cambiar de vista ambos transicionan 200 ms: el entrante decelera
+   * (curva de entradas del sistema) y el saliente acelera hacia su lado.
+   * `visibility` se retrasa 200 ms SOLO al ocultar, para que el panel
+   * saliente se vea durante el slide y al terminar quede no-focusable
+   * (sin necesidad de `inert`).
+   */
+  .view-pane {
+    transition:
+      transform 200ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      opacity 200ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      visibility 0s linear;
+  }
+
+  .view-pane-out {
+    visibility: hidden;
+    transition:
+      transform 200ms cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
+      visibility 0s linear 200ms;
+  }
+
+  /*
+   * Check de confirmación (CheckIcon `animated`): el badge hace pop con
+   * micro-rebote (overshoot a 1.14 dentro del keyframe) y el tick se dibuja
+   * con stroke-dashoffset cuando la escala ya asentó. Longitud real del
+   * path ≈ 13.1 (viewBox 24), redondeada a 14. stroke-dashoffset no es
+   * transform/opacity pero pinta un icono de ≤18 px: costo despreciable.
+   */
+  @keyframes check-pop {
+    0% {
+      transform: scale(0.5);
+      opacity: 0;
+    }
+    55% {
+      transform: scale(1.14);
+      opacity: 1;
+    }
+    78% {
+      transform: scale(0.97);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes check-draw {
+    0% {
+      stroke-dashoffset: 14;
+    }
+    100% {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .anim-check-pop {
+    animation: check-pop 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    transform-origin: center;
+  }
+
+  .anim-check-draw {
+    stroke-dasharray: 14;
+    animation: check-draw 220ms cubic-bezier(0.4, 0, 0.2, 1) 120ms both;
+  }
 }
 
 /*
@@ -382,8 +546,28 @@
   .anim-scale-in,
   .anim-scale-y-top,
   .anim-bar-grow,
+  .anim-check-pop,
   .anim-fade-in {
     animation: fade-in 120ms ease-out both !important;
+  }
+
+  /* Tick: aparece ya dibujado (sin trazo progresivo). */
+  .anim-check-draw {
+    stroke-dasharray: none;
+    animation: none !important;
+  }
+
+  /* Slide login ↔ registro: swap instantáneo (la regla global ya reduce las
+     duraciones a 0.001 ms); sin retraso de `visibility` para que el panel
+     saliente no quede encima ni un frame. */
+  .view-pane,
+  .view-pane-out {
+    transition-delay: 0s !important;
+  }
+
+  /* Olas del océano: mar quieto. */
+  body::after {
+    animation: none !important;
   }
 
   /* Pulsos y respiración: sin animación. El estado se comunica por color. */

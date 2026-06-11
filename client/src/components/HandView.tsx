@@ -47,7 +47,7 @@ export function HandView(): JSX.Element | null {
   return (
     <section className="mx-3 mt-3 rounded-xl border border-white/10 bg-surface-2 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-3 shadow-card">
       <div className="mb-2.5 flex items-baseline justify-between">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
+        <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
           Tu mano
         </h2>
         <span className="text-[11px] text-neutral-400">
@@ -102,7 +102,7 @@ export function HandView(): JSX.Element | null {
       </div>
       {devTotal > 0 ? (
         <div className="mt-3 border-t border-white/5 pt-2.5">
-          <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
+          <h3 className="mb-1.5 font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
             Cartas de desarrollo
           </h3>
           <div className="flex flex-wrap gap-1.5">

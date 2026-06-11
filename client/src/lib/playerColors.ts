@@ -1,8 +1,9 @@
 import { PlayerColor } from '../types';
 
-// Fuente única de los hex de jugadores. Estos espejan los tokens de
-// `tailwind.config.js` (player.red, player.blue, ...). Cuando se ajusten ahí
-// (por contraste o re-branding), actualizar también aquí.
+// Fuente única de los hex de jugadores PARA ESTILOS INLINE. Espejo obligado
+// de los tokens canónicos `--player-*` de `src/index.css` (y de `player.*`
+// en `tailwind.config.js`). Cuando se ajusten allá (por contraste o
+// re-branding), actualizar también aquí.
 //
 // Se usan desde:
 //   - ColorChip (cuerpo del chip dibujado con SVG-friendly inline style)
@@ -22,7 +23,9 @@ export const PLAYER_HEX: Record<PlayerColor, string> = {
   brown: '#9a6a4a',
 };
 
-// Color para jugadores sin asignación (chip gris). Coincide con surface.3.
+// Color para jugadores sin asignación (token --player-none). Piedra FRÍA a
+// propósito: sobre las superficies de madera cálida, un gris frío es lo único
+// que no puede confundirse ni con el jugador café ni con el fondo.
 export const PLAYER_HEX_NONE = '#3a3f47';
 
 export function playerHex(color: PlayerColor | null | undefined): string {

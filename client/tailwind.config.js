@@ -9,7 +9,12 @@
 //    (arena/pergamino en los claros, nogal en los oscuros) para que TODO el
 //    texto y los controles existentes adopten el tema sin tocar componentes.
 //    Las luminosidades replican la escala neutral original → cero regresión
-//    de contraste (verificado AA, ver tabla en el mensaje de entrega).
+//    de contraste (verificado AA, ver docs/contrast-verification.md).
+//
+// Catálogo canónico: los custom properties `:root` de `src/index.css`.
+// Aquí los valores van como hex LITERALES (no var()) porque Tailwind necesita
+// colores parseables para los modificadores de opacidad (bg-gold/40, etc.).
+// Tercer espejo: lib/playerColors.ts y assets/icons.tsx (inline styles/SVG).
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
@@ -23,7 +28,11 @@ export default {
           200: '#ddcfb4',
           300: '#c5b290',
           400: '#a28b6d',
-          500: '#87715a',
+          // 500 subido de #87715a → #9a8268: el original quedaba en 3.5–3.8:1
+          // sobre surface-1/2 (falla AA en texto pequeño informativo, p. ej.
+          // "12 fichas"). Este valor da ≥4.5:1 sobre surface-1/2/neutral-950
+          // conservando el escalón visual con 400.
+          500: '#9a8268',
           600: '#6b573f',
           700: '#51402e',
           800: '#392c1f',

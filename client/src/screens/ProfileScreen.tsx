@@ -117,7 +117,7 @@ export function ProfileScreen(): JSX.Element {
         >
           <span aria-hidden>←</span> Inicio
         </button>
-        <h1 className="text-sm font-semibold uppercase tracking-[0.1em] text-neutral-300">
+        <h1 className="font-display text-sm font-semibold uppercase tracking-[0.1em] text-neutral-300">
           Mi perfil
         </h1>
       </header>
@@ -337,7 +337,7 @@ function AvatarUrlEditor({
               <button
                 type="button"
                 onClick={() => void doSave()}
-                className="font-semibold underline-offset-2 active:underline"
+                className="-my-3 inline-flex min-h-[44px] items-center px-1 font-semibold underline-offset-2 active:underline"
               >
                 Reintentar
               </button>
@@ -502,7 +502,7 @@ function DisplayNameEditor({
               <button
                 type="button"
                 onClick={() => void confirm()}
-                className="font-semibold underline-offset-2 active:underline"
+                className="-my-3 inline-flex min-h-[44px] items-center px-1 font-semibold underline-offset-2 active:underline"
               >
                 Reintentar
               </button>
@@ -641,7 +641,7 @@ function StatsCard({ user }: { user: User }): JSX.Element {
 
   return (
     <section className="mt-4 rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
+      <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
         Estadísticas
       </h2>
       {s.gamesPlayed === 0 ? (
