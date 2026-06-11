@@ -6,6 +6,7 @@ import { ColorChip } from './ColorChip';
 import { ResourceIcon } from './ResourceIcon';
 import { CollapsibleSection } from './CollapsibleSection';
 import { SpotPickerSheet } from './InitialBuildSetup';
+import { BuildingGlyph, DesertGlyph, RobberGlyph } from '../assets/icons';
 
 // Tabla de construcción: SOLO mis poblados y ciudades, en dos listas. Cada
 // entrada registra las fichas (número + recurso) que toca esa construcción.
@@ -118,10 +119,7 @@ export function ConstructionTable(): JSX.Element | null {
         collapsedSummary={
           robberLabel ? (
             <span className="flex items-center gap-1 text-xs text-neutral-400">
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full bg-red-500"
-                aria-hidden
-              />
+              <RobberGlyph size={14} />
               ladrón en {robberLabel}
             </span>
           ) : null
@@ -235,7 +233,8 @@ function BuildingList({
 }): JSX.Element {
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
+      <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
+        <BuildingGlyph type={title === 'Ciudades' ? 'city' : 'settlement'} size={18} />
         {title}
       </p>
       {buildings.length === 0 ? (
@@ -409,7 +408,7 @@ function RobberHexList({
                   {h.resource ? (
                     <ResourceIcon resource={h.resource} size={20} />
                   ) : (
-                    <span className="inline-block h-5 w-5 rounded-full border border-dashed border-white/30" />
+                    <DesertGlyph size={20} />
                   )}
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate text-sm">
@@ -440,7 +439,8 @@ function RobberHexList({
                   </span>
                 </span>
                 {h.robber ? (
-                  <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-200">
+                  <span className="flex items-center gap-1 rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-200">
+                    <RobberGlyph size={14} />
                     Ladrón
                   </span>
                 ) : null}

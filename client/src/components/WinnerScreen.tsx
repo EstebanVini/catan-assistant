@@ -90,7 +90,7 @@ export function WinnerScreen(): JSX.Element | null {
           aparece sólo en la banda lateral del bloque "winner" debajo.
           Stagger inicial de hero (0 ms) sobre desglose (120 ms) y métricas
           (200 ms) — el motion engineer arma una llegada en cascada. */}
-      <header className="anim-slide-up px-5 pt-7 pb-5">
+      <header className="anim-slide-up px-5 pt-7 pb-5 md:mx-auto md:w-full md:max-w-3xl">
         <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-neutral-500">
           Fin de la partida
         </p>
@@ -131,8 +131,11 @@ export function WinnerScreen(): JSX.Element | null {
         ) : null}
       </header>
 
-      {/* Cuerpo scrolleable */}
+      {/* Cuerpo scrolleable. El wrapper interno limita el ancho en md+ y en
+          lg organiza desglose (izquierda) vs. métricas + dados (derecha);
+          en móvil es un <div> neutro que no cambia el flujo. */}
       <div className="flex-1 overflow-y-auto px-4 pt-1 pb-4">
+        <div className="md:mx-auto md:max-w-3xl lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-3">
         {/* Bloque 2 — Desglose. Tabular-nums grandes a la derecha, total
             destacado con el color del ganador como acento. */}
         <section
@@ -197,8 +200,9 @@ export function WinnerScreen(): JSX.Element | null {
 
         {/* Bloque 3 — Resumen. Tres mini cards uniformes (turnos / robos /
             tiradas). El histograma queda dentro de su propia card debajo. */}
+        <div className="min-w-0">
         <section
-          className="anim-slide-up mt-3 grid grid-cols-3 gap-2"
+          className="anim-slide-up mt-3 grid grid-cols-3 gap-2 lg:mt-0"
           style={{ animationDelay: '200ms' }}
         >
           <MetricCard label="Turnos" value={state.turnsPlayed} />
@@ -237,6 +241,8 @@ export function WinnerScreen(): JSX.Element | null {
             animateOnMount
           />
         </section>
+        </div>
+        </div>
 
         {/* Aire al final para que el CTA sticky no tape la última fila */}
         <div className="h-24" aria-hidden />
@@ -245,13 +251,13 @@ export function WinnerScreen(): JSX.Element | null {
       {/* CTA sticky. Entrada con `anim-fade-in` retrasada 320 ms para
           que aterrice después del desglose y las métricas. */}
       <div
-        className="anim-fade-in sticky bottom-0 border-t border-white/10 bg-neutral-950/95 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur"
+        className="anim-fade-in sticky bottom-0 border-t border-white/10 bg-neutral-950/95 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur md:flex md:justify-center"
         style={{ animationDelay: '320ms' }}
       >
         <button
           type="button"
           onClick={() => forgetSession()}
-          className="min-h-[56px] w-full rounded-xl bg-emerald-500 px-3 py-3 text-base font-bold tracking-tight text-neutral-950 shadow-cta transition-all active:scale-[0.99] active:bg-emerald-400"
+          className="min-h-[56px] w-full rounded-xl bg-emerald-500 px-3 py-3 text-base font-bold tracking-tight text-neutral-950 shadow-cta transition-all active:scale-[0.99] active:bg-emerald-400 md:max-w-md"
         >
           Volver al inicio
         </button>

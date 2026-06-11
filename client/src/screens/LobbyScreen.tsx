@@ -129,8 +129,14 @@ export function LobbyScreen(): JSX.Element | null {
   }
 
   return (
-    <main className="mx-auto min-h-[100dvh] max-w-md pb-28">
-      <header className="px-4 pt-6">
+    <main className="mx-auto min-h-[100dvh] max-w-md pb-28 md:max-w-3xl lg:max-w-4xl">
+      {/* md+: dos columnas — izquierda: código de sala + jugadores/orden;
+          derecha: color, registro de poblados de salida y controles del
+          anfitrión. En móvil estos wrappers son <div> neutros (mismo flujo).
+          El canal central queda en 32px gracias a los px-4/mx-4 internos. */}
+      <div className="md:grid md:grid-cols-2 md:items-start">
+        <div className="min-w-0">
+          <header className="px-4 pt-6">
         <h1 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-400">
           Sala de espera
         </h1>
@@ -296,6 +302,9 @@ export function LobbyScreen(): JSX.Element | null {
         </ul>
       </section>
 
+        </div>
+
+        <div className="min-w-0">
       <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-surface-1 p-3 shadow-soft">
         <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
           Tu color
@@ -422,6 +431,8 @@ export function LobbyScreen(): JSX.Element | null {
           </div>
         </section>
       ) : null}
+        </div>
+      </div>
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-neutral-950/95 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur">
         <div className="mx-auto max-w-md">

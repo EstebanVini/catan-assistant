@@ -1,4 +1,14 @@
 import { DevCardType, Resource } from '../types';
+import brickUrl from './icons/ladrillo.png';
+import lumberUrl from './icons/madera.png';
+import woolUrl from './icons/obeja.png';
+import grainUrl from './icons/paja.png';
+import oreUrl from './icons/mineral.png';
+import robberUrl from './icons/ladron.png';
+import desertUrl from './icons/desierto.png';
+import settlementUrl from './icons/poblado.png';
+import cityUrl from './icons/ciudad.png';
+import roadUrl from './icons/camino.png';
 
 // ─── Íconos temáticos de Catán — MÓDULO ÚNICO de mapeo asset → recurso/carta ─
 //
@@ -8,12 +18,11 @@ import { DevCardType, Resource } from '../types';
 // Para cambiar el set completo (p. ej. por arte de las cartas reales) basta
 // con tocar este archivo.
 //
-// Estilo del set (uniforme en todos los glifos):
-//  - viewBox 0 0 24 24, margen interno ~2 px.
-//  - Máximo 2 tonos de relleno por ícono + trazo oscuro común (#1a130c).
-//  - strokeWidth 1.5, esquinas redondeadas. Estilo ilustrado plano, digno a
-//    14–32 px sobre superficies de madera oscura.
-//  - Los tonos de recurso espejan los tokens `resource.*` de tailwind.config.
+// Recursos, ladrón, desierto y construcciones usan el arte tipo medallón
+// subido por Esteban (PNG 128px optimizados desde los originales de 2048px;
+// los .svg subidos solo envolvían el mismo PNG embebido, por eso se eligió
+// PNG). Las cartas de desarrollo y las insignias siguen siendo SVG del set
+// plano hasta que haya arte propio.
 //
 // Fallback emoji: si se prefiere modo alternativo (o un asset futuro basado
 // en imágenes no carga), cada glifo acepta `fallback` y los mapas
@@ -78,7 +87,39 @@ function EmojiGlyph({
   );
 }
 
+// Glifo de imagen (arte medallón): decorativo, el texto vecino lo nombra.
+function ImgGlyph({
+  src,
+  size,
+  className,
+}: {
+  src: string;
+  size: number;
+  className?: string;
+}): JSX.Element {
+  return (
+    <img
+      src={src}
+      width={size}
+      height={size}
+      className={className}
+      alt=""
+      aria-hidden
+      draggable={false}
+      style={{ display: 'inline-block', objectFit: 'contain', flexShrink: 0 }}
+    />
+  );
+}
+
 // ─── Recursos ────────────────────────────────────────────────────────────────
+
+export const RESOURCE_ICON_URL: Record<Resource, string> = {
+  brick: brickUrl,
+  lumber: lumberUrl,
+  wool: woolUrl,
+  grain: grainUrl,
+  ore: oreUrl,
+};
 
 export function ResourceGlyph({
   resource,
@@ -91,100 +132,31 @@ export function ResourceGlyph({
       <EmojiGlyph emoji={RESOURCE_EMOJI[resource]} size={size} className={className} />
     );
   }
-  const common = svgProps(size, className);
-  switch (resource) {
-    case 'brick': {
-      // Muro de arcilla: dos hiladas de ladrillos en aparejo, terracota.
-      const body = '#c4663f';
-      const shade = '#9c4c2c';
-      return (
-        <svg {...common}>
-          <rect x="2.5" y="5.5" width="19" height="13" rx="1.2" fill={body} stroke={STROKE} strokeWidth={SW} />
-          {/* Hilada inferior en tono sombra para volumen (2º tono) */}
-          <path d="M2.5 12 H21.5 V17.3 a1.2 1.2 0 0 1 -1.2 1.2 H3.7 a1.2 1.2 0 0 1 -1.2 -1.2 Z" fill={shade} />
-          {/* Juntas */}
-          <line x1="2.5" y1="12" x2="21.5" y2="12" stroke={STROKE} strokeWidth={SW} />
-          <line x1="9" y1="5.5" x2="9" y2="12" stroke={STROKE} strokeWidth={SW} />
-          <line x1="15.5" y1="5.5" x2="15.5" y2="12" stroke={STROKE} strokeWidth={SW} />
-          <line x1="12.2" y1="12" x2="12.2" y2="18.5" stroke={STROKE} strokeWidth={SW} />
-        </svg>
-      );
-    }
-    case 'lumber': {
-      // Pino de dos copas sobre tronco: bosque + madera.
-      const leaf = '#3a8049';
-      const trunk = '#7a5036';
-      return (
-        <svg {...common}>
-          <rect x="10.6" y="16" width="2.8" height="5" rx="0.8" fill={trunk} stroke={STROKE} strokeWidth={SW} />
-          {/* Copa inferior */}
-          <path d="M12 7.5 L19 16.5 L5 16.5 Z" fill={leaf} stroke={STROKE} strokeWidth={SW} strokeLinejoin="round" />
-          {/* Copa superior */}
-          <path d="M12 2.5 L17.2 9.8 L6.8 9.8 Z" fill={leaf} stroke={STROKE} strokeWidth={SW} strokeLinejoin="round" />
-        </svg>
-      );
-    }
-    case 'wool': {
-      // Oveja de perfil: cuerpo de lana, cabeza y patas oscuras.
-      const fleece = '#e7ecdc';
-      const dark = '#4a4038';
-      return (
-        <svg {...common}>
-          {/* Patas */}
-          <line x1="8.5" y1="16.5" x2="8.5" y2="20.5" stroke={dark} strokeWidth="2" strokeLinecap="round" />
-          <line x1="14.5" y1="16.5" x2="14.5" y2="20.5" stroke={dark} strokeWidth="2" strokeLinecap="round" />
-          {/* Cuerpo lanudo: óvalo + bultos */}
-          <circle cx="7.5" cy="11.5" r="2.6" fill={fleece} stroke={STROKE} strokeWidth={SW} />
-          <circle cx="15.5" cy="11.5" r="2.6" fill={fleece} stroke={STROKE} strokeWidth={SW} />
-          <circle cx="11.5" cy="9.6" r="2.8" fill={fleece} stroke={STROKE} strokeWidth={SW} />
-          <ellipse cx="11.5" cy="12.8" rx="5.6" ry="4" fill={fleece} stroke={STROKE} strokeWidth={SW} />
-          {/* Cabeza */}
-          <ellipse cx="18.4" cy="10.6" rx="2.5" ry="2.1" fill={dark} stroke={STROKE} strokeWidth={SW} />
-          {/* Oreja */}
-          <ellipse cx="17.2" cy="9" rx="1.2" ry="0.7" fill={dark} stroke={STROKE} strokeWidth="1" transform="rotate(-25 17.2 9)" />
-          {/* Ojo */}
-          <circle cx="18.9" cy="10.2" r="0.5" fill="#fff" />
-        </svg>
-      );
-    }
-    case 'grain': {
-      // Espiga de trigo: granos a ambos lados del tallo + barbas.
-      const grain = '#e6c453';
-      return (
-        <svg {...common}>
-          {/* Tallo */}
-          <path d="M12 5 V21" stroke="#8a6a20" strokeWidth="1.8" strokeLinecap="round" />
-          {/* Barbas superiores */}
-          <path d="M12 5.5 L9.5 2.5 M12 5.5 L12 2 M12 5.5 L14.5 2.5" stroke="#8a6a20" strokeWidth="1.1" strokeLinecap="round" />
-          {/* Granos: 3 pares, elipses inclinadas */}
-          <ellipse cx="9.3" cy="8.5" rx="2.6" ry="1.5" fill={grain} stroke={STROKE} strokeWidth={SW} transform="rotate(-38 9.3 8.5)" />
-          <ellipse cx="14.7" cy="8.5" rx="2.6" ry="1.5" fill={grain} stroke={STROKE} strokeWidth={SW} transform="rotate(38 14.7 8.5)" />
-          <ellipse cx="9.3" cy="12.5" rx="2.6" ry="1.5" fill={grain} stroke={STROKE} strokeWidth={SW} transform="rotate(-38 9.3 12.5)" />
-          <ellipse cx="14.7" cy="12.5" rx="2.6" ry="1.5" fill={grain} stroke={STROKE} strokeWidth={SW} transform="rotate(38 14.7 12.5)" />
-          <ellipse cx="9.3" cy="16.5" rx="2.6" ry="1.5" fill={grain} stroke={STROKE} strokeWidth={SW} transform="rotate(-38 9.3 16.5)" />
-          <ellipse cx="14.7" cy="16.5" rx="2.6" ry="1.5" fill={grain} stroke={STROKE} strokeWidth={SW} transform="rotate(38 14.7 16.5)" />
-        </svg>
-      );
-    }
-    case 'ore': {
-      // Montaña de pizarra con veta de mineral.
-      const rock = '#6c7682';
-      const shade = '#4d5560';
-      return (
-        <svg {...common}>
-          {/* Pico trasero */}
-          <path d="M3 19.5 L8.5 8.5 L13 16 Z" fill={shade} stroke={STROKE} strokeWidth={SW} strokeLinejoin="round" />
-          {/* Pico principal */}
-          <path d="M8 19.5 L15 5 L21.5 19.5 Z" fill={rock} stroke={STROKE} strokeWidth={SW} strokeLinejoin="round" />
-          {/* Faceta sombreada del pico principal */}
-          <path d="M15 5 L17.8 11.2 L15.5 19.5 L21.5 19.5 Z" fill={shade} opacity="0.55" />
-          {/* Destellos de mineral */}
-          <path d="M13.2 13.5 l0.9 0.9 l-0.9 0.9 l-0.9 -0.9 Z" fill="#dfe5ec" />
-          <path d="M16.6 15.8 l0.7 0.7 l-0.7 0.7 l-0.7 -0.7 Z" fill="#dfe5ec" />
-        </svg>
-      );
-    }
-  }
+  return <ImgGlyph src={RESOURCE_ICON_URL[resource]} size={size} className={className} />;
+}
+
+// ─── Construcciones y tablero ────────────────────────────────────────────────
+
+export function BuildingGlyph({
+  type,
+  size = 20,
+  className,
+}: {
+  type: 'settlement' | 'city';
+  size?: number;
+  className?: string;
+}): JSX.Element {
+  return (
+    <ImgGlyph src={type === 'city' ? cityUrl : settlementUrl} size={size} className={className} />
+  );
+}
+
+export function RoadGlyph({ size = 20, className }: GlyphProps): JSX.Element {
+  return <ImgGlyph src={roadUrl} size={size} className={className} />;
+}
+
+export function DesertGlyph({ size = 20, className }: GlyphProps): JSX.Element {
+  return <ImgGlyph src={desertUrl} size={size} className={className} />;
 }
 
 // ─── Cartas de desarrollo ────────────────────────────────────────────────────
@@ -310,8 +282,8 @@ export function DevCardGlyph({
 
 // ─── Ladrón ──────────────────────────────────────────────────────────────────
 
-// Figura encapuchada: capa oscura + rostro en sombra. Se usa en la tabla de
-// producción (ficha bloqueada) y el flujo del 7.
+// Arte medallón del ladrón. Se usa en la Tabla de construcción (ficha
+// bloqueada) y el flujo del 7.
 export function RobberGlyph({
   size = 20,
   className,
@@ -320,27 +292,7 @@ export function RobberGlyph({
   if (fallback) {
     return <EmojiGlyph emoji={ROBBER_EMOJI} size={size} className={className} />;
   }
-  const cloak = '#3a3440';
-  const shadow = '#211d26';
-  return (
-    <svg {...svgProps(size, className)}>
-      {/* Capa */}
-      <path
-        d="M12 2.5 C 7.8 2.5, 5.5 6.2, 5.5 10.5 C 5.5 13.5, 4.8 16.8, 4 19 C 4 20.2, 7 21.5, 12 21.5 C 17 21.5, 20 20.2, 20 19 C 19.2 16.8, 18.5 13.5, 18.5 10.5 C 18.5 6.2, 16.2 2.5, 12 2.5 Z"
-        fill={cloak}
-        stroke={STROKE}
-        strokeWidth={SW}
-        strokeLinejoin="round"
-      />
-      {/* Capucha: hueco del rostro en sombra */}
-      <ellipse cx="12" cy="9.3" rx="3.6" ry="4" fill={shadow} stroke={STROKE} strokeWidth="1.1" />
-      {/* Ojos */}
-      <circle cx="10.6" cy="9" r="0.7" fill="#e8dfcf" />
-      <circle cx="13.4" cy="9" r="0.7" fill="#e8dfcf" />
-      {/* Pliegue de la capa */}
-      <path d="M12 14 V20.5" stroke={shadow} strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
+  return <ImgGlyph src={robberUrl} size={size} className={className} />;
 }
 
 // ─── Insignias (medalla/sello) ───────────────────────────────────────────────

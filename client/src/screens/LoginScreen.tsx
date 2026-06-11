@@ -38,8 +38,12 @@ export function LoginScreen(): JSX.Element {
   const canGoBack = showLogin && (session !== null || guestMode);
 
   return (
-    <main className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-4 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
-      <div className="pt-10">
+    <main className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-4 pb-[max(env(safe-area-inset-bottom),0.5rem)] md:max-w-lg md:justify-center md:py-10">
+      {/* md+: card más ancha y centrado vertical. El contenedor del slide
+          login ↔ registro pierde su flex-1 (md:flex-none) para que el bloque
+          completo quede centrado; el posicionamiento absolute del panel
+          inactivo (.view-pane-out) no depende de esa altura extra. */}
+      <div className="pt-10 md:pt-0">
         {canGoBack ? (
           <button
             type="button"
@@ -94,7 +98,7 @@ export function LoginScreen(): JSX.Element {
           hacia su lado y el entrante llega desde ahí (ver .view-pane en
           index.css). `overflow-x-clip` evita scroll horizontal durante el
           desplazamiento sin crear un scroll container. */}
-      <div className="relative mt-5 flex-1 overflow-x-clip pb-8">
+      <div className="relative mt-5 flex-1 overflow-x-clip pb-8 md:flex-none md:pb-0">
         <div
           className={paneClass(view === 'login', 'left')}
           aria-hidden={view !== 'login'}

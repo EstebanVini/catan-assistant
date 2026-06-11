@@ -45,8 +45,10 @@ export function HomeScreen(): JSX.Element {
   }
 
   return (
-    <main className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-4 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
-      <div className="pt-12">
+    <main className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-4 pb-[max(env(safe-area-inset-bottom),0.5rem)] md:max-w-lg md:justify-center">
+      {/* En md+ el bloque completo se centra verticalmente (md:justify-center
+          arriba + md:flex-none en el espaciador de en medio). */}
+      <div className="pt-12 md:pt-0">
         <div className="flex items-start justify-between gap-3">
           <h1 className="title-gold font-display text-[28px] font-bold leading-none tracking-tight">
             Asistente de Catán
@@ -75,7 +77,7 @@ export function HomeScreen(): JSX.Element {
         </p>
       </div>
 
-      <div className="mt-6 flex-1">
+      <div className="mt-6 flex-1 md:flex-none md:pb-6">
         {session ? (
           <div
             className={

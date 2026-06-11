@@ -92,7 +92,7 @@ export function GameScreen(): JSX.Element | null {
   // (ver `App.tsx`). Si por alguna razón se llega aquí con `status === 'ended'`,
   // dejamos que GameScreen renderice un overlay defensivo.
   return (
-    <main className="mx-auto min-h-[100dvh] max-w-md pb-[max(env(safe-area-inset-bottom),0.5rem)]">
+    <main className="mx-auto min-h-[100dvh] max-w-md pb-[max(env(safe-area-inset-bottom),0.5rem)] md:max-w-3xl lg:max-w-7xl">
       {showDisconnectedBanner ? (
         <div
           role="status"
@@ -107,23 +107,40 @@ export function GameScreen(): JSX.Element | null {
         </div>
       ) : null}
       <TopBar />
-      {/* En specialBuild usamos el banner dedicado (con cola + skip).
-          En cualquier otra fase, el ContextBanner clásico. */}
-      {state.phase === 'specialBuild' ? (
-        <SpecialBuildBanner />
-      ) : (
-        <ContextBanner />
-      )}
-      <HandView />
-      <ActionGrid onPlayDev={() => setDevSub({ kind: 'list' })} />
-      <BankPanel />
-      <ConstructionTable />
-      <PublicPlayersPanel />
-      <DiceStatsCollapsible
-        stats={state.diceStats}
-        lastNumber={state.lastRolledNumber}
-      />
-      <Log />
+      {/* Layout responsivo (sólo md+/lg+; en móvil estos wrappers son <div>
+          neutros que no cambian el flujo en columna):
+           - md (tablet): 2 columnas — izquierda: banners + mano + acciones y
+             debajo jugadores + dados + log; derecha: banco + construcción
+             (row-span-2 para que la columna izquierda fluya sin huecos).
+           - lg (laptop/desktop): 3 columnas — (1) banners + mano + acciones,
+             (2) banco + construcción, (3) jugadores + dados + log.
+          Los componentes internos conservan sus mx-3/mt-3 propios: el canal
+          visual entre columnas queda en 24px, igual al ritmo móvil. */}
+      <div className="md:grid md:grid-cols-2 md:items-start lg:grid-cols-3">
+        <div className="min-w-0">
+          {/* En specialBuild usamos el banner dedicado (con cola + skip).
+              En cualquier otra fase, el ContextBanner clásico. */}
+          {state.phase === 'specialBuild' ? (
+            <SpecialBuildBanner />
+          ) : (
+            <ContextBanner />
+          )}
+          <HandView />
+          <ActionGrid onPlayDev={() => setDevSub({ kind: 'list' })} />
+        </div>
+        <div className="min-w-0 md:row-span-2 lg:row-span-1">
+          <BankPanel />
+          <ConstructionTable />
+        </div>
+        <div className="min-w-0">
+          <PublicPlayersPanel />
+          <DiceStatsCollapsible
+            stats={state.diceStats}
+            lastNumber={state.lastRolledNumber}
+          />
+          <Log />
+        </div>
+      </div>
       <DiscardModal />
       <RobberFlow />
       <TradeIncomingModal />

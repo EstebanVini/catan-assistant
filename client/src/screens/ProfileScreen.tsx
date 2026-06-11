@@ -108,7 +108,7 @@ export function ProfileScreen(): JSX.Element {
   }
 
   return (
-    <main className="mx-auto min-h-[100dvh] max-w-md px-4 pb-[max(env(safe-area-inset-bottom),1.5rem)]">
+    <main className="mx-auto min-h-[100dvh] max-w-md px-4 pb-[max(env(safe-area-inset-bottom),1.5rem)] md:max-w-2xl">
       <header className="flex items-center justify-between pt-6">
         <button
           type="button"
@@ -136,14 +136,16 @@ export function ProfileScreen(): JSX.Element {
           </button>
         </div>
       ) : (
-        <>
+        // md+: identidad y estadísticas lado a lado; en móvil el wrapper es
+        // un <div> neutro y conservan su apilado vertical (mt-4 propio).
+        <div className="md:grid md:grid-cols-2 md:items-start md:gap-x-4">
           <IdentityCard
             user={authUser}
             hasActiveSession={session !== null}
             onSave={saveField}
           />
           <StatsCard user={authUser} />
-        </>
+        </div>
       )}
     </main>
   );

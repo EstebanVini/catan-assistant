@@ -21,7 +21,7 @@ export function TopBar(): JSX.Element | null {
         boxShadow: `inset 0 -2px 0 0 ${accent}`,
       }}
     >
-      <div className="mx-auto flex max-w-2xl items-center justify-between gap-2 px-3 py-2.5">
+      <div className="mx-auto flex max-w-2xl items-center justify-between gap-2 px-3 py-2.5 md:max-w-none">
         <div className="flex min-w-0 items-center gap-2.5">
           <ColorChip color={active?.color ?? null} size={22} ring={isMyTurn} />
           <div className="flex min-w-0 flex-col leading-tight">
