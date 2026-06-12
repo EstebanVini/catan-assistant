@@ -1,6 +1,6 @@
 services:
   mongo:
-    image: mongo:7
+    image: mongo:4.4
     restart: unless-stopped
     # Sin ports: el server le llega por la red interna de compose; no hay
     # razón para exponer MongoDB al host (ni a la LAN) en un despliegue.
