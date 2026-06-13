@@ -590,7 +590,10 @@ export function LobbyScreen(): JSX.Element | null {
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-neutral-950/95 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur">
+      <div
+        ref={actionBarRef}
+        className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-neutral-950/95 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur"
+      >
         <div className="mx-auto max-w-md space-y-2">
           {isHost ? (
             <>
