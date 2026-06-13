@@ -1,45 +1,22 @@
-Cambios:
+cambios: 
 
-Al iniciar el juego, todos los jugadores tienen que recibir 1 carta de cada recurso en el que tienen poblados. 
+Poder agregar amigos, ver sus estadísticas y poder invitar amigos a una partida
 
-Cuando un jugador manda una oferta de intercambio al resto de jugadores, si un jugador rechaza la oferta, la notificación desaparece para todos los jugadores, necesito que la notificación solo desaparezca para la persona que la rechazó, pero el resto de jugadores tienen que seguir viéndola hazta que la acepten o la rechacen
+cuándo estás en el lobby, que sea posible sacar a una persona antes de iniciar el juego 
 
-Cualquier jugador puede agregar fichas o poblados a voluntad, aún sin contar con los recursos necesarios, además no quiero que se llame "Tabla de producción" quiero que se llame "Tabla de construcción" y que venga una lista de poblados y una de ciudades y en cada lista puedas agregar el número y el recurso que te da cada ciudad o poblado. Que en esa tabla solo puedas ver las tuyas y que simplemente en la lista de jugadores venga el recuento de cuántas ciudades y poblados tiene cada jugador
+también que sea posible iniciar la partida son que los poblados tengan fichas (y que nadie reciba recursos) 
 
-Cambios 2:
-
-Cambiar los íconos genéricos por los que acabo de agregar el la carpeta client/src/public/icons (los subí en png y svg pero no sé cuál convenga más), utiliza a los agentes de diseño para integrarlos y que se vean lo mejor posible
-
-Que la aplicación se ajuste mejor a pantallas más anchas ej: tablet, laptop, computadora porque si lo abro en una pantalla más grande se ve mal porque solo está hecha en el tamaño de celular
-
-Cambios 3:
-
-En la tabla de construcción: cuando se sube un poblado a ciudad, se sigue podiendo subirlo aunque no tenga los recursos necesarios, también puedo agregar un poblado sin tener los recursos necesarios. Que directamente en la tabla de construcción no se puedan agregar más poblados o ciudades, elimina esos botones, que únicamente aparezcan los "slots" de poblado cuando compres un poblado con los botones de arriba y que cuando des click en ciudad para comprar una que te pida seleccionar qué poblado deseas convertir en ciudad y cuando lo selecciones automáticamente se actualice la tabla de construcción, pero que no sea posible agregarlos a mano. 
-
-Agregar confirmaciónes de compra, cada ves que quieras comprar algo con tus recursos, que te pida confirmación por si acaso.
-
-Quita el límite de recursos del banco
-
-Agrega un contador en la parte superior para que el jugador vea cuántos puntos lleva y que también venga su nombre y su color
+en el lobby hay un bug de diseño. cuándo soy el administrador de la partida, la ventana de "iniciar partida o cancelar partida" estorba al recuadro de controles del anfitrión, no me deja sortear el órden de los dados ni asignar a otro administrador.
 
 
-También agrega una sección debajo de la tabla de construcciones que sea "Cartas de desarrollo" y que ahí puedas ver qué cartas de desarrollo tienes y si le das click a una te abra una ventana con un preview de la carta, que se vea la imágen más grande y abajo un texto que describa lo que hace cada carta
-
-Cambios 4:
-
-Una vez que creas una sala de espera, ya no puedes "cancelarla" y regresar a la pantalla de inicio. Agrega un botón de "Cancelar" y también si no eres host y ya te uniste a una partida, que también tengas la opción de salirte de la sala y regresar a la pantalla principal.
-
-Agrega la capacidad para subir archivos PNG a las fotos de perfil, no que funcione únicamente por url
-
-Al crear un usuario, que pida confirmación de contraseña (escribirla 2 veces)
-
-Cambios 5:
-
-No hay forma de agregar puertos una vez en la partida. Que sea posible agregarlo desde la tabla de construcciones, que sea una ficha que se pueda agregar a un poblado, pero que sean limitados y que si pones un puerto solo puedes poner como máximo 2 fichas de de recursos
-
-Que cada vez que alguien construya algo a todos les llegue una notificación silenciosa y sutil de que esa persona construyó 
-
-y cuando se utilice una carta de desarrollo, que a todos les aparezca una notificación de qué carta utilizó. También si cambian de lugar al ladrón
+al momento de mover al ladrón, es un poco ambigüo, porque pueden haber varios recursos con el mismo número pero el juego agrupa todos. Busca una forma de resolver este bug. se me ocurre que cuando crees un poblado, que puedas agruparlos con otras fichas ya existentes o en su defecto crear más.
 
 
+"reglas extra" 
+
+agrega una opción para activar reglas extras. estas son las reglas extra: 
+
+que sea posible hacer intercambios "vacíos"  que una persona no dé nada y aún así reciba algo. 
+
+también que en tu turno sea posible utilizar los puertos de las demás personas y que la persona pueda pedir una comisión (n cantidad de recursos) a cambio de usar su puerto o que deje que usen su puerto gratis.
 
