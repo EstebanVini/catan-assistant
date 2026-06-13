@@ -4,6 +4,8 @@ import { useStore } from '../store';
 import { storageAvailable } from '../lib/persistence';
 import { useModalA11y } from '../lib/useModalA11y';
 import { Avatar } from '../components/Avatar';
+import { FriendsPanel } from '../components/FriendsPanel';
+import { getFriends } from '../api';
 
 type Modal = null | 'create' | 'join' | 'account' | 'logoutConfirm';
 
@@ -16,12 +18,17 @@ export function HomeScreen(): JSX.Element {
   const joinGame = useStore((s) => s.joinGame);
   const pushToast = useStore((s) => s.pushToast);
   const authUser = useStore((s) => s.authUser);
+  const authToken = useStore((s) => s.authToken);
   const logout = useStore((s) => s.logout);
   const setHomeView = useStore((s) => s.setHomeView);
   const setShowLogin = useStore((s) => s.setShowLogin);
   const [modal, setModal] = useState<Modal>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const [storageWarned, setStorageWarned] = useState(false);
+  // Panel de Amigos (brief §1): apertura controlada localmente, sin estado en
+  // el store. El badge ámbar refleja solicitudes entrantes pendientes.
+  const [friendsOpen, setFriendsOpen] = useState(false);
+  const [incomingCount, setIncomingCount] = useState(0);
 
   useEffect(() => {
     if (!storageAvailable() && !storageWarned) {
@@ -32,6 +39,24 @@ export function HomeScreen(): JSX.Element {
       setStorageWarned(true);
     }
   }, [pushToast, storageWarned]);
+
+  // Conteo de solicitudes entrantes para el badge del botón de Amigos. Se
+  // consulta al montar (si hay sesión) y al cerrar el panel, donde el usuario
+  // ya pudo haber aceptado/rechazado.
+  useEffect(() => {
+    if (!authToken) {
+      setIncomingCount(0);
+      return;
+    }
+    let cancelled = false;
+    void getFriends(authToken).then((res) => {
+      if (cancelled || !res.ok) return;
+      setIncomingCount(res.incoming.length);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken, friendsOpen]);
 
   async function onReconnect() {
     setReconnecting(true);
@@ -148,6 +173,77 @@ export function HomeScreen(): JSX.Element {
         >
           Unirse a partida
         </button>
+        {authUser ? (
+          <button
+            type="button"
+            onClick={() => setFriendsOpen(true)}
+            aria-label={
+              incomingCount > 0
+                ? `Amigos. ${incomingCount} ${
+                    incomingCount === 1
+                      ? 'solicitud pendiente'
+                      : 'solicitudes pendientes'
+                  }`
+                : 'Amigos'
+            }
+            className="flex min-h-[56px] w-full items-center gap-3 rounded-xl border border-white/12 bg-surface-1 px-4 py-3 text-left transition-all active:scale-[0.99] active:bg-white/[0.06]"
+          >
+            <span
+              aria-hidden
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-white/10 bg-surface-3 text-neutral-300"
+            >
+              <svg width={20} height={20} viewBox="0 0 24 24">
+                <circle
+                  cx={9}
+                  cy={8}
+                  r={3.2}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                />
+                <path
+                  d="M3.5 19 C3.5 15.4 6 13.5 9 13.5 C12 13.5 14.5 15.4 14.5 19"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M17 8 V13 M14.5 10.5 H19.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-base font-semibold text-neutral-100">
+                Amigos
+              </span>
+              <span className="block text-xs text-neutral-400">
+                Busca, agrega e invita a tus partidas
+              </span>
+            </span>
+            {incomingCount > 0 ? (
+              <span className="nums flex-shrink-0 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-200">
+                {incomingCount}
+              </span>
+            ) : null}
+            <span aria-hidden className="flex-shrink-0 text-neutral-500">
+              <svg width={18} height={18} viewBox="0 0 24 24">
+                <path
+                  d="M9 6 L15 12 L9 18"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+          </button>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-white/5 py-3 text-[11px] text-neutral-400">
@@ -220,6 +316,9 @@ export function HomeScreen(): JSX.Element {
             logout();
           }}
         />
+      ) : null}
+      {friendsOpen && authUser ? (
+        <FriendsPanel onClose={() => setFriendsOpen(false)} />
       ) : null}
     </main>
   );

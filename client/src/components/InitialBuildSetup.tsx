@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
-import { Building, RESOURCES, Resource } from '../types';
+import { Building, Hex, PlayerColor, RESOURCES, Resource } from '../types';
 import { RESOURCE_NAMES, RESOURCE_NAMES_LOWER } from '../lib/spanish';
 import { ResourceIcon } from './ResourceIcon';
+import { ColorChip } from './ColorChip';
 import { useModalA11y } from '../lib/useModalA11y';
 import { safeVibrate } from '../lib/motion';
+
+// Genera un id de ficha física. No hay nanoid en el cliente; crypto.randomUUID
+// existe en navegadores modernos sobre HTTPS/localhost, con respaldo simple.
+export function newHexId(): string {
+  return crypto.randomUUID?.() ?? String(Date.now()) + Math.random();
+}
 
 // Registro de construcciones iniciales en el Lobby (Fase 3, brief §3).
 //
@@ -120,17 +127,18 @@ export function InitialBuildSetup(): JSX.Element | null {
     buildIdx: 0 | 1,
     spotIdx: number | null,
     number: number,
-    resource: Resource
+    resource: Resource,
+    hexId: string
   ): void {
     const next = builds.map((b, i) => {
       if (i !== buildIdx) return b;
       if (spotIdx === null) {
-        return { ...b, spots: [...b.spots, { number, resource }] };
+        return { ...b, spots: [...b.spots, { number, resource, hexId }] };
       }
       return {
         ...b,
         spots: b.spots.map((s, j) =>
-          j === spotIdx ? { number, resource } : s
+          j === spotIdx ? { number, resource, hexId } : s
         ),
       };
     });
@@ -297,22 +305,46 @@ export function InitialBuildSetup(): JSX.Element | null {
               ? builds[sheet.buildIdx].spots[sheet.spotIdx]?.resource ?? null
               : null
           }
+          initialHexId={
+            sheet.spotIdx !== null
+              ? builds[sheet.buildIdx].spots[sheet.spotIdx]?.hexId ?? null
+              : null
+          }
+          existingHexes={view.state.hexes}
+          players={view.state.players}
           onClose={() => setSheet(null)}
-          onConfirm={(n, r) => confirmSpot(sheet.buildIdx, sheet.spotIdx, n, r)}
+          onConfirm={(n, r, h) =>
+            confirmSpot(sheet.buildIdx, sheet.spotIdx, n, r, h)
+          }
         />
       ) : null}
     </section>
   );
 }
 
+// Decisión de identidad de la ficha física (brief §5): agrupar con una ficha
+// ya en juego (reusa su hexId) o crear una nueva.
+type IdentityDecision =
+  | { kind: 'existing'; hexId: string }
+  | { kind: 'new' }
+  | null;
+
 // Bottom-sheet del picker de ficha: número (2–12 sin 7, el desierto no se
 // registra) + recurso, ambos pasos visibles a la vez (sin wizard). Lo reusa
 // la Tabla de construcción durante la partida.
+//
+// Brief §5: tras elegir número+recurso, si ya hay ≥1 ficha física en la mesa
+// con ese mismo número+recurso, se revela un tercer bloque in-place para
+// desambiguar (agrupar con una existente vs. crear una nueva). Sin colisión,
+// cero fricción: se crea hexId nuevo y se confirma directo.
 export function SpotPickerSheet({
   buildLabel,
   editing,
   initialNumber,
   initialResource,
+  initialHexId = null,
+  existingHexes,
+  players,
   onClose,
   onConfirm,
 }: {
@@ -320,20 +352,91 @@ export function SpotPickerSheet({
   editing: boolean;
   initialNumber: number | null;
   initialResource: Resource | null;
+  initialHexId?: string | null;
+  existingHexes: Hex[];
+  players: { id: string; color: PlayerColor | null }[];
   onClose: () => void;
-  onConfirm: (n: number, r: Resource) => void;
+  onConfirm: (n: number, r: Resource, hexId: string) => void;
 }): JSX.Element {
   const [number, setNumber] = useState<number | null>(initialNumber);
   const [resource, setResource] = useState<Resource | null>(initialResource);
+  // Decisión de identidad: se reinicia cada vez que cambia número/recurso.
+  const [decision, setDecision] = useState<IdentityDecision>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalA11y(dialogRef, onClose);
 
+  // Fichas físicas ya en juego que coinciden en número+recurso (no desierto),
+  // excluyendo la ficha que estoy editando (su propia identidad no es una
+  // "coincidencia" con la que agrupar).
+  const matches = useMemo<Hex[]>(() => {
+    if (number === null || resource === null) return [];
+    return existingHexes.filter(
+      (h) =>
+        h.number === number &&
+        h.resource === resource &&
+        (initialHexId == null || h.id !== initialHexId)
+    );
+  }, [existingHexes, number, resource, initialHexId]);
+
+  // ¿Conservo la identidad actual? Solo al editar y si número+recurso no
+  // cambiaron respecto al estado original de la ficha.
+  const keepsOriginal =
+    editing &&
+    initialHexId != null &&
+    number === initialNumber &&
+    resource === initialResource;
+
+  // El bloque de desambiguación se muestra cuando hay coincidencias y el
+  // usuario no está simplemente conservando la ficha que ya tenía.
+  const needsDecision =
+    number !== null && resource !== null && matches.length > 0 && !keepsOriginal;
+
   const ready = number !== null && resource !== null;
+  const decided = !needsDecision || decision !== null;
+
+  // hexId con el que se confirmará, según la decisión / contexto.
+  function resolveHexId(): string {
+    if (needsDecision) {
+      if (decision?.kind === 'existing') return decision.hexId;
+      return newHexId(); // 'new' (o por seguridad si quedara null)
+    }
+    // Sin decisión: conservar identidad al editar, o crear nueva al agregar.
+    if (keepsOriginal && initialHexId != null) return initialHexId;
+    return newHexId();
+  }
+
   const ctaLabel = !ready
     ? 'Elige número y recurso'
-    : editing
-      ? 'Guardar cambios'
-      : `Agregar ficha ${number} · ${RESOURCE_NAMES_LOWER[resource]}`;
+    : !decided
+      ? 'Elige si es la misma ficha o una nueva'
+      : editing
+        ? 'Guardar cambios'
+        : `Agregar ficha ${number} · ${RESOURCE_NAMES_LOWER[resource!]}`;
+
+  // Etiqueta de dueños de una ficha coincidente, para reconocerla.
+  function ownersLabel(h: Hex): JSX.Element {
+    if (h.owners.length === 0) {
+      return <span className="text-[10px] text-neutral-400">Sin poblados aún</span>;
+    }
+    return (
+      <>
+        {h.owners.map((o, k) => {
+          const p = players.find((x) => x.id === o.playerId);
+          return (
+            <span
+              key={`${o.playerId}-${k}`}
+              className="inline-flex items-center gap-0.5 rounded bg-surface-3 px-1.5 py-0.5 text-[10px]"
+            >
+              <ColorChip color={p?.color ?? null} size={10} />
+              <span className="font-medium uppercase">
+                {o.type === 'city' ? 'C' : 'P'}
+              </span>
+            </span>
+          );
+        })}
+      </>
+    );
+  }
 
   return (
     <div
@@ -391,7 +494,10 @@ export function SpotPickerSheet({
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                onClick={() => setNumber(n)}
+                onClick={() => {
+                  setNumber(n);
+                  setDecision(null);
+                }}
                 className={
                   'relative flex h-14 w-full flex-col items-center justify-center rounded-lg border transition-all active:scale-[0.97] ' +
                   (selected
@@ -432,7 +538,10 @@ export function SpotPickerSheet({
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                onClick={() => setResource(r)}
+                onClick={() => {
+                  setResource(r);
+                  setDecision(null);
+                }}
                 className={
                   'flex h-16 w-full flex-col items-center justify-center gap-1 rounded-lg border transition-all active:scale-[0.97] ' +
                   (selected
@@ -450,15 +559,118 @@ export function SpotPickerSheet({
           })}
         </div>
 
+        {needsDecision ? (
+          <div className="anim-slide-up mt-3 rounded-xl border border-amber-500/40 bg-amber-500/[0.05] p-2.5">
+            <p className="text-xs font-semibold text-amber-100">
+              Ya hay una ficha{' '}
+              <span className="nums">{number}</span>{' '}
+              {RESOURCE_NAMES_LOWER[resource!]} en juego. ¿Es la misma?
+            </p>
+            <p className="mt-0.5 text-[11px] leading-snug text-neutral-400">
+              Mira quién la toca para reconocerla, o crea una ficha nueva si es
+              otra distinta del tablero.
+            </p>
+            <ul
+              className="mt-2 space-y-1.5"
+              role="radiogroup"
+              aria-label="¿Es la misma ficha que ya está en juego, o una nueva?"
+            >
+              {matches.map((h) => {
+                const isHot = h.number === 6 || h.number === 8;
+                const selected =
+                  decision?.kind === 'existing' && decision.hexId === h.id;
+                return (
+                  <li key={h.id}>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      aria-label={`Es la misma ficha ${number} ${RESOURCE_NAMES_LOWER[resource!]} que ya está en juego`}
+                      onClick={() =>
+                        setDecision({ kind: 'existing', hexId: h.id })
+                      }
+                      className={
+                        'flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors active:bg-white/[0.08] ' +
+                        (selected
+                          ? 'border-emerald-400 bg-emerald-500/15'
+                          : 'border-white/10 bg-neutral-900/40')
+                      }
+                    >
+                      <span
+                        className={
+                          'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border ' +
+                          (isHot
+                            ? 'border-amber-400/80 bg-amber-500/20 text-amber-100'
+                            : 'border-white/15 bg-surface-3 text-neutral-100')
+                        }
+                      >
+                        <span
+                          className={
+                            'nums leading-none ' +
+                            (isHot ? 'text-sm font-bold' : 'text-xs font-semibold')
+                          }
+                        >
+                          {h.number}
+                        </span>
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="text-[11px] font-medium text-neutral-200">
+                          La tocan:
+                        </span>
+                        <span className="flex flex-wrap items-center gap-1">
+                          {ownersLabel(h)}
+                        </span>
+                      </span>
+                      {selected ? (
+                        <CheckIcon size={16} />
+                      ) : (
+                        <span className="h-4 w-4 flex-shrink-0 rounded-full border border-white/20" aria-hidden />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+              <li>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={decision?.kind === 'new'}
+                  onClick={() => setDecision({ kind: 'new' })}
+                  className={
+                    'flex w-full items-center gap-2 rounded-lg border border-dashed px-2.5 py-2.5 text-left transition-colors active:bg-white/[0.08] ' +
+                    (decision?.kind === 'new'
+                      ? 'border-emerald-400 bg-emerald-500/15'
+                      : 'border-white/20 bg-surface-2')
+                  }
+                >
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-white/15 bg-surface-3 text-neutral-100">
+                    <span className="text-lg leading-none">+</span>
+                  </span>
+                  <span className="flex-1 text-xs font-medium text-neutral-100">
+                    Es una ficha nueva (otra distinta en el tablero)
+                  </span>
+                  {decision?.kind === 'new' ? (
+                    <CheckIcon size={16} />
+                  ) : (
+                    <span className="h-4 w-4 flex-shrink-0 rounded-full border border-white/20" aria-hidden />
+                  )}
+                </button>
+              </li>
+            </ul>
+          </div>
+        ) : null}
+
         <button
           type="button"
-          disabled={!ready}
+          disabled={!ready || !decided}
           onClick={() => {
-            if (number !== null && resource !== null) onConfirm(number, resource);
+            if (number !== null && resource !== null && decided) {
+              onConfirm(number, resource, resolveHexId());
+            }
           }}
           className={
             'mt-4 min-h-[52px] w-full rounded-xl px-3 py-2.5 text-sm font-bold tracking-tight transition-all active:scale-[0.99] ' +
-            (ready
+            (ready && decided
               ? 'bg-emerald-500 text-neutral-950 shadow-cta active:bg-emerald-400'
               : 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-400')
           }

@@ -56,18 +56,18 @@ export function ConstructionTable(): JSX.Element | null {
       : 'desierto'
     : null;
 
-  function confirmSheet(number: number, resource: Resource): void {
+  function confirmSheet(number: number, resource: Resource, hexId: string): void {
     if (!sheet) return;
     setBuildings(
       buildings.map((b) => {
         if (b.id !== sheet.buildingId) return b;
         if (sheet.spotIdx === null) {
-          return { ...b, spots: [...b.spots, { number, resource }] };
+          return { ...b, spots: [...b.spots, { number, resource, hexId }] };
         }
         return {
           ...b,
           spots: b.spots.map((s, j) =>
-            j === sheet.spotIdx ? { number, resource } : s
+            j === sheet.spotIdx ? { number, resource, hexId } : s
           ),
         };
       })
@@ -192,6 +192,13 @@ export function ConstructionTable(): JSX.Element | null {
               ? sheetBuilding?.spots[sheet.spotIdx]?.resource ?? null
               : null
           }
+          initialHexId={
+            sheet.spotIdx !== null
+              ? sheetBuilding?.spots[sheet.spotIdx]?.hexId ?? null
+              : null
+          }
+          existingHexes={state.hexes}
+          players={state.players}
           onClose={() => setSheet(null)}
           onConfirm={confirmSheet}
         />
@@ -488,6 +495,61 @@ function RobberHexList({
 }): JSX.Element {
   const view = useStore((s) => s.view);
   const players = view?.state.players ?? [];
+
+  // Desambiguación (brief §5): cuando dos o más fichas comparten número+recurso,
+  // hay que distinguirlas. Etiqueta de prioridad:
+  //   1. Por dueños → "· de Ana" / "· de Ana y Beto" (lo más útil para robar).
+  //   2. Si comparten dueños o no tienen, índice ordinal humano "(1)"/"(2)",
+  //      estable por el orden del server.
+  const dupKeyOf = (h: Hex): string | null =>
+    h.number !== null && h.resource ? `${h.number}|${h.resource}` : null;
+
+  const dupCounts = new Map<string, number>();
+  for (const h of hexes) {
+    const k = dupKeyOf(h);
+    if (k) dupCounts.set(k, (dupCounts.get(k) ?? 0) + 1);
+  }
+
+  const ownerNames = (h: Hex): string[] => {
+    const seen = new Set<string>();
+    const names: string[] = [];
+    for (const o of h.owners) {
+      if (seen.has(o.playerId)) continue;
+      seen.add(o.playerId);
+      const p = players.find((x) => x.id === o.playerId);
+      if (p) names.push(p.name);
+    }
+    return names;
+  };
+
+  const joinNames = (names: string[]): string =>
+    names.length <= 1
+      ? names[0] ?? ''
+      : names.slice(0, -1).join(', ') + ' y ' + names[names.length - 1];
+
+  // Mapa hexId → sufijo desambiguador (texto plano, sin id técnico).
+  const suffixes = new Map<string, string>();
+  for (const [key, count] of dupCounts) {
+    if (count < 2) continue;
+    const group = hexes.filter((h) => dupKeyOf(h) === key);
+    // Conteo de cada etiqueta-por-dueño para detectar empates.
+    const labelCounts = new Map<string, number>();
+    for (const h of group) {
+      const label = joinNames(ownerNames(h));
+      labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+    }
+    group.forEach((h, idx) => {
+      const names = ownerNames(h);
+      const ownerLabel = joinNames(names);
+      // Usable solo si hay dueños y la etiqueta es única dentro del grupo.
+      if (names.length > 0 && (labelCounts.get(ownerLabel) ?? 0) === 1) {
+        suffixes.set(h.id, `de ${ownerLabel}`);
+      } else {
+        suffixes.set(h.id, `(${idx + 1})`);
+      }
+    });
+  }
+
   return (
     <div className="rounded-xl border border-red-500/30 bg-red-500/[0.05] p-2.5">
       <p className="text-xs font-semibold text-red-200">
@@ -499,12 +561,25 @@ function RobberHexList({
         {hexes.map((h) => {
           const isHot = h.number === 6 || h.number === 8;
           const tappable = canMove && !h.robber;
+          const suffix = suffixes.get(h.id) ?? null;
+          const baseName = h.resource
+            ? RESOURCE_NAMES_LOWER[h.resource]
+            : 'desierto';
+          const ariaName =
+            (h.number !== null ? `${h.number} ` : '') +
+            baseName +
+            (suffix ? ` ${suffix}` : '');
           return (
             <li key={h.id}>
               <button
                 type="button"
                 disabled={!tappable}
                 onClick={() => onPick(h.id)}
+                aria-label={
+                  h.robber
+                    ? `El ladrón ya está en ${ariaName}`
+                    : `Mover ladrón a ${ariaName}`
+                }
                 className={
                   'flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors ' +
                   (h.robber
@@ -532,8 +607,13 @@ function RobberHexList({
                     <DesertGlyph size={28} />
                   )}
                   <span className="flex min-w-0 flex-col">
-                    <span className="truncate text-sm">
-                      {h.resource ? RESOURCE_NAMES_LOWER[h.resource] : 'desierto'}
+                    <span className="flex items-baseline gap-1 truncate text-sm">
+                      <span className="truncate">{baseName}</span>
+                      {suffix ? (
+                        <span className="flex-shrink-0 text-[11px] font-medium text-amber-200/90">
+                          · {suffix}
+                        </span>
+                      ) : null}
                     </span>
                     <span className="flex flex-wrap items-center gap-1">
                       {h.owners.length === 0 ? (
