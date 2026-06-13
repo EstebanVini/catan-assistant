@@ -11,6 +11,7 @@ import { Server } from 'socket.io';
 import { registerHandlers } from './socket/handlers';
 import { connectDb } from './db/connection';
 import { authRouter } from './auth/auth';
+import { friendsRouter } from './auth/friends';
 import { socketAuthGuard } from './auth/middleware';
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -22,6 +23,7 @@ const io = new Server(server, {
 
 app.use(express.json());
 app.use(authRouter);
+app.use(friendsRouter);
 
 // Guard del handshake: con JWT válido adjunta socket.data.userId; sin token, invitado.
 io.use(socketAuthGuard);

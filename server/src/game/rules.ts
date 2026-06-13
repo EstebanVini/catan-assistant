@@ -168,11 +168,18 @@ export function validateTradeOffer(
   from: Player,
   to: Player,
   give: Partial<Hand>,
-  receive: Partial<Hand>
+  receive: Partial<Hand>,
+  // Regla extra: permite ofertas desiguales (un lado en 0). Aun así se exige
+  // que la oferta tenga AL MENOS una carta en algún lado.
+  allowUnequal = false
 ): { ok: boolean; reason?: string } {
   const giveTotal = Object.values(give).reduce((a, b) => a + (b ?? 0), 0);
   const recvTotal = Object.values(receive).reduce((a, b) => a + (b ?? 0), 0);
-  if (giveTotal === 0 || recvTotal === 0) return { ok: false, reason: 'Oferta vacía.' };
+  if (allowUnequal) {
+    if (giveTotal === 0 && recvTotal === 0) return { ok: false, reason: 'La oferta no tiene cartas.' };
+  } else if (giveTotal === 0 || recvTotal === 0) {
+    return { ok: false, reason: 'Oferta vacía.' };
+  }
   for (const [res, n] of Object.entries(give) as [Resource, number][]) {
     if (from.hand[res] < n) return { ok: false, reason: `${from.name} ya no tiene esos recursos.` };
   }

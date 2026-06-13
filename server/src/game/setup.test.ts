@@ -118,6 +118,91 @@ describe('applyInitialSetup', () => {
   });
 });
 
+describe('agrupación por hexId (desambiguación del ladrón)', () => {
+  // Helper: construcción cuyas fichas llevan un hexId explícito.
+  function buildingWithHex(
+    spots: Array<[number, string, string]>,
+    type: Building['type'] = 'settlement'
+  ): Building {
+    return {
+      id: Math.random().toString(36).slice(2, 10),
+      type,
+      spots: spots.map(([number, resource, hexId]) => ({
+        number,
+        resource: resource as Building['spots'][0]['resource'],
+        hexId,
+      })),
+    };
+  }
+
+  it('dos fichas con el mismo número+recurso pero hexId distinto son hexes separados', () => {
+    const hexes = rebuildHexes(
+      [
+        {
+          id: 'p1',
+          buildings: [
+            buildingWithHex([[8, 'grain', 'hexA']]),
+            buildingWithHex([[8, 'grain', 'hexB']]),
+          ],
+        },
+      ],
+      []
+    );
+    const eights = hexes.filter((h) => h.number === 8 && h.resource === 'grain');
+    expect(eights).toHaveLength(2);
+    expect(eights.map((h) => h.id).sort()).toEqual(['hexA', 'hexB']);
+  });
+
+  it('fichas de jugadores distintos con el mismo hexId comparten un solo hex', () => {
+    const hexes = rebuildHexes(
+      [
+        { id: 'p1', buildings: [buildingWithHex([[8, 'grain', 'shared']])] },
+        { id: 'p2', buildings: [buildingWithHex([[8, 'grain', 'shared']])] },
+      ],
+      []
+    );
+    const shared = hexes.filter((h) => h.number === 8 && h.resource === 'grain');
+    expect(shared).toHaveLength(1);
+    expect(shared[0].id).toBe('shared');
+    expect(shared[0].owners.map((o) => o.playerId).sort()).toEqual(['p1', 'p2']);
+  });
+
+  it('preserva el ladrón por id cuando hay fichas duplicadas', () => {
+    const players = [
+      {
+        id: 'p1',
+        buildings: [
+          buildingWithHex([[8, 'grain', 'hexA']]),
+          buildingWithHex([[8, 'grain', 'hexB']]),
+        ],
+      },
+    ];
+    const first = rebuildHexes(players, []);
+    first.find((h) => h.id === 'hexB')!.robber = true;
+    first.find((h) => h.number === null)!.robber = false;
+    const next = rebuildHexes(players, first);
+    expect(next.find((h) => h.id === 'hexB')!.robber).toBe(true);
+    expect(next.find((h) => h.id === 'hexA')!.robber).toBe(false);
+    expect(next.filter((h) => h.robber)).toHaveLength(1);
+  });
+});
+
+describe('applyInitialSetup sin recursos (modo "iniciar sin fichas")', () => {
+  it('deriva hexes pero no reparte recursos cuando seedResources es false', () => {
+    const bank = fullBank(false);
+    const result = applyInitialSetup(
+      [{ id: 'p1', buildings: [building([[6, 'ore']]), building([[4, 'grain']])] }],
+      bank,
+      false
+    );
+    expect(result.grants.p1).toMatchObject({ ore: 0, grain: 0, wool: 0, brick: 0, lumber: 0 });
+    expect(bank.ore).toBe(19);
+    expect(bank.grain).toBe(19);
+    // Los hexes sí se derivan de lo registrado.
+    expect(result.hexes.find((h) => h.number === 6 && h.resource === 'ore')).toBeDefined();
+  });
+});
+
 describe('rebuildHexes', () => {
   it('preserva la posición del ladrón y los ids de los hexes al editar la tabla', () => {
     const players = [{ id: 'p1', buildings: [building([[6, 'ore']]), building([[4, 'grain']])] }];

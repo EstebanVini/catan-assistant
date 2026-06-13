@@ -50,6 +50,7 @@ import { applyInitialSetup, playerSetupComplete, rebuildHexes, validateBuildings
 import { buildViewWithOwnHidden } from './views';
 import { isDbConnected } from '../db/connection';
 import { User } from '../db/models/User';
+import { acceptedFriendIds } from '../auth/friends';
 import { persistMatchResult } from '../db/persistMatch';
 
 // Trackea qué socket pertenece a qué playerId / code
@@ -136,6 +137,9 @@ function nextTurn(state: GameState): void {
   state.phase = 'roll';
   state.pendingRobberMove = false;
   state.pendingRobberSteal = false;
+  // Cerrar negociaciones del turno anterior que quedaran abiertas.
+  state.activeTrade = undefined;
+  state.activePortUse = undefined;
   const next = activePlayer(state);
   if (next) logAction(state, `Turno de ${next.name}.`, next.id);
 }
@@ -149,8 +153,74 @@ function checkAllDiscardsDone(state: GameState): void {
   }
 }
 
+// Sala personal de un usuario autenticado: recibe invitaciones de amigos
+// aunque no esté en ninguna partida.
+function personalRoom(userId: string): string {
+  return `user:${userId}`;
+}
+
 export function registerHandlers(io: Server, socket: Socket): void {
   // No reiniciar socket.data: el guard del handshake ya adjuntó userId si había JWT.
+  const authedUserId = (socket.data as SocketData).userId;
+  if (authedUserId) socket.join(personalRoom(authedUserId));
+
+  // === Amigos ===
+  // Devuelve, entre los amigos aceptados del usuario, cuáles tienen al menos
+  // un socket conectado (para mostrar "en línea" al invitar).
+  socket.on('friends:onlineIds', async (_payload: unknown, cb?: (res: unknown) => void) => {
+    const userId = (socket.data as SocketData).userId;
+    if (!userId) {
+      cb?.({ onlineIds: [] });
+      return;
+    }
+    try {
+      const friendIds = await acceptedFriendIds(userId);
+      const online: string[] = [];
+      for (const id of friendIds) {
+        const room = io.sockets.adapter.rooms.get(personalRoom(id));
+        if (room && room.size > 0) online.push(id);
+      }
+      cb?.({ onlineIds: online });
+    } catch {
+      cb?.({ onlineIds: [] });
+    }
+  });
+
+  // Invitar a un amigo a la sala actual: le llega un aviso en tiempo real con
+  // el código (esté donde esté en la app).
+  socket.on('friends:invite', async ({ friendUserId }: { friendUserId: string }, cb?: (res: unknown) => void) => {
+    const userId = (socket.data as SocketData).userId;
+    if (!userId) {
+      cb?.({ error: 'Inicia sesión para invitar amigos.' });
+      return;
+    }
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || state.status !== 'lobby') {
+      cb?.({ error: 'Solo puedes invitar desde la sala de espera.' });
+      return;
+    }
+    try {
+      const friendIds = await acceptedFriendIds(userId);
+      if (!friendIds.has(friendUserId)) {
+        cb?.({ error: 'Ese usuario no está en tu lista de amigos.' });
+        return;
+      }
+    } catch {
+      cb?.({ error: 'No pudimos enviar la invitación. Intenta de nuevo.' });
+      return;
+    }
+    const me = findPlayer(state, socket.data.playerId ?? '');
+    const room = io.sockets.adapter.rooms.get(personalRoom(friendUserId));
+    if (!room || room.size === 0) {
+      cb?.({ error: 'Tu amigo no está conectado ahora mismo.' });
+      return;
+    }
+    io.to(personalRoom(friendUserId)).emit('friends:invited', {
+      code: state.code,
+      fromName: me?.name ?? 'Un amigo',
+    });
+    cb?.({ ok: true });
+  });
 
   socket.on('game:create', async ({ name }: { name?: string }, cb?: (res: unknown) => void) => {
     const profile = await loadProfile(socket);
@@ -281,6 +351,67 @@ export function registerHandlers(io: Server, socket: Socket): void {
     broadcastState(io, state);
   });
 
+  // Modo "iniciar sin fichas": cuando está desactivado, el registro de
+  // poblados de salida es opcional y nadie recibe recursos al iniciar.
+  socket.on('lobby:setSeedResources', ({ enabled }: { enabled: boolean }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || state.status !== 'lobby') return;
+    if (!ensureHost(state, socket.data.playerId)) return;
+    state.seedInitialResources = !!enabled;
+    logAction(
+      state,
+      enabled
+        ? 'Se repartirán recursos de inicio según las fichas registradas.'
+        : 'La partida iniciará sin fichas: nadie recibe recursos de inicio.'
+    );
+    broadcastState(io, state);
+  });
+
+  // Reglas extra (intercambios desiguales, uso de puertos ajenos).
+  socket.on(
+    'lobby:setExtraRules',
+    ({ unequalTrades, sharedPorts }: { unequalTrades?: boolean; sharedPorts?: boolean }) => {
+      const state = getRoom(socket.data.code ?? '');
+      if (!state || state.status !== 'lobby') return;
+      if (!ensureHost(state, socket.data.playerId)) return;
+      if (typeof unequalTrades === 'boolean') state.extraRules.unequalTrades = unequalTrades;
+      if (typeof sharedPorts === 'boolean') state.extraRules.sharedPorts = sharedPorts;
+      broadcastState(io, state);
+    }
+  );
+
+  // El anfitrión expulsa a un jugador antes de iniciar la partida.
+  socket.on('lobby:kick', ({ playerId }: { playerId: string }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || state.status !== 'lobby') return;
+    if (!ensureHost(state, socket.data.playerId)) return;
+    if (playerId === state.hostId) {
+      socket.emit('error', { message: 'No puedes expulsarte a ti mismo. Usa "Cancelar sala".' });
+      return;
+    }
+    const target = findPlayer(state, playerId);
+    if (!target) return;
+    state.players = state.players.filter((p) => p.id !== playerId);
+    state.turnOrder = state.turnOrder.filter((id) => id !== playerId);
+    if (state.bankManagerId === playerId) state.bankManagerId = state.hostId;
+    logAction(state, `${target.name} fue expulsado de la sala por el anfitrión.`);
+    // Avisar y desconectar los sockets del jugador expulsado de la sala.
+    const sockets = io.sockets.adapter.rooms.get(state.code);
+    if (sockets) {
+      for (const sid of sockets) {
+        const s = io.sockets.sockets.get(sid);
+        if (!s) continue;
+        if ((s.data as SocketData).playerId === playerId) {
+          s.emit('lobby:kicked');
+          s.leave(state.code);
+          (s.data as SocketData).code = undefined;
+          (s.data as SocketData).playerId = undefined;
+        }
+      }
+    }
+    broadcastState(io, state);
+  });
+
   // Tabla de construcción del jugador: en el lobby registra sus 2 poblados de
   // salida (edición libre). Durante la partida los poblados/ciudades SOLO
   // crecen comprando ('build'): aquí únicamente se editan las fichas de las
@@ -319,13 +450,22 @@ export function registerHandlers(io: Server, socket: Socket): void {
     player.buildings = buildings.map((b) => ({
       id: b.id || nanoid(8),
       type: b.type,
-      spots: b.spots.map((s) => ({ number: s.number, resource: s.resource })),
+      spots: b.spots.map((s) => ({
+        number: s.number,
+        resource: s.resource,
+        ...(s.hexId ? { hexId: s.hexId } : {}),
+      })),
       ...(b.port ? { port: b.port } : {}),
     }));
     // Sincronizar puertos derivados de los edificios con puerto registrado.
     const buildingPorts = player.buildings.filter((b) => b.port).map((b) => b.port as PortType);
     if (buildingPorts.length > 0) {
       player.ports = buildingPorts;
+    }
+    // Derivar los hexes también en el lobby: así el selector de fichas puede
+    // ofrecer "agrupar con una ficha ya registrada en la mesa".
+    if (!playing) {
+      state.hexes = rebuildHexes(state.players, state.hexes);
     }
     if (playing) {
       state.hexes = rebuildHexes(state.players, state.hexes);
@@ -358,12 +498,16 @@ export function registerHandlers(io: Server, socket: Socket): void {
       socket.emit('error', { message: 'Falta que todos elijan color.' });
       return;
     }
-    const incomplete = state.players.filter((p) => !playerSetupComplete(p));
-    if (incomplete.length > 0) {
-      socket.emit('error', {
-        message: `Falta el registro de poblados iniciales de: ${incomplete.map((p) => p.name).join(', ')}.`,
-      });
-      return;
+    // El registro de poblados de salida solo es obligatorio cuando se reparten
+    // recursos de inicio. En el modo "sin fichas" se inicia sin registro.
+    if (state.seedInitialResources) {
+      const incomplete = state.players.filter((p) => !playerSetupComplete(p));
+      if (incomplete.length > 0) {
+        socket.emit('error', {
+          message: `Falta el registro de poblados iniciales de: ${incomplete.map((p) => p.name).join(', ')}.`,
+        });
+        return;
+      }
     }
     state.status = 'playing';
     state.phase = 'roll';
@@ -372,7 +516,8 @@ export function registerHandlers(io: Server, socket: Socket): void {
 
     // Derivar los hexes de producción y repartir los recursos de inicio:
     // 1 carta por cada ficha que tocan los poblados registrados (todos).
-    const setup = applyInitialSetup(state.players, state.bank);
+    // En el modo "sin fichas" no se reparte nada.
+    const setup = applyInitialSetup(state.players, state.bank, state.seedInitialResources);
     state.hexes = setup.hexes;
     for (const player of state.players) {
       const grant = setup.grants[player.id];
@@ -769,6 +914,16 @@ export function registerHandlers(io: Server, socket: Socket): void {
         socket.emit('error', { message: 'Solo puedes ofrecer intercambios en tu turno, después de tirar.' });
         return;
       }
+      const giveTotal = Object.values(give).reduce((a, b) => a + (b ?? 0), 0);
+      const recvTotal = Object.values(receive).reduce((a, b) => a + (b ?? 0), 0);
+      if (giveTotal === 0 && recvTotal === 0) {
+        socket.emit('error', { message: 'Tu oferta no tiene cartas.' });
+        return;
+      }
+      if ((giveTotal === 0 || recvTotal === 0) && !state.extraRules.unequalTrades) {
+        socket.emit('error', { message: 'Tu oferta necesita cartas en ambos lados.' });
+        return;
+      }
       state.activeTrade = {
         id: nanoid(8),
         fromId: player.id,
@@ -809,7 +964,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
     }
     const from = findPlayer(state, offer.fromId);
     if (!from) return;
-    const val = validateTradeOffer(from, responder, offer.give, offer.receive);
+    const val = validateTradeOffer(from, responder, offer.give, offer.receive, state.extraRules.unequalTrades);
     if (!val.ok) {
       socket.emit('error', { message: val.reason ?? 'La oferta ya no es válida.' });
       state.activeTrade = undefined;
@@ -828,6 +983,137 @@ export function registerHandlers(io: Server, socket: Socket): void {
     if (!state || !state.activeTrade) return;
     if (state.activeTrade.fromId !== socket.data.playerId) return;
     state.activeTrade = undefined;
+    broadcastState(io, state);
+  });
+
+  // === Uso de puerto ajeno (regla extra sharedPorts) ===
+  // El jugador en turno propone usar el puerto de otro; el dueño aprueba (con
+  // comisión opcional) o rechaza.
+  socket.on(
+    'port:request',
+    ({ ownerId, give, receive }: { ownerId: string; give: Resource; receive: Resource }) => {
+      const state = getRoom(socket.data.code ?? '');
+      if (!state) return;
+      if (!state.extraRules.sharedPorts) {
+        socket.emit('error', { message: 'El uso de puertos ajenos no está activado en esta partida.' });
+        return;
+      }
+      const player = findPlayer(state, socket.data.playerId ?? '');
+      if (!player) return;
+      if (!ensureActive(state, player.id) || state.phase !== 'main') {
+        socket.emit('error', { message: 'Solo puedes usar un puerto ajeno en tu turno, después de tirar.' });
+        return;
+      }
+      if (state.activePortUse || state.activeTrade) {
+        socket.emit('error', { message: 'Ya hay una negociación en curso. Termínala primero.' });
+        return;
+      }
+      const owner = findPlayer(state, ownerId);
+      if (!owner || owner.id === player.id) {
+        socket.emit('error', { message: 'Elige a otro jugador con puerto.' });
+        return;
+      }
+      if (owner.ports.length === 0) {
+        socket.emit('error', { message: `${owner.name} no tiene ningún puerto.` });
+        return;
+      }
+      if (!RESOURCES.includes(give) || !RESOURCES.includes(receive) || give === receive) {
+        socket.emit('error', { message: 'Elige dos recursos distintos.' });
+        return;
+      }
+      const ratio = bestBankRatio(owner, give);
+      if (player.hand[give] < ratio) {
+        socket.emit('error', { message: `Necesitas ${ratio} ${esResource(give)} para usar ese puerto.` });
+        return;
+      }
+      state.activePortUse = {
+        id: nanoid(8),
+        requesterId: player.id,
+        ownerId: owner.id,
+        give,
+        receive,
+        ratio,
+      };
+      logAction(state, `${player.name} pidió usar el puerto de ${owner.name}.`, player.id);
+      broadcastState(io, state);
+    }
+  );
+
+  socket.on(
+    'port:respond',
+    ({ accept, commission }: { accept: boolean; commission?: Partial<Hand> }) => {
+      const state = getRoom(socket.data.code ?? '');
+      if (!state || !state.activePortUse) return;
+      const req = state.activePortUse;
+      if (socket.data.playerId !== req.ownerId) return;
+      const owner = findPlayer(state, req.ownerId);
+      const requester = findPlayer(state, req.requesterId);
+      if (!owner || !requester) {
+        state.activePortUse = undefined;
+        broadcastState(io, state);
+        return;
+      }
+      if (!accept) {
+        state.activePortUse = undefined;
+        logAction(state, `${owner.name} no prestó su puerto.`, owner.id);
+        broadcastState(io, state);
+        return;
+      }
+      // Comisión: cartas que el solicitante paga al dueño (puede ir vacía).
+      const fee: Partial<Hand> = {};
+      let feeTotal = 0;
+      for (const [res, n] of Object.entries(commission ?? {}) as [Resource, number][]) {
+        if (!RESOURCES.includes(res) || !Number.isFinite(n) || n <= 0) continue;
+        fee[res] = Math.floor(n);
+        feeTotal += Math.floor(n);
+      }
+      // El solicitante debe cubrir la proporción del puerto Y la comisión.
+      const needed: Partial<Hand> = { [req.give]: req.ratio };
+      for (const [res, n] of Object.entries(fee) as [Resource, number][]) {
+        needed[res] = (needed[res] ?? 0) + n;
+      }
+      for (const [res, n] of Object.entries(needed) as [Resource, number][]) {
+        if (requester.hand[res] < n) {
+          socket.emit('error', { message: `${requester.name} ya no tiene cartas para pagar el intercambio y la comisión.` });
+          state.activePortUse = undefined;
+          broadcastState(io, state);
+          return;
+        }
+      }
+      pushSnapshot(state);
+      // Intercambio de banco usando el puerto del dueño.
+      requester.hand[req.give] -= req.ratio;
+      state.bank[req.give] += req.ratio;
+      requester.hand[req.receive] += 1;
+      drainBank(state.bank, req.receive, 1);
+      // Pago de la comisión: del solicitante al dueño.
+      for (const [res, n] of Object.entries(fee) as [Resource, number][]) {
+        requester.hand[res] -= n;
+        owner.hand[res] += n;
+      }
+      state.activePortUse = undefined;
+      const feeLabel =
+        feeTotal > 0
+          ? ` (comisión: ${(Object.entries(fee) as [Resource, number][]).map(([r, n]) => `${n} ${esResource(r)}`).join(', ')})`
+          : ' (gratis)';
+      logAction(
+        state,
+        `${requester.name} usó el puerto ${req.ratio}:1 de ${owner.name}: dio ${req.ratio} ${esResource(req.give)}, recibió 1 ${esResource(req.receive)}${feeLabel}.`,
+        requester.id
+      );
+      io.to(state.code).emit('notice', {
+        level: 'info',
+        text: `${requester.name} usó el puerto de ${owner.name}${feeTotal > 0 ? ` y le pagó comisión` : ' gratis'}.`,
+      });
+      broadcastState(io, state);
+    }
+  );
+
+  socket.on('port:cancel', () => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.activePortUse) return;
+    if (state.activePortUse.requesterId !== socket.data.playerId) return;
+    state.activePortUse = undefined;
     broadcastState(io, state);
   });
 

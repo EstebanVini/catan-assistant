@@ -5,6 +5,7 @@ import {
   emptyHand,
   emptyDevCards,
   fullBank,
+  defaultExtraRules,
   PlayerColor,
 } from './state';
 import { buildDevDeck } from './rules';
@@ -75,6 +76,8 @@ export function createRoom(hostName: string, profile?: UserProfileInfo): { state
     bankManagerId: hostId,
     status: 'lobby',
     extension56: false,
+    seedInitialResources: true,
+    extraRules: defaultExtraRules(),
     players: [host],
     turnOrder: [hostId],
     currentTurnIndex: 0,
@@ -162,6 +165,7 @@ export function pushSnapshot(state: GameState): void {
     currentTurnIndex: state.currentTurnIndex,
     specialBuildQueue: state.specialBuildQueue,
     activeTrade: state.activeTrade,
+    activePortUse: state.activePortUse,
     winnerId: state.winnerId,
     status: state.status,
   }));
