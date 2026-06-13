@@ -10,6 +10,7 @@ import { PublicPlayersPanel } from '../components/PublicPlayersPanel';
 import { Log } from '../components/Log';
 import { DiscardModal } from '../components/DiscardModal';
 import { RobberFlow } from '../components/RobberFlow';
+import { PortIncomingModal } from '../components/PortIncomingModal';
 import { TradeIncomingModal } from '../components/TradeIncomingModal';
 import { SpecialBuildBanner } from '../components/SpecialBuildBanner';
 import { MonopolyPickerModal } from '../components/MonopolyPickerModal';
@@ -149,6 +150,7 @@ export function GameScreen(): JSX.Element | null {
       </div>
       <DiscardModal />
       <RobberFlow />
+      <PortIncomingModal />
       <TradeIncomingModal />
 
       {devSub.kind === 'list' ? (

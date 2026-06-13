@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import { Building, Hand, Hex, Player, Resource, RESOURCES, emptyHand } from './state';
+import { Building, BuildingSpot, Hand, Hex, Player, Resource, RESOURCES, emptyHand } from './state';
 
 // Lógica pura de la tabla de construcción: validación del registro de cada
 // jugador, derivación de los hexes de producción y reparto de recursos de
@@ -56,44 +56,55 @@ export function playerSetupComplete(player: Pick<Player, 'buildings'>): boolean 
   return validateInitialBuildings(player.buildings).ok;
 }
 
-function hexKey(number: number | null, resource: Resource | null): string {
-  return number !== null && resource ? `${number}:${resource}` : 'desert';
+// Clave de agrupación de una ficha: si trae `hexId` explícito, es la ficha
+// física a la que pertenece (permite distinguir dos fichas con el mismo
+// número+recurso, y agrupar fichas de jugadores distintos en la misma ficha).
+// Sin `hexId` (registros antiguos) se agrupa por número+recurso, como antes.
+function spotKey(spot: BuildingSpot): string {
+  return spot.hexId ?? `nr:${spot.number}:${spot.resource}`;
 }
 
 // Deriva los hexes de producción desde las tablas de construcción de TODOS
-// los jugadores. Une fichas por número+recurso, conserva los ids previos
-// (identidad estable para la UI) y preserva la posición del ladrón; si su
-// ficha desapareció (o nunca se colocó), queda en el desierto. Siempre existe
-// exactamente un hex desierto para que el ladrón tenga a dónde volver.
+// los jugadores. Agrupa fichas por su identidad física (`hexId`, o
+// número+recurso si falta), conserva los ids previos (identidad estable para
+// la UI) y preserva la posición del ladrón por id; si su ficha desapareció (o
+// nunca se colocó), queda en el desierto. Siempre existe exactamente un hex
+// desierto para que el ladrón tenga a dónde volver.
 export function rebuildHexes(
   players: Array<Pick<Player, 'id' | 'buildings'>>,
   prevHexes: Hex[]
 ): Hex[] {
-  const prevById = new Map<string, Hex>();
-  for (const h of prevHexes) prevById.set(hexKey(h.number, h.resource), h);
-  const prevRobber = prevHexes.find((h) => h.robber);
-  const robberKey = prevRobber ? hexKey(prevRobber.number, prevRobber.resource) : 'desert';
+  // Reusar el id previo de una ficha "legacy" (sin hexId) por número+recurso
+  // para que el ladrón colocado sobre ella sobreviva a un rebuild.
+  const prevByLegacyKey = new Map<string, string>();
+  for (const h of prevHexes) {
+    if (h.number !== null && h.resource) {
+      const k = `nr:${h.number}:${h.resource}`;
+      if (!prevByLegacyKey.has(k)) prevByLegacyKey.set(k, h.id);
+    }
+  }
+  const prevDesert = prevHexes.find((h) => h.number === null && h.resource === null);
+  const prevRobberId = prevHexes.find((h) => h.robber)?.id ?? null;
 
   const hexes: Hex[] = [];
   const byKey = new Map<string, Hex>();
 
   const desert: Hex = {
-    id: prevById.get('desert')?.id ?? nanoid(8),
+    id: prevDesert?.id ?? nanoid(8),
     number: null,
     resource: null,
     robber: false,
     owners: [],
   };
-  byKey.set('desert', desert);
 
-  const hexFor = (number: number, resource: Resource): Hex => {
-    const key = hexKey(number, resource);
+  const hexForSpot = (spot: BuildingSpot): Hex => {
+    const key = spotKey(spot);
     let hex = byKey.get(key);
     if (!hex) {
       hex = {
-        id: prevById.get(key)?.id ?? nanoid(8),
-        number,
-        resource,
+        id: spot.hexId ?? prevByLegacyKey.get(key) ?? nanoid(8),
+        number: spot.number,
+        resource: spot.resource,
         robber: false,
         owners: [],
       };
@@ -106,7 +117,7 @@ export function rebuildHexes(
   for (const player of players) {
     for (const building of player.buildings) {
       for (const spot of building.spots) {
-        const hex = hexFor(spot.number, spot.resource);
+        const hex = hexForSpot(spot);
         // El mismo jugador puede tocar la misma ficha con 2 construcciones:
         // ambas producen. buildingId vincula las fichas de la misma
         // construcción (la UI puede agrupar sin inflar conteos).
@@ -119,7 +130,7 @@ export function rebuildHexes(
   hexes.sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
   hexes.push(desert);
 
-  const robberHex = byKey.get(robberKey) ?? desert;
+  const robberHex = hexes.find((h) => h.id === prevRobberId) ?? desert;
   robberHex.robber = true;
   return hexes;
 }
@@ -136,9 +147,14 @@ export interface SetupResult {
 // recursos de inicio: TODOS los poblados registrados dan 1 carta por cada
 // ficha que tocan. El banco es ilimitado (su contador solo informa, piso en
 // 0). El ladrón arranca en el desierto.
+//
+// Si `seedResources` es false (modo "iniciar sin fichas"), no se reparte
+// nada: las manos quedan vacías. Los hexes igual se derivan de lo que se haya
+// registrado (puede no haber ninguno).
 export function applyInitialSetup(
   players: Array<Pick<Player, 'id' | 'buildings'>>,
-  bank: Hand
+  bank: Hand,
+  seedResources = true
 ): SetupResult {
   const hexes = rebuildHexes(players, []);
 
@@ -146,6 +162,7 @@ export function applyInitialSetup(
 
   for (const player of players) {
     grants[player.id] = emptyHand();
+    if (!seedResources) continue;
     for (const building of player.buildings) {
       for (const spot of building.spots) {
         bank[spot.resource] = Math.max(0, bank[spot.resource] - 1);

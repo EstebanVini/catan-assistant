@@ -5,6 +5,7 @@ import { BASE_COLORS, EXTENSION_COLORS, PlayerColor, User } from '../types';
 import { Avatar } from '../components/Avatar';
 import { BadgeChip } from '../components/BadgeIcon';
 import { ColorChip } from '../components/ColorChip';
+import { FriendsPanel } from '../components/FriendsPanel';
 import {
   COLOR_NAMES,
   DISPLAY_NAME_HELP,
@@ -56,6 +57,8 @@ export function ProfileScreen(): JSX.Element {
 
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [reloadKey, setReloadKey] = useState(0);
+  // Acceso espejo a Amigos desde Perfil (brief §1). Apertura local, sin store.
+  const [friendsOpen, setFriendsOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,7 +112,7 @@ export function ProfileScreen(): JSX.Element {
 
   return (
     <main className="mx-auto min-h-[100dvh] max-w-md px-4 pb-[max(env(safe-area-inset-bottom),1.5rem)] md:max-w-2xl">
-      <header className="flex items-center justify-between pt-6">
+      <header className="flex items-center justify-between gap-2 pt-6">
         <button
           type="button"
           onClick={() => setHomeView('home')}
@@ -120,7 +123,42 @@ export function ProfileScreen(): JSX.Element {
         <h1 className="font-display text-sm font-semibold uppercase tracking-[0.1em] text-neutral-300">
           Mi perfil
         </h1>
+        <button
+          type="button"
+          onClick={() => setFriendsOpen(true)}
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-neutral-300 transition-colors active:text-neutral-100"
+        >
+          <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden>
+            <circle
+              cx={9}
+              cy={8}
+              r={3.2}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+            />
+            <path
+              d="M3.5 19 C3.5 15.4 6 13.5 9 13.5 C12 13.5 14.5 15.4 14.5 19"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+            />
+            <path
+              d="M17 8 V13 M14.5 10.5 H19.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+            />
+          </svg>
+          Amigos
+        </button>
       </header>
+
+      {friendsOpen ? (
+        <FriendsPanel onClose={() => setFriendsOpen(false)} />
+      ) : null}
 
       {loadState === 'loading' || !authUser ? (
         <ProfileSkeleton />

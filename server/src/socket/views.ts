@@ -35,6 +35,8 @@ export interface PlayerView {
     bankManagerId: string;
     status: GameState['status'];
     extension56: boolean;
+    seedInitialResources: boolean;
+    extraRules: GameState['extraRules'];
     players: PublicPlayer[];
     turnOrder: string[];
     currentTurnIndex: number;
@@ -49,6 +51,7 @@ export interface PlayerView {
     pendingRobberMove: boolean;
     pendingRobberSteal: boolean;
     activeTrade?: GameState['activeTrade'];
+    activePortUse?: GameState['activePortUse'];
     winnerId?: string;
     lastRolledNumber: number | null;
     turnsPlayed: number;
@@ -77,7 +80,9 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
       bankManagerId: state.bankManagerId,
       status: state.status,
       extension56: state.extension56,
-      players: state.players.map((p) => toPublic(p)),
+      seedInitialResources: state.seedInitialResources,
+      extraRules: state.extraRules,
+      players: state.players.map((p) => toPublic(p, state)),
       turnOrder: state.turnOrder,
       currentTurnIndex: state.currentTurnIndex,
       phase: state.phase,
@@ -91,6 +96,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
       pendingRobberMove: state.pendingRobberMove,
       pendingRobberSteal: state.pendingRobberSteal,
       activeTrade: state.activeTrade,
+      activePortUse: state.activePortUse,
       winnerId: state.winnerId,
       lastRolledNumber: state.lastRolledNumber,
       turnsPlayed: state.turnsPlayed,
@@ -99,7 +105,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
   };
 }
 
-function toPublic(p: Player): PublicPlayer {
+function toPublic(p: Player, state: GameState): PublicPlayer {
   return {
     id: p.id,
     name: p.name,
@@ -107,7 +113,9 @@ function toPublic(p: Player): PublicPlayer {
     isRegistered: !!p.userId,
     color: p.color,
     connected: p.connected,
-    setupComplete: playerSetupComplete(p),
+    // En el modo "sin fichas" el registro de salida es opcional: todos cuentan
+    // como listos para no bloquear el inicio.
+    setupComplete: !state.seedInitialResources || playerSetupComplete(p),
     cardCount: handTotal(p.hand),
     devCardsCount: devCardsTotal(p.devCards),
     knightsPlayed: p.knightsPlayed,

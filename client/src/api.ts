@@ -1,4 +1,4 @@
-import { PlayerColor, User } from './types';
+import { FriendsData, PlayerColor, User, UserSearchResult } from './types';
 
 // Cliente REST de autenticación y perfil. Mismo origen: en desarrollo el
 // proxy de Vite manda /api al backend (puerto 3001); en producción el backend
@@ -104,5 +104,55 @@ export function patchMe(
     method: 'PATCH',
     headers: authHeaders(token),
     body: JSON.stringify(fields),
+  });
+}
+
+// === Amigos (Fase 4) ===
+
+export function searchUsers(
+  token: string,
+  q: string
+): Promise<ApiResult<{ users: UserSearchResult[] }>> {
+  return request<{ users: UserSearchResult[] }>(
+    `/api/users/search?q=${encodeURIComponent(q)}`,
+    { method: 'GET', headers: authHeaders(token) }
+  );
+}
+
+export function getFriends(token: string): Promise<ApiResult<FriendsData>> {
+  return request<FriendsData>('/api/friends', {
+    method: 'GET',
+    headers: authHeaders(token),
+  });
+}
+
+export function requestFriend(
+  token: string,
+  username: string
+): Promise<ApiResult<{ ok: true; status: 'pending' | 'accepted' }>> {
+  return request<{ ok: true; status: 'pending' | 'accepted' }>(
+    '/api/friends/request',
+    { method: 'POST', headers: authHeaders(token), body: JSON.stringify({ username }) }
+  );
+}
+
+export function acceptFriend(
+  token: string,
+  friendshipId: string
+): Promise<ApiResult<{ ok: true }>> {
+  return request<{ ok: true }>(`/api/friends/${friendshipId}/accept`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+}
+
+// Rechaza una solicitud, cancela una saliente o elimina a un amigo.
+export function removeFriend(
+  token: string,
+  friendshipId: string
+): Promise<ApiResult<{ ok: true }>> {
+  return request<{ ok: true }>(`/api/friends/${friendshipId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
   });
 }

@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../store';
 import {
   BASE_COLORS,
   EXTENSION_COLORS,
+  FriendEntry,
   PlayerColor,
   PortType,
   PublicPlayer,
@@ -14,6 +15,7 @@ import { COLOR_NAMES, RESOURCE_NAMES, joinList } from '../lib/spanish';
 import { useModalA11y } from '../lib/useModalA11y';
 import { InitialBuildSetup, CheckIcon } from '../components/InitialBuildSetup';
 import { Avatar } from '../components/Avatar';
+import { getFriends } from '../api';
 
 export function LobbyScreen(): JSX.Element | null {
   const view = useStore((s) => s.view);
@@ -27,8 +29,38 @@ export function LobbyScreen(): JSX.Element | null {
   const leaveRoom = useStore((s) => s.leaveRoom);
   const setPorts = useStore((s) => s.setPorts);
   const toasts = useStore((s) => s.toasts);
+  const setSeedResources = useStore((s) => s.setSeedResources);
+  const setExtraRules = useStore((s) => s.setExtraRules);
+  const kickPlayer = useStore((s) => s.kickPlayer);
+  const authUser = useStore((s) => s.authUser);
+  const authToken = useStore((s) => s.authToken);
+  const inviteFriend = useStore((s) => s.inviteFriend);
+  const getOnlineFriendIds = useStore((s) => s.getOnlineFriendIds);
   const [portsOpen, setPortsOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  // Confirmación de expulsión: jugador objetivo (id + nombre) o null.
+  const [kickTarget, setKickTarget] = useState<{ id: string; name: string } | null>(
+    null
+  );
+  const [inviteOpen, setInviteOpen] = useState(false);
+
+  // §4 — Bug de layout: la barra fija inferior crece según el rol (anfitrión
+  // tiene CTA + cancelar, y dos botones cuando confirmLeave). Su altura real
+  // supera el `pb-28` estático y tapaba "Controles del anfitrión". Medimos la
+  // barra con un ResizeObserver y aplicamos su alto real como padding-bottom
+  // del <main> (sumando el safe-area en el propio padding de la barra).
+  const actionBarRef = useRef<HTMLDivElement>(null);
+  const [barHeight, setBarHeight] = useState(112);
+  useLayoutEffect(() => {
+    const node = actionBarRef.current;
+    if (!node) return;
+    const measure = () => setBarHeight(node.getBoundingClientRect().height);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
 
   // Snap-back de conflicto de color: si el servidor responde con un error
   // dentro de ~700 ms después de que el usuario tapeó un color, ese chip
@@ -78,6 +110,16 @@ export function LobbyScreen(): JSX.Element | null {
   if (!view || !view.me) return null;
   const { state, me } = view;
   const isHost = state.hostId === me.id;
+  // §3 — Modo "Repartir recursos de inicio" (default true). Cuando está OFF se
+  // inicia sin fichas y el registro de poblados deja de ser obligatorio, por lo
+  // que ocultamos el contador "N/M listos" y mostramos una línea informativa.
+  const seedOn = state.seedInitialResources;
+  // §6 — Reglas extra (ambas default false).
+  const extraRules = state.extraRules;
+  const activeExtraRules = [
+    extraRules.unequalTrades ? 'Intercambios desiguales' : null,
+    extraRules.sharedPorts ? 'Usar puertos ajenos' : null,
+  ].filter((r): r is string => r !== null);
   const ordered = state.turnOrder
     .map((id) => state.players.find((p) => p.id === id))
     .filter((p): p is PublicPlayer => !!p);
@@ -131,7 +173,10 @@ export function LobbyScreen(): JSX.Element | null {
   }
 
   return (
-    <main className="mx-auto min-h-[100dvh] max-w-md pb-28 md:max-w-3xl lg:max-w-4xl">
+    <main
+      className="mx-auto min-h-[100dvh] max-w-md md:max-w-3xl lg:max-w-4xl"
+      style={{ paddingBottom: `${barHeight + 24}px` }}
+    >
       {/* md+: dos columnas — izquierda: código de sala + jugadores/orden;
           derecha: color, registro de poblados de salida y controles del
           anfitrión. En móvil estos wrappers son <div> neutros (mismo flujo).
@@ -216,6 +261,21 @@ export function LobbyScreen(): JSX.Element | null {
             </span>{' '}
             cartas por recurso
           </p>
+          {/* §1 (lobby) — Invitar amigos. Solo con sesión de cuenta. */}
+          {authUser ? (
+            <button
+              type="button"
+              onClick={() => setInviteOpen(true)}
+              className="mt-3 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-semibold text-neutral-100 transition-colors active:bg-white/10"
+            >
+              <UsersIcon size={16} />
+              Invitar amigos
+            </button>
+          ) : (
+            <p className="mt-3 text-[11px] text-neutral-500">
+              Inicia sesión con una cuenta para invitar a tus amigos.
+            </p>
+          )}
         </div>
       </header>
 
@@ -277,25 +337,40 @@ export function LobbyScreen(): JSX.Element | null {
                   </div>
                 </div>
                 {isHost ? (
-                  <div className="flex flex-col gap-1">
-                    <button
-                      type="button"
-                      onClick={() => moveInOrder(p.id, -1)}
-                      disabled={idx === 0}
-                      className="h-11 w-11 rounded-md border border-white/10 bg-surface-3 text-base disabled:opacity-40"
-                      aria-label={`Subir a ${p.name} en el orden de turno`}
-                    >
-                      <span aria-hidden>↑</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveInOrder(p.id, 1)}
-                      disabled={idx === ordered.length - 1}
-                      className="h-11 w-11 rounded-md border border-white/10 bg-surface-3 text-base disabled:opacity-40"
-                      aria-label={`Bajar a ${p.name} en el orden de turno`}
-                    >
-                      <span aria-hidden>↓</span>
-                    </button>
+                  <div className="flex items-center gap-1">
+                    <div className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={() => moveInOrder(p.id, -1)}
+                        disabled={idx === 0}
+                        className="h-11 w-11 rounded-md border border-white/10 bg-surface-3 text-base disabled:opacity-40"
+                        aria-label={`Subir a ${p.name} en el orden de turno`}
+                      >
+                        <span aria-hidden>↑</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveInOrder(p.id, 1)}
+                        disabled={idx === ordered.length - 1}
+                        className="h-11 w-11 rounded-md border border-white/10 bg-surface-3 text-base disabled:opacity-40"
+                        aria-label={`Bajar a ${p.name} en el orden de turno`}
+                      >
+                        <span aria-hidden>↓</span>
+                      </button>
+                    </div>
+                    {/* §2 — Expulsar: solo en filas de OTROS jugadores (ni la
+                        propia ni la del anfitrión). Neutro que vira a rojo al
+                        tocar; confirma antes de expulsar. */}
+                    {!isMe && p.id !== state.hostId ? (
+                      <button
+                        type="button"
+                        onClick={() => setKickTarget({ id: p.id, name: p.name })}
+                        className="flex h-11 w-11 items-center justify-center rounded-md border border-white/10 bg-surface-3 text-neutral-500 transition-colors active:border-red-500/40 active:bg-red-500/[0.12] active:text-red-300"
+                        aria-label={`Expulsar a ${p.name} de la sala`}
+                      >
+                        <CloseIcon size={16} />
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
               </li>
@@ -379,29 +454,54 @@ export function LobbyScreen(): JSX.Element | null {
       <InitialBuildSetup />
 
       {isHost ? (
-        <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-surface-1 p-3 shadow-soft">
+        <section
+          id="host-controls"
+          className="mx-4 mt-4 rounded-2xl border border-white/10 bg-surface-1 p-3 shadow-soft [scroll-margin-bottom:120px]"
+        >
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
               Controles del anfitrión
             </h2>
-            {/* Progreso de registros de salida — pulsa cuando sube. */}
-            <span
-              key={'setup-progress-' + setupReady.length}
-              className={
-                'nums rounded-full border px-2 py-0.5 text-[11px] font-semibold ' +
-                (allSetupComplete
-                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
-                  : 'border-amber-500/40 bg-amber-500/10 text-amber-200') +
-                (setupReady.length > 0 ? ' anim-pulse-scale' : '')
-              }
-            >
-              {setupReady.length}/{state.players.length} listos
-            </span>
+            {/* §3 — Progreso de registros: solo cuando se reparten recursos
+                (modo con fichas). Sin recursos no hay meta que cumplir. */}
+            {seedOn ? (
+              <span
+                key={'setup-progress-' + setupReady.length}
+                className={
+                  'nums rounded-full border px-2 py-0.5 text-[11px] font-semibold ' +
+                  (allSetupComplete
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                    : 'border-amber-500/40 bg-amber-500/10 text-amber-200') +
+                  (setupReady.length > 0 ? ' anim-pulse-scale' : '')
+                }
+              >
+                {setupReady.length}/{state.players.length} listos
+              </span>
+            ) : null}
           </div>
+          {/* §3 — Toggle "Repartir recursos de inicio" (default ON). */}
+          <label className="mt-3 flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-white/10 bg-neutral-950/80 px-3 py-2.5">
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-neutral-100">
+                Repartir recursos de inicio
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-neutral-400">
+                {seedOn
+                  ? 'Cada jugador registra sus poblados y recibe sus cartas al iniciar.'
+                  : 'Se inicia sin fichas: nadie recibe recursos y registrar tus poblados es opcional.'}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={seedOn}
+              onChange={(e) => setSeedResources(e.target.checked)}
+              className="h-5 w-5 shrink-0 accent-emerald-500"
+            />
+          </label>
           <button
             type="button"
             onClick={() => rollOrderByDice()}
-            className="mt-2 min-h-[44px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
+            className="mt-3 min-h-[44px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
           >
             Sortear orden con dados
           </button>
@@ -433,10 +533,67 @@ export function LobbyScreen(): JSX.Element | null {
           </div>
         </section>
       ) : null}
+
+      {/* §6 — Reglas extra: dos toggles independientes (default OFF), solo
+          anfitrión. Los no-anfitriones ven el estado más abajo. */}
+      {isHost ? (
+        <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-surface-1 p-3 shadow-soft">
+          <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
+            Reglas extra
+          </h2>
+          <div className="mt-2 space-y-2">
+            <ExtraRuleToggle
+              title="Intercambios desiguales"
+              help="Permite regalar cartas o pedir sin dar nada a cambio."
+              checked={extraRules.unequalTrades}
+              onChange={(v) => setExtraRules({ unequalTrades: v })}
+            />
+            <ExtraRuleToggle
+              title="Usar puertos ajenos"
+              help="Permite usar el puerto de otro jugador con su permiso (con comisión opcional)."
+              checked={extraRules.sharedPorts}
+              onChange={(v) => setExtraRules({ sharedPorts: v })}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      {/* Estado informativo para no-anfitriones (§3 y §6): modos de solo
+          lectura que sí afectan su partida. */}
+      {!isHost ? (
+        <section className="mx-4 mt-4 rounded-2xl border border-white/10 bg-surface-1 p-3 shadow-soft">
+          <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
+            Reglas de la partida
+          </h2>
+          <p className="mt-2 text-xs text-neutral-400">
+            Recursos de inicio:{' '}
+            <span className="font-semibold text-neutral-100">
+              {seedOn ? 'Sí' : 'No'}
+            </span>
+          </p>
+          {!seedOn ? (
+            <p className="mt-1 text-[11px] leading-snug text-sky-200">
+              Se inicia sin fichas: no recibirás recursos y registrar tus
+              poblados es opcional.
+            </p>
+          ) : null}
+          <p className="mt-2 text-xs text-neutral-400">
+            Reglas extra:{' '}
+            <span className="font-semibold text-neutral-100">
+              {activeExtraRules.length > 0
+                ? joinList(activeExtraRules)
+                : 'ninguna'}
+            </span>
+          </p>
+        </section>
+      ) : null}
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-neutral-950/95 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur">
+      <div
+        ref={actionBarRef}
+        className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-neutral-950/95 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur"
+      >
         <div className="mx-auto max-w-md space-y-2">
           {isHost ? (
             <>
@@ -529,6 +686,32 @@ export function LobbyScreen(): JSX.Element | null {
             setPorts(p);
             setPortsOpen(false);
           }}
+        />
+      ) : null}
+
+      {/* §2 — Confirmación de expulsión (alertdialog rojo). */}
+      {kickTarget ? (
+        <KickConfirm
+          name={kickTarget.name}
+          onCancel={() => setKickTarget(null)}
+          onConfirm={() => {
+            kickPlayer(kickTarget.id);
+            setKickTarget(null);
+          }}
+        />
+      ) : null}
+
+      {/* §1 (lobby) — Bottom-sheet de invitar amigos. */}
+      {inviteOpen && authUser && authToken ? (
+        <InviteFriendsSheet
+          token={authToken}
+          code={state.code}
+          inRoomIds={state.players.map((p) => p.id)}
+          onClose={() => setInviteOpen(false)}
+          onCopyCode={copyCode}
+          inviteFriend={inviteFriend}
+          getOnlineFriendIds={getOnlineFriendIds}
+          pushToast={pushToast}
         />
       ) : null}
     </main>
@@ -654,5 +837,357 @@ function PortRow({
         className="h-5 w-5 accent-emerald-500"
       />
     </label>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Iconos primitivos (sin emoji). Stroke con currentColor para heredar tono.
+// ---------------------------------------------------------------------------
+
+function CloseIcon({ size = 16 }: { size?: number }): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+      <path
+        d="M6 6 L18 18 M18 6 L6 18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function UsersIcon({ size = 16 }: { size?: number }): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden>
+      <path
+        d="M9 11 a3.5 3.5 0 1 0 0-7 a3.5 3.5 0 0 0 0 7 Z M2.5 19 a6.5 6.5 0 0 1 13 0 M16 4.5 a3.2 3.2 0 0 1 0 6.2 M17 13.2 a6.3 6.3 0 0 1 4.5 5.8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// §6 — Fila-toggle de regla extra (mismo patrón que "Extensión 5–6").
+// ---------------------------------------------------------------------------
+
+function ExtraRuleToggle({
+  title,
+  help,
+  checked,
+  onChange,
+}: {
+  title: string;
+  help: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}): JSX.Element {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-white/10 bg-neutral-950/80 px-3 py-2.5">
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-neutral-100">
+          {title}
+        </span>
+        <span className="mt-0.5 block text-[11px] leading-snug text-neutral-400">
+          {help}
+        </span>
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-5 w-5 shrink-0 accent-emerald-500"
+      />
+    </label>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// §2 — Confirmación de expulsión (alertdialog rojo, patrón ConfirmEmptySteal).
+// ---------------------------------------------------------------------------
+
+function KickConfirm({
+  name,
+  onCancel,
+  onConfirm,
+}: {
+  name: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null);
+  useModalA11y(ref, onCancel);
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+      onClick={onCancel}
+    >
+      <div
+        ref={ref}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="kick-title"
+        aria-describedby="kick-desc"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xs rounded-2xl border border-white/10 bg-neutral-900 p-4 shadow-2xl ring-1 ring-white/5"
+      >
+        <h2
+          id="kick-title"
+          className="text-sm font-semibold tracking-tight text-neutral-50"
+        >
+          ¿Expulsar a {name}?
+        </h2>
+        <p id="kick-desc" className="mt-1.5 text-xs leading-relaxed text-neutral-400">
+          Volverá a la pantalla de inicio y tendrás que invitarlo de nuevo para
+          que regrese.
+        </p>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium transition-colors active:bg-white/10"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="min-h-[44px] flex-1 rounded-lg border border-red-500/40 bg-red-500/[0.08] px-3 py-2 text-sm font-bold text-red-300 transition-colors active:bg-red-500/[0.16]"
+          >
+            Sí, expulsar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// §1 (lobby) — Bottom-sheet "Invitar amigos a la sala".
+// Carga amigos con getFriends, marca en línea con getOnlineFriendIds y lista
+// solo a los conectados (oculta offline para reducir ruido, brief §1). Cada
+// amigo libre tiene "Invitar"; tras invitar pasa a "Invitado" (sin spam). Los
+// que ya están en la sala se muestran atenuados con "En la sala".
+// ---------------------------------------------------------------------------
+
+type InviteLoadState = 'loading' | 'ready' | 'error';
+
+function InviteFriendsSheet({
+  token,
+  code,
+  inRoomIds,
+  onClose,
+  onCopyCode,
+  inviteFriend,
+  getOnlineFriendIds,
+  pushToast,
+}: {
+  token: string;
+  code: string;
+  inRoomIds: string[];
+  onClose: () => void;
+  onCopyCode: () => void;
+  inviteFriend: (friendUserId: string) => Promise<{ ok?: boolean; error?: string }>;
+  getOnlineFriendIds: () => Promise<string[]>;
+  pushToast: (kind: 'info' | 'error' | 'success', text: string) => void;
+}): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null);
+  useModalA11y(ref, onClose);
+
+  const [loadState, setLoadState] = useState<InviteLoadState>('loading');
+  const [friends, setFriends] = useState<FriendEntry[]>([]);
+  const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+  // Estado por amigo durante/tras la invitación: 'busy' mientras espera el ack,
+  // 'invited' cuando el server confirmó (deshabilita para no spamear).
+  const [rowState, setRowState] = useState<Record<string, 'busy' | 'invited'>>(
+    {}
+  );
+
+  const inRoom = new Set(inRoomIds);
+
+  useEffect(() => {
+    let alive = true;
+    setLoadState('loading');
+    void (async () => {
+      const [res, online] = await Promise.all([
+        getFriends(token),
+        getOnlineFriendIds().catch(() => [] as string[]),
+      ]);
+      if (!alive) return;
+      if (res.ok) {
+        setFriends(res.friends);
+        setOnlineIds(new Set(online));
+        setLoadState('ready');
+      } else {
+        setLoadState('error');
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [token, getOnlineFriendIds]);
+
+  async function invite(userId: string): Promise<void> {
+    if (rowState[userId]) return;
+    setRowState((prev) => ({ ...prev, [userId]: 'busy' }));
+    const res = await inviteFriend(userId);
+    if (res.ok) {
+      setRowState((prev) => ({ ...prev, [userId]: 'invited' }));
+      pushToast('success', 'Invitación enviada.');
+    } else {
+      setRowState((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+      pushToast('error', res.error ?? 'No pudimos enviar la invitación.');
+    }
+  }
+
+  // Solo amigos conectados; los offline se ocultan (brief §1, reducir ruido).
+  const online = friends.filter((f) => onlineIds.has(f.user.id));
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="invite-sheet-title"
+        aria-describedby="invite-sheet-sub"
+        onClick={(e) => e.stopPropagation()}
+        className="anim-slide-up flex max-h-[88dvh] w-full max-w-md flex-col rounded-t-2xl border border-white/10 bg-neutral-900 shadow-2xl ring-1 ring-white/5 sm:rounded-2xl"
+      >
+        <header className="flex items-start justify-between gap-3 border-b border-white/8 px-4 pb-3 pt-4">
+          <div className="min-w-0">
+            <h2
+              id="invite-sheet-title"
+              className="font-display text-base font-semibold tracking-tight text-neutral-50"
+            >
+              Invitar amigos a la sala
+            </h2>
+            <p id="invite-sheet-sub" className="mt-0.5 text-xs text-neutral-400">
+              Código:{' '}
+              <span className="nums font-semibold tracking-[0.12em] text-neutral-200">
+                {code}
+              </span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar invitar amigos"
+            className="-mr-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg text-neutral-400 transition-colors active:bg-white/10 active:text-neutral-100"
+          >
+            <CloseIcon size={20} />
+          </button>
+        </header>
+
+        <div className="flex-1 overflow-y-auto px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3">
+          {loadState === 'loading' ? (
+            <div className="animate-pulse space-y-2" aria-hidden>
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-surface-1 p-2.5"
+                >
+                  <div className="h-10 w-10 flex-shrink-0 rounded-full bg-white/10" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3.5 w-28 rounded bg-white/10" />
+                    <div className="h-3 w-20 rounded bg-surface-3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : loadState === 'error' ? (
+            <div className="rounded-2xl border border-red-500/40 bg-red-500/[0.06] p-4 text-center">
+              <p className="text-sm text-red-200">
+                No pudimos cargar tus amigos. Revisa tu conexión.
+              </p>
+            </div>
+          ) : online.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/15 bg-surface-1 px-4 py-8 text-center">
+              <p className="mx-auto max-w-[18rem] text-xs leading-relaxed text-neutral-400">
+                Ninguno de tus amigos está conectado ahora. Comparte el código.
+              </p>
+              <button
+                type="button"
+                onClick={onCopyCode}
+                className="mt-3 inline-flex min-h-[44px] items-center justify-center rounded-lg border border-white/12 bg-surface-3 px-4 text-sm font-semibold text-neutral-100 transition-colors active:bg-white/10"
+              >
+                Copiar código
+              </button>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {online.map((f) => {
+                const u = f.user;
+                const already = inRoom.has(u.id);
+                const rs = rowState[u.id];
+                return (
+                  <li
+                    key={f.friendshipId}
+                    className={
+                      'flex items-center gap-3 rounded-xl border border-white/10 bg-surface-1 p-2.5 ' +
+                      (already ? 'opacity-60' : '')
+                    }
+                  >
+                    <div className="relative flex-shrink-0">
+                      <Avatar
+                        seed={u.username}
+                        name={u.displayName}
+                        avatarUrl={u.avatarUrl}
+                        size={40}
+                      />
+                      <span
+                        className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-neutral-900 bg-emerald-400"
+                        aria-hidden
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-neutral-50">
+                        {u.displayName}
+                      </p>
+                      <p className="truncate text-xs text-neutral-500">
+                        @{u.username}
+                      </p>
+                    </div>
+                    {already ? (
+                      <span className="flex-shrink-0 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-xs font-medium text-neutral-400">
+                        En la sala
+                      </span>
+                    ) : rs === 'invited' ? (
+                      <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/[0.10] px-3 py-2 text-xs font-semibold text-emerald-300">
+                        <CheckIcon size={13} />
+                        Invitado
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={rs === 'busy'}
+                        onClick={() => void invite(u.id)}
+                        aria-label={`Invitar a ${u.displayName} a la sala`}
+                        className="min-h-[44px] flex-shrink-0 rounded-lg bg-emerald-500 px-4 text-xs font-bold text-neutral-950 shadow-cta transition-all active:scale-[0.98] disabled:opacity-60"
+                      >
+                        {rs === 'busy' ? 'Invitando…' : 'Invitar'}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

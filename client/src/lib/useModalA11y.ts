@@ -9,6 +9,17 @@ import { useEffect, useRef } from 'react';
 //
 // Cumple WCAG 2.1 SC 2.1.1 (Keyboard) y SC 2.4.3 (Focus Order).
 // `aria-modal` y `role="dialog"` se aplican en el markup del componente.
+//
+// Modales anidados: un alertdialog (confirmar expulsión / eliminar amigo /
+// "no tiene cartas") puede abrirse DENTRO de un modal o sheet ya abierto. Como
+// cada instancia registra su propio listener de `keydown` en `document` (fase
+// de captura), sin coordinación todos reaccionarían a la misma tecla: ESC
+// cerraría a la vez el anidado y el de abajo, y Tab podría sacar el foco del
+// anidado hacia el panel de atrás (focus trap roto). Para evitarlo mantenemos
+// una pila de modales montados a nivel de módulo; SOLO el de la cima procesa
+// Tab/ESC. Al desmontar el anidado, el de abajo vuelve a ser la cima.
+const modalStack: symbol[] = [];
+
 export function useModalA11y(
   ref: React.RefObject<HTMLElement>,
   onClose: () => void
@@ -26,6 +37,11 @@ export function useModalA11y(
     const node = ref.current;
     if (!node) return;
 
+    // Registrar esta instancia como la cima de la pila de modales.
+    const token = Symbol('modal');
+    modalStack.push(token);
+    const isTopmost = () => modalStack[modalStack.length - 1] === token;
+
     // Enfocar el primer elemento focusable del modal (o el modal mismo si es
     // focusable). Esto da un punto de partida para el teclado y los lectores
     // de pantalla.
@@ -37,6 +53,9 @@ export function useModalA11y(
     }
 
     function onKey(e: KeyboardEvent) {
+      // Solo el modal de la cima de la pila reacciona: evita que un modal de
+      // abajo cierre o robe el foco mientras hay uno anidado encima.
+      if (!isTopmost()) return;
       if (e.key === 'Escape') {
         e.stopPropagation();
         onCloseRef.current();
@@ -68,7 +87,12 @@ export function useModalA11y(
     document.addEventListener('keydown', onKey, true);
     return () => {
       document.removeEventListener('keydown', onKey, true);
-      // Restaurar foco al elemento anterior si sigue en el DOM.
+      // Salir de la pila (normalmente la cima, pero filtramos por si acaso).
+      const idx = modalStack.lastIndexOf(token);
+      if (idx !== -1) modalStack.splice(idx, 1);
+      // Restaurar foco al elemento anterior si sigue en el DOM. Al cerrar un
+      // modal anidado, esto devuelve el foco al disparador dentro del modal de
+      // abajo, que vuelve a ser la cima de la pila.
       const prev = previouslyFocused.current;
       if (prev && document.contains(prev)) {
         prev.focus();

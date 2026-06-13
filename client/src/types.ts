@@ -39,7 +39,23 @@ export interface Hex {
   number: number | null;
   resource: Resource | null;
   robber: boolean;
-  owners: Array<{ playerId: string; type: 'settlement' | 'city' }>;
+  owners: Array<{ playerId: string; type: 'settlement' | 'city'; buildingId?: string }>;
+}
+
+// Reglas extra opcionales que el anfitrión activa en el lobby.
+export interface ExtraRules {
+  unequalTrades: boolean; // ofertas con un lado en 0 (regalar / pedir sin dar)
+  sharedPorts: boolean; // usar el puerto de otro jugador (con comisión opcional)
+}
+
+// Solicitud en curso para usar el puerto de otro jugador (regla sharedPorts).
+export interface PortUseRequest {
+  id: string;
+  requesterId: string;
+  ownerId: string;
+  give: Resource;
+  receive: Resource;
+  ratio: number;
 }
 
 export interface TradeOffer {
@@ -94,6 +110,11 @@ export interface PublicPlayer {
 export interface BuildingSpot {
   number: number; // 2–12 sin 7
   resource: Resource;
+  // Identidad de la ficha física del tablero: dos spots con el mismo hexId son
+  // la misma ficha (aunque sean de jugadores distintos); dos fichas físicas
+  // con igual número+recurso tienen hexId distinto. Lo genera el cliente al
+  // crear una ficha nueva, o lo copia al agrupar con una ficha existente.
+  hexId?: string;
 }
 
 export interface Building {
@@ -132,6 +153,41 @@ export interface User {
   createdAt: string;
 }
 
+// Fase 4 — Amigos.
+export interface FriendUser {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  color?: PlayerColor | null;
+  stats: UserStats;
+}
+
+// Resultado de búsqueda de usuarios (sin stats; para enviar solicitudes).
+export interface UserSearchResult {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string | null;
+}
+
+export interface FriendEntry {
+  friendshipId: string;
+  user: FriendUser;
+}
+
+export interface FriendsData {
+  friends: FriendEntry[];
+  incoming: FriendEntry[];
+  outgoing: FriendEntry[];
+}
+
+// Invitación a una sala recibida de un amigo (socket `friends:invited`).
+export interface GameInvite {
+  code: string;
+  fromName: string;
+}
+
 export interface MeView {
   id: string;
   name: string;
@@ -151,6 +207,8 @@ export interface PublicGameState {
   bankManagerId: string;
   status: GameStatus;
   extension56: boolean;
+  seedInitialResources: boolean;
+  extraRules: ExtraRules;
   players: PublicPlayer[];
   turnOrder: string[];
   currentTurnIndex: number;
@@ -165,6 +223,7 @@ export interface PublicGameState {
   pendingRobberMove: boolean;
   pendingRobberSteal: boolean;
   activeTrade?: TradeOffer;
+  activePortUse?: PortUseRequest;
   winnerId?: string;
   // Espejos directos del estado autoritativo del servidor (ver
   // server/src/game/state.ts). Reemplazan parseos derivados del log y

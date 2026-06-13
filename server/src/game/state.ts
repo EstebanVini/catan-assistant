@@ -23,10 +23,21 @@ export interface DevCardCounts {
 // poblado o ciudad del tablero físico con las fichas (número + recurso) que
 // toca. Se registra en el lobby (2 poblados de salida) y se edita a voluntad
 // durante la partida; los hexes de producción se derivan de aquí.
+// Una ficha (número + recurso) que toca una construcción. `hexId` identifica
+// la ficha FÍSICA del tablero: dos spots con el mismo `hexId` son la misma
+// ficha (aunque pertenezcan a jugadores distintos), y dos fichas físicas con
+// el mismo número+recurso tienen `hexId` distinto. Cuando falta (registros
+// antiguos), el server agrupa por número+recurso como antes (compatibilidad).
+export interface BuildingSpot {
+  number: number;
+  resource: Resource;
+  hexId?: string;
+}
+
 export interface Building {
   id: string;
   type: 'settlement' | 'city';
-  spots: Array<{ number: number; resource: Resource }>; // 0..3 fichas (0..2 si tiene puerto)
+  spots: BuildingSpot[]; // 0..3 fichas (0..2 si tiene puerto)
   port?: PortType | null;
 }
 
@@ -80,6 +91,32 @@ export interface TradeOffer {
 export type GamePhase = 'roll' | 'discard' | 'robber' | 'main' | 'specialBuild';
 export type GameStatus = 'lobby' | 'playing' | 'ended';
 
+// Reglas extra opcionales que el anfitrión activa en el lobby.
+export interface ExtraRules {
+  // Permite ofertas de intercambio "desiguales": un lado puede dar 0 cartas
+  // (regalar o recibir sin dar).
+  unequalTrades: boolean;
+  // En tu turno puedes usar el puerto de otro jugador; el dueño aprueba y
+  // puede pedir una comisión (cartas de recursos) o dejarlo gratis.
+  sharedPorts: boolean;
+}
+
+export function defaultExtraRules(): ExtraRules {
+  return { unequalTrades: false, sharedPorts: false };
+}
+
+// Solicitud en curso para usar el puerto de otro jugador (regla extra
+// sharedPorts). El solicitante propone; el dueño aprueba con comisión o
+// rechaza. `ratio` es la mejor proporción del DUEÑO para el recurso dado.
+export interface PortUseRequest {
+  id: string;
+  requesterId: string;
+  ownerId: string;
+  give: Resource;
+  receive: Resource;
+  ratio: number;
+}
+
 export interface LogEntry {
   id: string;
   ts: number;
@@ -93,6 +130,11 @@ export interface GameState {
   bankManagerId: string;
   status: GameStatus;
   extension56: boolean;
+  // Si es true (default), al iniciar se reparten los recursos de las fichas
+  // registradas. Si es false, el registro de fichas es opcional y nadie
+  // recibe recursos de inicio.
+  seedInitialResources: boolean;
+  extraRules: ExtraRules;
   players: Player[];
   turnOrder: string[];
   currentTurnIndex: number;
@@ -111,6 +153,7 @@ export interface GameState {
   pendingRobberMove: boolean; // tras el 7, el activo debe colocar el ladrón
   pendingRobberSteal: boolean; // tras colocar el ladrón, hay que robar
   activeTrade?: TradeOffer;
+  activePortUse?: PortUseRequest; // solicitud en curso de uso de puerto ajeno
   winnerId?: string;
   // Punto de extensión futuro: variante "paired players" en lugar de specialBuild.
   // Punto de extensión futuro: autocompletar hexes desde foto del tablero.

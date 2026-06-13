@@ -4,6 +4,8 @@ import {
   BuildType,
   ConnectionStatus,
   DevCardType,
+  ExtraRules,
+  GameInvite,
   Hand,
   NoticeLevel,
   NoticePayload,
@@ -61,6 +63,8 @@ interface StoreState {
   toasts: Toast[];
   // Notices públicos (Fase 3)
   notices: ActiveNotice[];
+  // Invitaciones de amigos pendientes de responder (Fase 4)
+  invites: GameInvite[];
   // Sync
   initialSyncReceived: boolean;
 
@@ -100,13 +104,24 @@ interface StoreState {
   forgetSession: () => void;
   leaveRoom: () => void;
 
+  // Invitaciones de amigos
+  pushInvite: (invite: GameInvite) => void;
+  dismissInvite: (code: string) => void;
+
   // Lobby
   setColor: (color: PlayerColor) => void;
   setTurnOrder: (ids: string[]) => void;
   setBankManager: (playerId: string) => void;
   setExtension56: (enabled: boolean) => void;
+  setSeedResources: (enabled: boolean) => void;
+  setExtraRules: (rules: Partial<ExtraRules>) => void;
+  kickPlayer: (playerId: string) => void;
   rollOrderByDice: () => void;
   startGame: () => void;
+  // Invitar a un amigo a la sala actual (ack del servidor).
+  inviteFriend: (friendUserId: string) => Promise<{ ok?: boolean; error?: string }>;
+  // Ids de amigos en línea (para el selector de invitación).
+  getOnlineFriendIds: () => Promise<string[]>;
 
   // Banco (Fase 3): entrega manual de cartas, en cualquier momento.
   giveCard: (payload: {
@@ -136,6 +151,10 @@ interface StoreState {
   offerTrade: (toId: string | null, give: Partial<Hand>, receive: Partial<Hand>) => void;
   respondTrade: (accept: boolean) => void;
   cancelTrade: () => void;
+  // Uso de puerto ajeno (regla extra sharedPorts).
+  requestPort: (ownerId: string, give: Resource, receive: Resource) => void;
+  respondPort: (accept: boolean, commission?: Partial<Hand>) => void;
+  cancelPort: () => void;
   endTurn: () => void;
   specialBuildDone: () => void;
   specialBuildSkip: (playerId: string) => void;
@@ -162,6 +181,7 @@ export const useStore = create<StoreState>((set, get) => ({
   reconnectFailed: false,
   toasts: [],
   notices: [],
+  invites: [],
   initialSyncReceived: false,
 
   authToken: getAuthToken(),
@@ -338,6 +358,15 @@ export const useStore = create<StoreState>((set, get) => ({
     });
   },
 
+  pushInvite: (invite) =>
+    set((st) =>
+      st.invites.some((i) => i.code === invite.code)
+        ? st
+        : { invites: [...st.invites, invite] }
+    ),
+  dismissInvite: (code) =>
+    set((st) => ({ invites: st.invites.filter((i) => i.code !== code) })),
+
   setColor: (color) => socket.emit('lobby:setColor', { color }),
   setTurnOrder: (orderedPlayerIds) =>
     socket.emit('lobby:setTurnOrder', { orderedPlayerIds }),
@@ -345,8 +374,23 @@ export const useStore = create<StoreState>((set, get) => ({
     socket.emit('lobby:setBankManager', { playerId }),
   setExtension56: (enabled) =>
     socket.emit('lobby:setExtension56', { enabled }),
+  setSeedResources: (enabled) =>
+    socket.emit('lobby:setSeedResources', { enabled }),
+  setExtraRules: (rules) => socket.emit('lobby:setExtraRules', rules),
+  kickPlayer: (playerId) => socket.emit('lobby:kick', { playerId }),
   rollOrderByDice: () => socket.emit('lobby:rollOrderByDice'),
   startGame: () => socket.emit('game:start'),
+  inviteFriend: (friendUserId) =>
+    emitWithAck<{ ok?: boolean; error?: string }>('friends:invite', {
+      friendUserId,
+    }),
+  getOnlineFriendIds: async () => {
+    const res = await emitWithAck<{ onlineIds?: string[] }>(
+      'friends:onlineIds',
+      {}
+    );
+    return res.onlineIds ?? [];
+  },
 
   giveCard: (payload) => socket.emit('admin:giveCard', payload),
 
@@ -372,6 +416,11 @@ export const useStore = create<StoreState>((set, get) => ({
     socket.emit('trade:offer', { toId, give, receive }),
   respondTrade: (accept) => socket.emit('trade:respond', { accept }),
   cancelTrade: () => socket.emit('trade:cancel'),
+  requestPort: (ownerId, give, receive) =>
+    socket.emit('port:request', { ownerId, give, receive }),
+  respondPort: (accept, commission) =>
+    socket.emit('port:respond', { accept, commission }),
+  cancelPort: () => socket.emit('port:cancel'),
   endTurn: () => socket.emit('turn:end'),
   specialBuildDone: () => socket.emit('specialBuild:done'),
   specialBuildSkip: (playerId) =>
@@ -463,5 +512,24 @@ export function wireSocket(): void {
     const st = store.getState();
     if (st.view?.state.status === 'ended') return;
     st.pushToast('info', n.text);
+  });
+
+  // El anfitrión expulsó a este jugador de la sala de espera.
+  socket.on('lobby:kicked', () => {
+    store.getState().pushToast('info', 'El anfitrión te sacó de la sala.');
+    clearSession();
+    store.setState({
+      session: null,
+      view: null,
+      reconnectFailed: false,
+      attemptedReconnect: false,
+      initialSyncReceived: false,
+    });
+  });
+
+  // Invitación de un amigo a su sala (Fase 4).
+  socket.on('friends:invited', (inv: GameInvite) => {
+    if (!inv || typeof inv.code !== 'string') return;
+    store.getState().pushInvite({ code: inv.code, fromName: inv.fromName });
   });
 }
