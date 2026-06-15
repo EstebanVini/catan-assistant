@@ -22,6 +22,18 @@ export function PortIncomingModal(): JSX.Element | null {
   const [commission, setCommission] = useState<Partial<Record<Resource, number>>>(
     {}
   );
+  // Bloqueo anti-doble-emisión: `respondPort` es un emit fire-and-forget; entre
+  // el tap y el eco de estado del server hay una ventana en la que un segundo
+  // tap reemitiría `port:respond`. Tras la primera decisión deshabilitamos
+  // ambas acciones hasta que el modal cambie de estado y se desmonte.
+  const [responded, setResponded] = useState(false);
+  const respondedRef = useRef(false);
+  const respond = (accept: boolean, commission?: Partial<Hand>) => {
+    if (respondedRef.current) return;
+    respondedRef.current = true;
+    setResponded(true);
+    respondPort(accept, commission);
+  };
   // Modal principal: forzado, no se cierra con ESC ni con tap fuera.
   useModalA11y(dialogRef, () => {
     /* no-op: paso obligatorio */
@@ -197,15 +209,17 @@ export function PortIncomingModal(): JSX.Element | null {
         <div className="mt-4 space-y-2">
           <button
             type="button"
-            onClick={() => respondPort(true, buildCommission())}
-            className="min-h-[48px] w-full rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-neutral-900"
+            disabled={responded}
+            onClick={() => respond(true, buildCommission())}
+            className="min-h-[48px] w-full rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-neutral-900 disabled:opacity-60"
           >
             {commissionTotal > 0 ? 'Aprobar y cobrar comisión' : 'Aprobar gratis'}
           </button>
           <button
             type="button"
-            onClick={() => respondPort(false)}
-            className="min-h-[48px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium text-neutral-200"
+            disabled={responded}
+            onClick={() => respond(false)}
+            className="min-h-[48px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium text-neutral-200 disabled:opacity-60"
           >
             No prestar
           </button>

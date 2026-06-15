@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useStore } from '../store';
 import { RESOURCES, Resource } from '../types';
 import type { Hand } from '../types';
@@ -18,8 +18,20 @@ export function PortFeeConfirmModal(): JSX.Element | null {
   const view = useStore((s) => s.view);
   const confirmPort = useStore((s) => s.confirmPort);
   const dialogRef = useRef<HTMLDivElement>(null);
+  // Bloqueo anti-doble-emisión: `confirmPort` es un emit fire-and-forget; un
+  // doble tap (o ESC tras tap) emitiría `port:confirm` dos veces antes de que
+  // el server retire la solicitud. Tras la primera decisión deshabilitamos
+  // ambas acciones hasta que el modal se desmonte por cambio de estado.
+  const [submitted, setSubmitted] = useState(false);
+  const submittedRef = useRef(false);
+  const decide = (accept: boolean) => {
+    if (submittedRef.current) return;
+    submittedRef.current = true;
+    setSubmitted(true);
+    confirmPort(accept);
+  };
   // ESC = rechazar la comisión (no ejecuta el cambio).
-  useModalA11y(dialogRef, () => confirmPort(false));
+  useModalA11y(dialogRef, () => decide(false));
 
   if (!view || !view.me) return null;
   const { state, me } = view;
@@ -126,8 +138,9 @@ export function PortFeeConfirmModal(): JSX.Element | null {
           {canAfford ? (
             <button
               type="button"
-              onClick={() => confirmPort(true)}
-              className="min-h-[48px] w-full rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-neutral-900"
+              disabled={submitted}
+              onClick={() => decide(true)}
+              className="min-h-[48px] w-full rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-neutral-900 disabled:opacity-60"
             >
               Confirmar y pagar
             </button>
@@ -144,8 +157,9 @@ export function PortFeeConfirmModal(): JSX.Element | null {
           )}
           <button
             type="button"
-            onClick={() => confirmPort(false)}
-            className="min-h-[48px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium text-neutral-200"
+            disabled={submitted}
+            onClick={() => decide(false)}
+            className="min-h-[48px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium text-neutral-200 disabled:opacity-60"
           >
             Rechazar
           </button>
