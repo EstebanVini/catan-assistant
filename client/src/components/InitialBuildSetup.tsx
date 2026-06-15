@@ -187,8 +187,8 @@ export function InitialBuildSetup(): JSX.Element | null {
           </>
         ) : (
           <>
-            Registrar fichas es opcional en este modo. Empezarás con tus 2
-            poblados colocados, pero sin recibir recursos al iniciar.
+            En este modo empiezas sin recursos: registrar las fichas de tus 2
+            poblados es opcional y solo sirve para ver tu producción.
           </>
         )}
       </p>

@@ -501,9 +501,10 @@ function ResourceSteppers({
 }
 
 // Tab "Puerto de otro": el solicitante elige un dueño con puerto, el recurso que
-// da y el que recibe, y pide permiso para usar su puerto. El backend ejecuta el
-// intercambio en cuanto el dueño aprueba (sin re-confirmación del solicitante);
-// aquí sólo enviamos la solicitud y mostramos el estado de espera.
+// da y el que recibe, y pide permiso para usar su puerto (flujo de 3 pasos):
+// solicitante pide → dueño aprueba y fija comisión → si hay comisión, el
+// solicitante la confirma antes de pagar; si es gratis, el backend ejecuta
+// directo. Aquí sólo enviamos la solicitud y mostramos el estado de espera.
 function SharedPortTab({
   myPortRequest,
   ownerName,
@@ -570,7 +571,7 @@ function SharedPortTab({
           </p>
           <p className="mt-1 text-[11px] text-amber-200/70">
             {awaitingOwner
-              ? `${ownerName} puede aprobarlo gratis o cobrarte una comisión.`
+              ? `${ownerName} puede aprobarlo gratis o pedirte una comisión que tú confirmas antes de pagar.`
               : `${ownerName} fijó una comisión. Revísala en la ventana de confirmación.`}
           </p>
         </div>
@@ -720,7 +721,8 @@ function SharedPortTab({
           </div>
 
           <p className="rounded-md border border-sky-500/30 bg-sky-500/10 px-2.5 py-2 text-xs text-sky-200">
-            Al aprobar, {portOwner.name} puede cobrarte una comisión en cartas.
+            {portOwner.name} puede aprobarlo gratis o pedirte una comisión. Si
+            la pide, tú la confirmas antes de pagar.
           </p>
         </>
       ) : (

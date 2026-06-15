@@ -99,10 +99,10 @@ export function SpecialBuildBanner(): JSX.Element | null {
   if (isMyTurn) {
     headerText = 'Construcción especial — es tu turno';
     subtitleText =
-      'Es tu turno de construcción especial. Construye o compra una carta de desarrollo. No puedes intercambiar ni jugar cartas en esta fase.';
+      'Construye o compra una carta de desarrollo. No puedes intercambiar ni jugar cartas ahora.';
   } else {
     headerText = `Construcción especial — turno de ${head.name}`;
-    subtitleText = `Espera. En esta fase solo construye ${head.name}.`;
+    subtitleText = `Solo ${head.name} construye en esta fase. Tú no participas.`;
   }
 
   return (

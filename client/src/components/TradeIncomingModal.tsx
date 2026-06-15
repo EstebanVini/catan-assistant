@@ -212,8 +212,10 @@ function ReceiverDialog({
             className="mt-2 rounded-md border border-red-500/30 bg-red-500/[0.08] px-2.5 py-2 text-xs text-red-300"
             role="status"
           >
-            No tienes las cartas necesarias.
-            {missingText ? <> Te {missing.length === 1 ? 'falta' : 'faltan'} {missingText}.</> : null}
+            No puedes aceptar: te {missing.length === 1 ? 'falta' : 'faltan'}{' '}
+            {missingText
+              ? <>{missingText} de lo que te pide.</>
+              : <>cartas de lo que te pide.</>}
           </p>
         ) : null}
         <div className="mt-4 flex gap-2">

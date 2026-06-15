@@ -85,17 +85,17 @@ export function PortFeeConfirmModal(): JSX.Element | null {
           aprobó tu uso del puerto
         </h2>
         <p id="port-fee-desc" className="mt-1 text-xs text-neutral-400">
-          Confirma los términos antes de pagar. Aún no se ha hecho ningún cambio.
+          Revisa cuánto pagas y qué recibes. Nada cambia hasta que confirmes.
         </p>
 
         <div className="mt-3 rounded-lg border border-white/10 bg-surface-1 p-3">
           <p className="text-[11px] uppercase tracking-wide text-neutral-400">
-            El cambio
+            El cambio en el puerto
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-neutral-200">
             Das {req.ratio}
             <ResourceIcon resource={req.give} size={18} />
-            {RESOURCE_NAMES[req.give]}, recibes 1
+            {RESOURCE_NAMES[req.give]} y recibes 1
             <ResourceIcon resource={req.receive} size={18} />
             {RESOURCE_NAMES[req.receive]}.
           </p>
@@ -103,7 +103,7 @@ export function PortFeeConfirmModal(): JSX.Element | null {
 
         <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
           <p className="text-[11px] uppercase tracking-wide text-amber-200">
-            Comisión del puerto
+            Comisión para {ownerName}
           </p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {commissionEntries.map(([r, n]) => (
@@ -120,7 +120,8 @@ export function PortFeeConfirmModal(): JSX.Element | null {
             ))}
           </div>
           <p className="mt-1.5 text-[11px] text-amber-200/80">
-            Pagas la comisión a {ownerName} además de las cartas del cambio.
+            Esta comisión se suma a las cartas del cambio. Recibes solo 1{' '}
+            {RESOURCE_NAMES[req.receive]}.
           </p>
         </div>
 
@@ -130,7 +131,7 @@ export function PortFeeConfirmModal(): JSX.Element | null {
             className="mt-2 rounded-md border border-red-500/30 bg-red-500/[0.08] px-2.5 py-2 text-xs text-red-300"
             role="status"
           >
-            No te alcanza para el cambio más la comisión.
+            No te alcanzan las cartas para el cambio más la comisión.
           </p>
         ) : null}
 

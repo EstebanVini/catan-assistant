@@ -569,7 +569,7 @@ export function LobbyScreen(): JSX.Element | null {
             {state.extension56 ? (
               <ExtraRuleToggle
                 title="Desactivar construcción especial"
-                help="En 5–6 jugadores, omite la fase de construcción especial entre turnos."
+                help="Quita la fase en la que el jugador opuesto construye entre turnos (solo aplica en 5–6 jugadores)."
                 checked={extraRules.noSpecialBuild}
                 onChange={(v) => setExtraRules({ noSpecialBuild: v })}
               />
@@ -577,14 +577,14 @@ export function LobbyScreen(): JSX.Element | null {
             {/* §5 — Disponible en todos los modos. */}
             <ExtraRuleToggle
               title="El ladrón no roba en la primera ronda"
-              help="Durante la primera vuelta de turnos, mover el ladrón no roba cartas."
+              help="En la primera vuelta de turnos, mover el ladrón no le quita cartas a nadie."
               checked={extraRules.robberNoStealFirstRound}
               onChange={(v) => setExtraRules({ robberNoStealFirstRound: v })}
             />
             {/* §9 — Disponible en todos los modos. */}
             <ExtraRuleToggle
               title="Recurso por ladrón en ficha vacía"
-              help="Si mueves el ladrón a una ficha sin nadie o al desierto, el banco te da 1 recurso al azar."
+              help="Si mueves el ladrón a una ficha sin poblados o al desierto, el banco te da 1 recurso al azar."
               checked={extraRules.robberEmptyGivesResource}
               onChange={(v) => setExtraRules({ robberEmptyGivesResource: v })}
             />

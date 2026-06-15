@@ -257,7 +257,7 @@ function RemoveBuildingConfirm({
   useModalA11y(ref, onCancel);
   const fichas =
     target.n > 0
-      ? ` y sus ${target.n} ${target.n === 1 ? 'ficha' : 'fichas'}`
+      ? ` junto con sus ${target.n} ${target.n === 1 ? 'ficha registrada' : 'fichas registradas'}`
       : '';
   return (
     <div
@@ -283,7 +283,7 @@ function RemoveBuildingConfirm({
           id="remove-building-desc"
           className="mt-1.5 text-xs leading-relaxed text-neutral-400"
         >
-          Se borrará de tu tabla{fichas}.
+          Se quitará de tu tabla{fichas}. Esta acción no se puede deshacer.
         </p>
         <div className="mt-4 flex gap-2">
           <button

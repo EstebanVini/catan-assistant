@@ -11,8 +11,10 @@ import { useModalA11y } from '../lib/useModalA11y';
 // (`activePortUse`) dirigida a mí. El solicitante quiere usar mi puerto a una
 // proporción dada; yo decido si lo presto y, opcionalmente, cuánto le cobro.
 //
-// PROTOCOLO: el backend ejecuta el intercambio en cuanto apruebo (no hay
-// re-confirmación del solicitante). Si dejo la comisión vacía, es gratis.
+// PROTOCOLO (flujo de 3 pasos): si apruebo gratis (comisión vacía) el backend
+// ejecuta el intercambio de inmediato. Si fijo una comisión > 0, la solicitud
+// pasa a `awaitingRequester` y el backend espera a que el solicitante CONFIRME
+// el cobro antes de ejecutar; mientras tanto este modal muestra ese estado.
 // Patrón de RobberFlow: diálogo obligatorio, no se cierra con ESC ni tap fuera.
 export function PortIncomingModal(): JSX.Element | null {
   const view = useStore((s) => s.view);
