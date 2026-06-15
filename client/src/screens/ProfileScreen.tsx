@@ -268,14 +268,24 @@ function WinStreakBadge({ streak }: { streak: number }): JSX.Element {
   // interior dorado (shadow-medal) lo anclan al tema; el número va en
   // gold-light (#ecc35f) sobre una base oscura cálida → contraste AA holgado.
   // `min-w` + `justify-center` mantienen el medallón estable con 1–3 cifras.
+  // Movimiento (motion-engineer):
+  //  - Entrada: la insignia hace un `scale-in` corto al montar (cuando el
+  //    perfil carga con racha activa), igual que el resto de superficies del
+  //    proyecto. Degrada a fade-in 120 ms con reduced-motion.
+  //  - Llama viva: el glifo respira muy levemente (ver `.anim-ember-breathe`).
+  //    Solo el glifo se anima, no la cápsula ni el número (el conteo debe
+  //    quedar quieto y legible). Con reduced-motion la llama queda estática.
   return (
     <span
       role="img"
       aria-label={label}
       title={label}
-      className="absolute right-2.5 top-2.5 z-10 inline-flex min-w-[2.6rem] items-center justify-center gap-1 rounded-full border border-gold/55 bg-gradient-to-b from-[#3a2417] to-[#241509] px-2 py-1 leading-none shadow-medal"
+      className="anim-scale-in absolute right-2.5 top-2.5 z-10 inline-flex min-w-[2.6rem] items-center justify-center gap-1 rounded-full border border-gold/55 bg-gradient-to-b from-[#3a2417] to-[#241509] px-2 py-1 leading-none shadow-medal"
     >
-      <FireGlyph size={17} className="drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]" />
+      <FireGlyph
+        size={17}
+        className="anim-ember-breathe drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]"
+      />
       <span className="nums text-sm font-bold tracking-tight text-gold-light [text-shadow:0_1px_0_rgba(0,0,0,0.55)]">
         {streak}
       </span>

@@ -340,6 +340,27 @@
     }
   }
 
+  /*
+   * Brasa de la insignia de racha 🔥 (perfil). Respiración MUY leve de la
+   * llama: late lento (~3.2 s) con deltas mínimos para que se sienta viva sin
+   * pedir atención (es un perfil, no un casino). Solo transform/opacity:
+   *  - escala 1 → 1.035 (≈ medio píxel a 17 px): el flameo justo perceptible.
+   *  - opacidad 1 → 0.9: el centro "respira" sin llegar a apagarse.
+   * `transform-origin: bottom center` se aplica en la utilidad para que la
+   * llama crezca desde su base, como un fuego real, no como un zoom uniforme.
+   */
+  @keyframes ember-breathe {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 0.92;
+    }
+    50% {
+      transform: scale(1.035);
+      opacity: 1;
+    }
+  }
+
   @keyframes shake-x {
     0%,
     100% {
@@ -443,6 +464,15 @@
   .anim-badge-pulse {
     animation: badge-pulse 1200ms ease-in-out infinite;
     transform-origin: center;
+  }
+
+  /* Brasa de la insignia de racha. Ciclo lento e infinito; el flameo nace de
+     la base de la llama (origin bottom). Aislada en su propia capa de
+     compositor para que el bucle no repinte la card del perfil. */
+  .anim-ember-breathe {
+    animation: ember-breathe 3200ms ease-in-out infinite;
+    transform-origin: bottom center;
+    will-change: transform, opacity;
   }
 
   /* Acento lateral (barra de color del ganador) entrando de 0 a 1 desde
@@ -577,8 +607,12 @@
   .anim-pulse-scale,
   .anim-breathe,
   .anim-badge-pulse,
+  .anim-ember-breathe,
   .anim-shake {
     animation: none !important;
+    /* La brasa declara will-change; al detenerla, lo soltamos para no
+       reservar una capa de compositor que ya no anima. */
+    will-change: auto !important;
   }
 
   /* Deltas efímeros: opacidad simple, sin desplazamiento. */
