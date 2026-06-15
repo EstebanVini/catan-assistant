@@ -21,9 +21,10 @@ export type PlayerColor =
   | 'white'
   | 'orange'
   | 'green'
-  | 'brown';
+  | 'brown'
+  | 'purple';
 
-export const BASE_COLORS: PlayerColor[] = ['red', 'blue', 'white', 'orange'];
+export const BASE_COLORS: PlayerColor[] = ['red', 'blue', 'white', 'orange', 'purple'];
 export const EXTENSION_COLORS: PlayerColor[] = ['green', 'brown'];
 
 export interface DevCardCounts {
@@ -46,9 +47,14 @@ export interface Hex {
 export interface ExtraRules {
   unequalTrades: boolean; // ofertas con un lado en 0 (regalar / pedir sin dar)
   sharedPorts: boolean; // usar el puerto de otro jugador (con comisión opcional)
+  noSpecialBuild: boolean; // desactiva la construcción especial (modo 5-6)
+  robberNoStealFirstRound: boolean; // el ladrón no roba en la primera ronda
+  robberEmptyGivesResource: boolean; // ladrón en ficha vacía/desierto → recurso del banco
 }
 
 // Solicitud en curso para usar el puerto de otro jugador (regla sharedPorts).
+// status: 'awaitingOwner' (el dueño decide) | 'awaitingRequester' (el dueño
+// fijó comisión y el solicitante debe confirmarla antes de pagar).
 export interface PortUseRequest {
   id: string;
   requesterId: string;
@@ -56,6 +62,8 @@ export interface PortUseRequest {
   give: Resource;
   receive: Resource;
   ratio: number;
+  status: 'awaitingOwner' | 'awaitingRequester';
+  commission?: Partial<Hand>;
 }
 
 export interface TradeOffer {

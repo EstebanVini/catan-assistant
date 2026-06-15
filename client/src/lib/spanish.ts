@@ -70,6 +70,7 @@ export const COLOR_NAMES: Record<PlayerColor, string> = {
   orange: 'Naranja',
   green: 'Verde',
   brown: 'Café',
+  purple: 'Morado',
 };
 
 export function portLabel(port: PortType): string {
