@@ -84,45 +84,26 @@ export function SpecialBuildBanner(): JSX.Element | null {
   if (queue.length === 0) return null;
 
   const head = queue[0];
-  const next = queue[1] ?? null;
-  const later = queue.slice(2);
-  const myPosition = state.specialBuildQueue.indexOf(me.id);
   const isMyTurn = head.id === me.id;
   const canSkip = me.id === state.hostId || me.id === state.bankManagerId;
-  const meAlreadyPassed = myPosition === -1 && head.id !== me.id;
 
   const elapsedHead = now - queueHeadRef.current.since;
   const showSkip =
     canSkip && (!head.connected || elapsedHead >= SKIP_DELAY_MS);
 
-  // Cabecera + subtítulo separados para jerarquía visual y de copy.
+  // La cola de construcción especial tiene UN solo jugador (el opuesto al que
+  // acaba de jugar). No hay "siguiente" ni "después": para quien no es el
+  // constructor el mensaje es pasivo, sin sugerir que podrá construir.
   let headerText: string;
   let subtitleText: string | null;
   if (isMyTurn) {
     headerText = 'Construcción especial — es tu turno';
     subtitleText =
-      'Construye o compra una carta de desarrollo. No puedes intercambiar ni jugar cartas en esta fase.';
+      'Construye o compra una carta de desarrollo. No puedes intercambiar ni jugar cartas ahora.';
   } else {
     headerText = `Construcción especial — turno de ${head.name}`;
-    if (meAlreadyPassed) {
-      subtitleText = 'Ya pasaste tu turno.';
-    } else if (myPosition === 1) {
-      subtitleText = 'Eres siguiente.';
-    } else if (myPosition > 1) {
-      subtitleText = `Vas en ${myPosition}.`;
-    } else {
-      subtitleText = null;
-    }
+    subtitleText = `Solo ${head.name} construye en esta fase. Tú no participas.`;
   }
-
-  // "Después: A, B (+N más)" — sólo se muestra si hay alguien tras el #0.
-  const afterHeadNames = queue.slice(1).map((p) => p.name);
-  const afterShown = afterHeadNames.slice(0, 2);
-  const afterExtra = afterHeadNames.length - afterShown.length;
-  const afterLine =
-    afterShown.length > 0
-      ? `Después: ${afterShown.join(', ')}${afterExtra > 0 ? ` (+${afterExtra} más)` : ''}`
-      : null;
 
   return (
     <section
@@ -147,8 +128,9 @@ export function SpecialBuildBanner(): JSX.Element | null {
         </div>
       </div>
 
-      {/* Mini cola visual */}
-      <div className="mt-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+      {/* Constructor único: un solo chip, sin flechas ni "siguientes" (la cola
+          de construcción especial tiene un único jugador). */}
+      <div className="mt-2 flex items-center gap-1.5">
         <QueueItem
           key={`head-${head.id}-${headPulseKey}`}
           player={head}
@@ -156,33 +138,7 @@ export function SpecialBuildBanner(): JSX.Element | null {
           isMe={head.id === me.id}
           pulse={headPulseKey > 0}
         />
-        {next ? (
-          <>
-            <QueueArrow />
-            <QueueItem player={next} state="next" isMe={next.id === me.id} />
-          </>
-        ) : null}
-        {later.length > 0 ? (
-          <>
-            <QueueArrow />
-            <QueueItem
-              player={later[0]}
-              state="later"
-              isMe={later[0].id === me.id}
-            />
-            {later.length > 1 ? (
-              <span className="nums ml-1 flex-shrink-0 text-[10px] font-medium text-sky-200/70">
-                +{later.length - 1} más
-              </span>
-            ) : null}
-          </>
-        ) : null}
       </div>
-
-      {/* Línea textual "Después: …" (resumen accesible bajo la cola). */}
-      {afterLine ? (
-        <p className="mt-1 text-[10px] text-sky-100/70">{afterLine}</p>
-      ) : null}
 
       {/* Control de salto */}
       {showSkip ? (
@@ -292,23 +248,6 @@ function QueueItem({
           Desc.
         </span>
       ) : null}
-    </span>
-  );
-}
-
-function QueueArrow(): JSX.Element {
-  return (
-    <span className="flex-shrink-0 text-sky-300/40" aria-hidden>
-      <svg width="10" height="10" viewBox="0 0 10 10">
-        <path
-          d="M2 5 L7 5 M5 2 L8 5 L5 8"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
     </span>
   );
 }

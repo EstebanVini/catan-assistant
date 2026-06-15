@@ -63,6 +63,11 @@ export default {
           brown: '#9a6a4a',
           'brown-400': '#b4866a',
           'brown-600': '#7a5036',
+          // Violeta orquídea (hue ~278, lado magenta) para no confundirse con
+          // el azul (#3b6dd1, hue ~219) ni con las superficies de madera.
+          purple: '#9a4fd0',
+          'purple-400': '#b478e0',
+          'purple-600': '#763aa6',
         },
         // Recursos — paleta de las cartas: terracota, bosque, pastura, trigo,
         // pizarra. Consistente entre íconos (assets/icons.tsx), fichas y conteos.

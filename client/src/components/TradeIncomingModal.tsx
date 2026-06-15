@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { Hand, Resource } from '../types';
-import { RESOURCE_NAMES } from '../lib/spanish';
+import { RESOURCE_NAMES, RESOURCE_NAMES_LOWER, joinList } from '../lib/spanish';
 import { ResourceIcon } from './ResourceIcon';
 import { safeVibrate } from '../lib/motion';
 import { useModalA11y } from '../lib/useModalA11y';
@@ -77,10 +77,26 @@ export function TradeIncomingModal(): JSX.Element | null {
       fromName={from.name}
       giveEntries={giveEntries}
       receiveEntries={receiveEntries}
+      hand={me.hand}
       onAccept={() => respond(true)}
       onReject={() => respond(false)}
     />
   );
+}
+
+// Recursos de `receive` que el receptor NO puede cubrir con su mano, con el
+// faltante exacto. Se recalcula en cada render desde `hand`, así el botón se
+// habilita/deshabilita en vivo cuando cambian las cartas.
+function missingResources(
+  receiveEntries: [Resource, number][],
+  hand: Hand
+): { r: Resource; missing: number }[] {
+  const out: { r: Resource; missing: number }[] = [];
+  for (const [r, n] of receiveEntries) {
+    const have = hand[r] ?? 0;
+    if (have < n) out.push({ r, missing: n - have });
+  }
+  return out;
 }
 
 function SenderPanel({
@@ -136,12 +152,14 @@ function ReceiverDialog({
   fromName,
   giveEntries,
   receiveEntries,
+  hand,
   onAccept,
   onReject,
 }: {
   fromName: string;
   giveEntries: [Resource, number][];
   receiveEntries: [Resource, number][];
+  hand: Hand;
   onAccept: () => void;
   onReject: () => void;
 }): JSX.Element {
@@ -149,6 +167,16 @@ function ReceiverDialog({
   // ESC equivale a rechazar la oferta. Cumple SC 2.1.1 sin pérdida de
   // intencionalidad: rechazar es la opción "menos comprometedora".
   useModalA11y(ref, onReject);
+
+  // Quien acepta entrega el lado `receive` de la oferta. Se recalcula en cada
+  // render desde `hand`: si el receptor pierde/gana cartas con el modal abierto,
+  // el botón "Aceptar" se habilita/deshabilita en vivo.
+  const missing = missingResources(receiveEntries, hand);
+  const canAfford = missing.length === 0;
+  const missingText = joinList(
+    missing.map(({ r, missing: n }) => `${n} ${RESOURCE_NAMES_LOWER[r]}`)
+  );
+
   return (
     <div className="anim-fade-in fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 sm:items-center">
       <div
@@ -172,12 +200,24 @@ function ReceiverDialog({
             <p className="text-[11px] uppercase tracking-wide text-neutral-400">
               Te pide
             </p>
-            <ChipList entries={receiveEntries} />
+            <ChipList entries={receiveEntries} hand={hand} />
           </div>
         </div>
         <p className="mt-2 text-[11px] text-neutral-400">
-          Si ya no tienes lo que pide, el intercambio no se hará.
+          Al aceptar entregas lo que te pide y recibes lo que te da.
         </p>
+        {!canAfford ? (
+          <p
+            id="trade-in-cant-afford"
+            className="mt-2 rounded-md border border-red-500/30 bg-red-500/[0.08] px-2.5 py-2 text-xs text-red-300"
+            role="status"
+          >
+            No puedes aceptar: te {missing.length === 1 ? 'falta' : 'faltan'}{' '}
+            {missingText
+              ? <>{missingText} de lo que te pide.</>
+              : <>cartas de lo que te pide.</>}
+          </p>
+        ) : null}
         <div className="mt-4 flex gap-2">
           <button
             type="button"
@@ -186,13 +226,25 @@ function ReceiverDialog({
           >
             Rechazar
           </button>
-          <button
-            type="button"
-            onClick={onAccept}
-            className="min-h-[48px] flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-neutral-900"
-          >
-            Aceptar
-          </button>
+          {canAfford ? (
+            <button
+              type="button"
+              onClick={onAccept}
+              className="min-h-[48px] flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-neutral-900"
+            >
+              Aceptar intercambio
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled
+              aria-disabled="true"
+              aria-describedby="trade-in-cant-afford"
+              className="min-h-[48px] flex-1 cursor-not-allowed rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm font-semibold text-neutral-500"
+            >
+              Aceptar intercambio
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -226,24 +278,49 @@ function ResourceLine({
   );
 }
 
-function ChipList({ entries }: { entries: [keyof Hand, number][] }): JSX.Element {
+function ChipList({
+  entries,
+  hand,
+}: {
+  entries: [keyof Hand, number][];
+  // Si se pasa `hand`, los recursos que el receptor no puede cubrir se marcan
+  // en rojo con el faltante. Sin `hand` (lado "Te da") los chips son neutros.
+  hand?: Hand;
+}): JSX.Element {
   return (
     <div className="mt-1 flex flex-wrap gap-1.5">
       {entries.length === 0 ? (
         <span className="text-xs text-neutral-500">nada</span>
       ) : (
-        entries.map(([r, n]) => (
-          <span
-            key={r}
-            className="inline-flex items-center gap-1 rounded-md bg-neutral-950 px-2 py-1 text-xs"
-          >
-            <ResourceIcon resource={r} size={20} />
-            <span className="font-semibold">{n}</span>
-            <span className="text-[10px] text-neutral-400">
-              {RESOURCE_NAMES[r]}
+        entries.map(([r, n]) => {
+          const short = hand ? Math.max(0, n - (hand[r as Resource] ?? 0)) : 0;
+          return (
+            <span
+              key={r}
+              className={
+                'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs ' +
+                (short > 0
+                  ? 'border border-red-500/40 bg-red-500/[0.08] text-red-200'
+                  : 'bg-neutral-950')
+              }
+            >
+              <ResourceIcon resource={r} size={20} />
+              <span className="font-semibold">{n}</span>
+              <span
+                className={
+                  'text-[10px] ' + (short > 0 ? 'text-red-300' : 'text-neutral-400')
+                }
+              >
+                {RESOURCE_NAMES[r as Resource]}
+              </span>
+              {short > 0 ? (
+                <span className="text-[10px] font-medium text-red-300">
+                  (te {short === 1 ? 'falta' : 'faltan'} {short})
+                </span>
+              ) : null}
             </span>
-          </span>
-        ))
+          );
+        })
       )}
     </div>
   );

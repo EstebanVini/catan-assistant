@@ -11,6 +11,7 @@ import { Log } from '../components/Log';
 import { DiscardModal } from '../components/DiscardModal';
 import { RobberFlow } from '../components/RobberFlow';
 import { PortIncomingModal } from '../components/PortIncomingModal';
+import { PortFeeConfirmModal } from '../components/PortFeeConfirmModal';
 import { TradeIncomingModal } from '../components/TradeIncomingModal';
 import { SpecialBuildBanner } from '../components/SpecialBuildBanner';
 import { MonopolyPickerModal } from '../components/MonopolyPickerModal';
@@ -151,6 +152,7 @@ export function GameScreen(): JSX.Element | null {
       <DiscardModal />
       <RobberFlow />
       <PortIncomingModal />
+      <PortFeeConfirmModal />
       <TradeIncomingModal />
 
       {devSub.kind === 'list' ? (

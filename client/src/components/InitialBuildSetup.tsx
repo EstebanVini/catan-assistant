@@ -68,6 +68,11 @@ export function InitialBuildSetup(): JSX.Element | null {
     view?.state.players.find((p) => p.id === me?.id) ?? null;
   const serverComplete = !!myPublic?.setupComplete;
 
+  // Modo sin-recursos (brief §2): cuando el anfitrión apaga el reparto inicial,
+  // cada jugador empieza con sus 2 poblados colocados pero NO recibe cartas.
+  // El copy no debe prometer "1 carta por ficha" en ese caso.
+  const seedOn = !!view?.state.seedInitialResources;
+
   // Hidratar desde el servidor (reconexión / primer state:update).
   const serverSerialized = JSON.stringify(me?.buildings ?? null);
   useEffect(() => {
@@ -175,8 +180,17 @@ export function InitialBuildSetup(): JSX.Element | null {
         ) : null}
       </div>
       <p className="mt-1 text-[11px] leading-snug text-neutral-400">
-        Mira el tablero y registra las fichas con número que tocan tus 2
-        poblados. Al iniciar recibes 1 carta por cada ficha registrada.
+        {seedOn ? (
+          <>
+            Mira el tablero y registra las fichas con número que tocan tus 2
+            poblados. Al iniciar recibes 1 carta por cada ficha registrada.
+          </>
+        ) : (
+          <>
+            En este modo empiezas sin recursos: registrar las fichas de tus 2
+            poblados es opcional y solo sirve para ver tu producción.
+          </>
+        )}
       </p>
 
       <div className="mt-3 space-y-2.5">

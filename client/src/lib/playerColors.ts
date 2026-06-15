@@ -21,6 +21,7 @@ export const PLAYER_HEX: Record<PlayerColor, string> = {
   orange: '#e58a3a',
   green: '#3fa05a',
   brown: '#9a6a4a',
+  purple: '#9a4fd0',
 };
 
 // Color para jugadores sin asignación (token --player-none). Piedra FRÍA a

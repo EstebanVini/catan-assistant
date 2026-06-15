@@ -154,6 +154,8 @@ interface StoreState {
   // Uso de puerto ajeno (regla extra sharedPorts).
   requestPort: (ownerId: string, give: Resource, receive: Resource) => void;
   respondPort: (accept: boolean, commission?: Partial<Hand>) => void;
+  // Paso 3: el solicitante confirma o rechaza la comisión fijada por el dueño.
+  confirmPort: (accept: boolean) => void;
   cancelPort: () => void;
   endTurn: () => void;
   specialBuildDone: () => void;
@@ -420,6 +422,7 @@ export const useStore = create<StoreState>((set, get) => ({
     socket.emit('port:request', { ownerId, give, receive }),
   respondPort: (accept, commission) =>
     socket.emit('port:respond', { accept, commission }),
+  confirmPort: (accept) => socket.emit('port:confirm', { accept }),
   cancelPort: () => socket.emit('port:cancel'),
   endTurn: () => socket.emit('turn:end'),
   specialBuildDone: () => socket.emit('specialBuild:done'),

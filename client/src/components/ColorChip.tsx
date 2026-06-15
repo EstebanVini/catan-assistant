@@ -17,6 +17,7 @@ const BORDER: Record<PlayerColor, string> = {
   orange: 'rgba(0,0,0,0.45)',
   green: 'rgba(0,0,0,0.45)',
   brown: 'rgba(0,0,0,0.45)',
+  purple: 'rgba(0,0,0,0.45)',
 };
 
 export function ColorChip({ color, size = 18, ring = false, className }: Props): JSX.Element {

@@ -62,6 +62,9 @@
     --player-orange: #e58a3a;
     --player-green: #3fa05a;
     --player-brown: #9a6a4a;
+    /* Violeta orquídea: lado magenta del púrpura (hue ~278) para separarlo
+       claramente del azul (hue ~219) y no confundirlo en chips pequeños. */
+    --player-purple: #9a4fd0;
     /* Jugador sin color: piedra fría, jamás confundible con el café. */
     --player-none: #3a3f47;
 

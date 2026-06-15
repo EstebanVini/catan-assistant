@@ -7,8 +7,8 @@ export type DevCardType = 'knight' | 'vp' | 'roadBuilding' | 'yearOfPlenty' | 'm
 
 export type PortType = '3:1' | Resource;
 
-export type PlayerColor = 'red' | 'blue' | 'white' | 'orange' | 'green' | 'brown';
-export const BASE_COLORS: PlayerColor[] = ['red', 'blue', 'white', 'orange'];
+export type PlayerColor = 'red' | 'blue' | 'white' | 'orange' | 'green' | 'brown' | 'purple';
+export const BASE_COLORS: PlayerColor[] = ['red', 'blue', 'white', 'orange', 'purple'];
 export const EXTENSION_COLORS: PlayerColor[] = ['green', 'brown'];
 
 export interface DevCardCounts {
@@ -99,15 +99,31 @@ export interface ExtraRules {
   // En tu turno puedes usar el puerto de otro jugador; el dueño aprueba y
   // puede pedir una comisión (cartas de recursos) o dejarlo gratis.
   sharedPorts: boolean;
+  // Desactiva la fase de construcción especial en el modo 5-6 jugadores.
+  noSpecialBuild: boolean;
+  // El ladrón no roba recursos durante la primera ronda de turnos.
+  robberNoStealFirstRound: boolean;
+  // Si mueves el ladrón a una ficha sin dueños o al desierto, el banco te da
+  // 1 recurso aleatorio.
+  robberEmptyGivesResource: boolean;
 }
 
 export function defaultExtraRules(): ExtraRules {
-  return { unequalTrades: false, sharedPorts: false };
+  return {
+    unequalTrades: false,
+    sharedPorts: false,
+    noSpecialBuild: false,
+    robberNoStealFirstRound: false,
+    robberEmptyGivesResource: false,
+  };
 }
 
 // Solicitud en curso para usar el puerto de otro jugador (regla extra
-// sharedPorts). El solicitante propone; el dueño aprueba con comisión o
-// rechaza. `ratio` es la mejor proporción del DUEÑO para el recurso dado.
+// sharedPorts). Flujo de 3 pasos: el solicitante propone ('awaitingOwner');
+// el dueño aprueba fijando una comisión opcional. Si hay comisión, pasa a
+// 'awaitingRequester' para que el solicitante la confirme antes de ejecutar;
+// si es gratis se ejecuta de inmediato. `ratio` es la mejor proporción del
+// DUEÑO para el recurso dado.
 export interface PortUseRequest {
   id: string;
   requesterId: string;
@@ -115,6 +131,10 @@ export interface PortUseRequest {
   give: Resource;
   receive: Resource;
   ratio: number;
+  status: 'awaitingOwner' | 'awaitingRequester';
+  // Comisión fijada por el dueño (cartas que pagará el solicitante). Presente
+  // cuando status es 'awaitingRequester'.
+  commission?: Partial<Hand>;
 }
 
 export interface LogEntry {

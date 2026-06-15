@@ -501,9 +501,10 @@ function ResourceSteppers({
 }
 
 // Tab "Puerto de otro": el solicitante elige un dueño con puerto, el recurso que
-// da y el que recibe, y pide permiso para usar su puerto. El backend ejecuta el
-// intercambio en cuanto el dueño aprueba (sin re-confirmación del solicitante);
-// aquí sólo enviamos la solicitud y mostramos el estado de espera.
+// da y el que recibe, y pide permiso para usar su puerto (flujo de 3 pasos):
+// solicitante pide → dueño aprueba y fija comisión → si hay comisión, el
+// solicitante la confirma antes de pagar; si es gratis, el backend ejecuta
+// directo. Aquí sólo enviamos la solicitud y mostramos el estado de espera.
 function SharedPortTab({
   myPortRequest,
   ownerName,
@@ -537,9 +538,12 @@ function SharedPortTab({
   onRequest: () => void;
   onCancel: () => void;
 }): JSX.Element {
-  // Estado de espera: ya envié una solicitud y aguardo la decisión del dueño.
-  // El backend ejecuta el cambio al aprobar; aquí sólo informo y dejo cancelar.
+  // Estado de espera: ya envié una solicitud. Dos sub-estados (flujo de 3 pasos):
+  //  - 'awaitingOwner':     el dueño aún no responde. Puedo cancelar.
+  //  - 'awaitingRequester': el dueño fijó comisión y debo confirmarla; el modal
+  //                         `PortFeeConfirmModal` aparece encima de este panel.
   if (myPortRequest) {
+    const awaitingOwner = myPortRequest.status === 'awaitingOwner';
     return (
       <div className="mt-3 space-y-3">
         <div
@@ -552,7 +556,9 @@ function SharedPortTab({
               className="anim-breathe inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-300"
               aria-hidden
             />
-            Esperando que {ownerName} apruebe…
+            {awaitingOwner
+              ? `Esperando que ${ownerName} responda…`
+              : 'Confirma la comisión'}
           </p>
           <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-200/90">
             Das {myPortRequest.ratio} <ResourceIcon
@@ -564,16 +570,20 @@ function SharedPortTab({
             {RESOURCE_NAMES[myPortRequest.receive]}.
           </p>
           <p className="mt-1 text-[11px] text-amber-200/70">
-            {ownerName} puede aprobarlo gratis o cobrarte una comisión.
+            {awaitingOwner
+              ? `${ownerName} puede aprobarlo gratis o pedirte una comisión que tú confirmas antes de pagar.`
+              : `${ownerName} fijó una comisión. Revísala en la ventana de confirmación.`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="min-h-[48px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium text-neutral-200"
-        >
-          Cancelar solicitud
-        </button>
+        {awaitingOwner ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-[48px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium text-neutral-200"
+          >
+            Cancelar solicitud
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -711,7 +721,8 @@ function SharedPortTab({
           </div>
 
           <p className="rounded-md border border-sky-500/30 bg-sky-500/10 px-2.5 py-2 text-xs text-sky-200">
-            Al aprobar, {portOwner.name} puede cobrarte una comisión en cartas.
+            {portOwner.name} puede aprobarlo gratis o pedirte una comisión. Si
+            la pide, tú la confirmas antes de pagar.
           </p>
         </>
       ) : (
