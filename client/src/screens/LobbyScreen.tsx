@@ -119,6 +119,16 @@ export function LobbyScreen(): JSX.Element | null {
   const activeExtraRules = [
     extraRules.unequalTrades ? 'Intercambios desiguales' : null,
     extraRules.sharedPorts ? 'Usar puertos ajenos' : null,
+    // §4 — solo aplica en 5–6 jugadores; solo se lista si la extensión está activa.
+    state.extension56 && extraRules.noSpecialBuild
+      ? 'Construcción especial desactivada'
+      : null,
+    extraRules.robberNoStealFirstRound
+      ? 'El ladrón no roba en la primera ronda'
+      : null,
+    extraRules.robberEmptyGivesResource
+      ? 'Recurso por ladrón en ficha vacía'
+      : null,
   ].filter((r): r is string => r !== null);
   const ordered = state.turnOrder
     .map((id) => state.players.find((p) => p.id === id))
@@ -553,6 +563,30 @@ export function LobbyScreen(): JSX.Element | null {
               help="Permite usar el puerto de otro jugador con su permiso (con comisión opcional)."
               checked={extraRules.sharedPorts}
               onChange={(v) => setExtraRules({ sharedPorts: v })}
+            />
+            {/* §4 — La construcción especial solo existe en 5–6 jugadores, así
+                que este control solo se monta cuando la extensión está activa. */}
+            {state.extension56 ? (
+              <ExtraRuleToggle
+                title="Desactivar construcción especial"
+                help="En 5–6 jugadores, omite la fase de construcción especial entre turnos."
+                checked={extraRules.noSpecialBuild}
+                onChange={(v) => setExtraRules({ noSpecialBuild: v })}
+              />
+            ) : null}
+            {/* §5 — Disponible en todos los modos. */}
+            <ExtraRuleToggle
+              title="El ladrón no roba en la primera ronda"
+              help="Durante la primera vuelta de turnos, mover el ladrón no roba cartas."
+              checked={extraRules.robberNoStealFirstRound}
+              onChange={(v) => setExtraRules({ robberNoStealFirstRound: v })}
+            />
+            {/* §9 — Disponible en todos los modos. */}
+            <ExtraRuleToggle
+              title="Recurso por ladrón en ficha vacía"
+              help="Si mueves el ladrón a una ficha sin nadie o al desierto, el banco te da 1 recurso al azar."
+              checked={extraRules.robberEmptyGivesResource}
+              onChange={(v) => setExtraRules({ robberEmptyGivesResource: v })}
             />
           </div>
         </section>
