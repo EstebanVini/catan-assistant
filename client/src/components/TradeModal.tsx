@@ -537,9 +537,12 @@ function SharedPortTab({
   onRequest: () => void;
   onCancel: () => void;
 }): JSX.Element {
-  // Estado de espera: ya envié una solicitud y aguardo la decisión del dueño.
-  // El backend ejecuta el cambio al aprobar; aquí sólo informo y dejo cancelar.
+  // Estado de espera: ya envié una solicitud. Dos sub-estados (flujo de 3 pasos):
+  //  - 'awaitingOwner':     el dueño aún no responde. Puedo cancelar.
+  //  - 'awaitingRequester': el dueño fijó comisión y debo confirmarla; el modal
+  //                         `PortFeeConfirmModal` aparece encima de este panel.
   if (myPortRequest) {
+    const awaitingOwner = myPortRequest.status === 'awaitingOwner';
     return (
       <div className="mt-3 space-y-3">
         <div
@@ -552,7 +555,9 @@ function SharedPortTab({
               className="anim-breathe inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-300"
               aria-hidden
             />
-            Esperando que {ownerName} apruebe…
+            {awaitingOwner
+              ? `Esperando que ${ownerName} responda…`
+              : 'Confirma la comisión'}
           </p>
           <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-200/90">
             Das {myPortRequest.ratio} <ResourceIcon
@@ -564,16 +569,20 @@ function SharedPortTab({
             {RESOURCE_NAMES[myPortRequest.receive]}.
           </p>
           <p className="mt-1 text-[11px] text-amber-200/70">
-            {ownerName} puede aprobarlo gratis o cobrarte una comisión.
+            {awaitingOwner
+              ? `${ownerName} puede aprobarlo gratis o cobrarte una comisión.`
+              : `${ownerName} fijó una comisión. Revísala en la ventana de confirmación.`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="min-h-[48px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium text-neutral-200"
-        >
-          Cancelar solicitud
-        </button>
+        {awaitingOwner ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-[48px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium text-neutral-200"
+          >
+            Cancelar solicitud
+          </button>
+        ) : null}
       </div>
     );
   }

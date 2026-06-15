@@ -36,6 +36,61 @@ export function PortIncomingModal(): JSX.Element | null {
     state.players.find((p) => p.id === req.requesterId) ?? null;
   const requesterName = requester?.name ?? 'Un jugador';
 
+  // Paso 3 desde la óptica del dueño: ya fijé comisión y el backend espera que
+  // el solicitante la confirme. Sin botones de acción; sólo informo y dejo
+  // cancelar la solicitud. (Si la aprobé gratis, el backend ya ejecutó y el
+  // request desapareció, así que aquí siempre hay comisión > 0.)
+  if (req.status === 'awaitingRequester') {
+    const commission = (req.commission ?? {}) as Hand;
+    const commissionEntries = RESOURCES.map(
+      (r) => [r, commission[r] ?? 0] as const
+    ).filter(([, n]) => n > 0);
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 sm:items-center">
+        <div
+          ref={dialogRef}
+          role="status"
+          aria-live="polite"
+          aria-labelledby="port-incoming-wait-title"
+          className="anim-slide-up w-full max-w-sm rounded-2xl border border-amber-500/30 bg-neutral-900 p-4 shadow-2xl"
+        >
+          <h2
+            id="port-incoming-wait-title"
+            className="flex items-center gap-2 text-base font-semibold text-amber-100"
+          >
+            <span
+              className="anim-breathe inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-300"
+              aria-hidden
+            />
+            Esperando que {requesterName} confirme la comisión…
+          </h2>
+          <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+            <p className="text-[11px] uppercase tracking-wide text-amber-200">
+              Tu comisión
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {commissionEntries.map(([r, n]) => (
+                <span
+                  key={r}
+                  className="inline-flex items-center gap-1 rounded-md bg-neutral-950 px-2 py-1 text-xs text-amber-100"
+                >
+                  <ResourceIcon resource={r} size={18} />
+                  <span className="nums font-semibold">{n}</span>
+                  <span className="text-[10px] text-amber-200/80">
+                    {RESOURCE_NAMES[r]}
+                  </span>
+                </span>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] text-amber-200/80">
+              {requesterName} debe aceptar pagar antes de que se haga el cambio.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function adjust(r: Resource, delta: number) {
     setCommission((prev) => {
       const cur = prev[r] ?? 0;
