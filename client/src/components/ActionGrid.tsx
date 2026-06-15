@@ -78,7 +78,7 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
   const hasPendingRegistration = pendingCount > 0;
   const pendingReason =
     pendingCount > 1
-      ? `Registra las fichas de tus ${pendingCount} poblados nuevos antes de terminar.`
+      ? `Registra las fichas de tus ${pendingCount} poblados nuevos antes de terminar el turno.`
       : 'Registra las fichas del poblado que construiste antes de terminar el turno.';
 
   // Abre la Tabla de construcción (forzada abierta mientras haya pendientes) y
@@ -324,8 +324,8 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
             <PendingWarnIcon />
             <span className="flex-1 text-[12px] font-medium leading-snug text-amber-200">
               {pendingCount > 1
-                ? `Te faltan ${pendingCount} poblados por registrar. Toca para ir a la Tabla de construcción.`
-                : 'Registra las fichas de tu poblado nuevo para terminar. Toca para ir a la Tabla de construcción.'}
+                ? `Te faltan ${pendingCount} poblados por registrar. Toca para registrar sus fichas.`
+                : 'Registra las fichas de tu poblado nuevo para terminar el turno. Toca para registrarlas.'}
             </span>
           </button>
         ) : null}

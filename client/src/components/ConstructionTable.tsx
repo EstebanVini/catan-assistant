@@ -501,8 +501,8 @@ function BuildingList({
                 {isPending ? (
                   <p className="mt-1.5 text-[11px] leading-snug text-amber-200/80">
                     Registra las fichas (número + recurso) que toca este poblado
-                    nuevo para poder terminar el turno. ¿No toca números? Registra
-                    el desierto que sí toca para confirmarlo.
+                    nuevo para poder terminar el turno. ¿No toca ningún número?
+                    Registra el desierto que sí toca para confirmarlo.
                   </p>
                 ) : null}
               </li>
