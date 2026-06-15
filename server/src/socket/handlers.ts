@@ -850,6 +850,27 @@ export function registerHandlers(io: Server, socket: Socket): void {
     }
   );
 
+  // Confirmar que un poblado recién construido NO toca recursos (solo desierto
+  // o mar): libera el bloqueo de fin de turno sin registrar fichas. Evita el
+  // callejón sin salida del poblado de pura costa/desierto.
+  socket.on('building:ackNoResources', ({ buildingId }: { buildingId: string }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    const idx = player.pendingSettlementRegistration.indexOf(buildingId);
+    if (idx === -1) return;
+    const building = player.buildings.find((b) => b.id === buildingId);
+    if (!building || building.spots.length > 0) {
+      socket.emit('error', { message: 'Ese poblado sí tiene fichas registradas.' });
+      return;
+    }
+    pushSnapshot(state);
+    player.pendingSettlementRegistration.splice(idx, 1);
+    logAction(state, `${player.name} confirmó que su poblado nuevo no toca recursos.`, player.id);
+    broadcastState(io, state);
+  });
+
   // === Cartas de desarrollo ===
   socket.on('dev:play', ({ card, payload }: { card: 'knight' | 'monopoly' | 'yearOfPlenty' | 'roadBuilding' | 'vp'; payload?: any }) => {
     const state = getRoom(socket.data.code ?? '');

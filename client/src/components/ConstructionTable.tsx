@@ -42,6 +42,7 @@ export function ConstructionTable(): JSX.Element | null {
   const view = useStore((s) => s.view);
   const setBuildings = useStore((s) => s.setBuildings);
   const setPorts = useStore((s) => s.setPorts);
+  const ackNoResources = useStore((s) => s.ackNoResources);
   const moveRobber = useStore((s) => s.moveRobber);
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [portSheet, setPortSheet] = useState<string | null>(null); // buildingId
@@ -188,6 +189,7 @@ export function ConstructionTable(): JSX.Element | null {
                 onRemoveSpot={removeSpot}
                 onRemove={requestRemove}
                 onSetPort={(id) => setPortSheet(id)}
+                onAckNoResources={ackNoResources}
               />
               <BuildingList
                 title="Ciudades"
@@ -335,6 +337,7 @@ function BuildingList({
   onRemoveSpot,
   onRemove,
   onSetPort,
+  onAckNoResources,
 }: {
   title: string;
   emptyCopy: string;
@@ -346,6 +349,10 @@ function BuildingList({
   onRemoveSpot: (buildingId: string, spotIdx: number) => void;
   onRemove: (buildingId: string, label: string) => void;
   onSetPort: (buildingId: string) => void;
+  // Cambio A: solo lo recibe la lista de Poblados. Confirma que un poblado
+  // pendiente sin fichas no toca recursos (pura costa/desierto) y libera el
+  // bloqueo de fin de turno. Las ciudades nunca lo reciben.
+  onAckNoResources?: (buildingId: string) => void;
 }): JSX.Element {
   return (
     <div>
@@ -498,11 +505,25 @@ function BuildingList({
                     </button>
                   )
                 ) : null}
+                {/* Acción secundaria discreta: solo para poblados pendientes
+                    sin ninguna ficha (pura costa/desierto). No aparece en
+                    ciudades (no reciben onAckNoResources) ni en poblados con
+                    fichas ya registradas. */}
+                {isPending && b.spots.length === 0 && onAckNoResources ? (
+                  <button
+                    type="button"
+                    onClick={() => onAckNoResources(b.id)}
+                    className="mt-2 min-h-[36px] w-full rounded-md px-3 py-1.5 text-center text-[12px] font-medium text-amber-200/70 underline decoration-amber-200/30 underline-offset-2 transition-colors active:bg-amber-500/10 active:text-amber-100"
+                  >
+                    No toca recursos
+                  </button>
+                ) : null}
                 {isPending ? (
                   <p className="mt-1.5 text-[11px] leading-snug text-amber-200/80">
                     Registra las fichas (número + recurso) que toca este poblado
-                    nuevo para poder terminar el turno. ¿No toca ningún número?
-                    Registra el desierto que sí toca para confirmarlo.
+                    nuevo para poder terminar el turno. ¿Está en pura costa o
+                    desierto y no toca ningún recurso? Confírmalo con «No toca
+                    recursos».
                   </p>
                 ) : null}
               </li>
