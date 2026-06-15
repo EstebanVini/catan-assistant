@@ -49,6 +49,7 @@ function newPlayer(id: string, sessionToken: string, name: string, profile?: Use
     ports: [],
     devCards: emptyDevCards(),
     devCardsBoughtThisTurn: [],
+    pendingSettlementRegistration: [],
     knightsPlayed: 0,
     victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
   };

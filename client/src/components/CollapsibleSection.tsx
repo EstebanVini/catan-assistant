@@ -85,6 +85,7 @@ export function CollapsibleSection({
 
   return (
     <section
+      id={`section-${id}`}
       className={
         'mx-3 mt-3 overflow-hidden rounded-xl border border-white/10 bg-surface-1 shadow-soft' +
         (className ? ' ' + className : '')

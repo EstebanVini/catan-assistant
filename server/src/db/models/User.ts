@@ -15,6 +15,10 @@ const userSchema = new Schema(
       longestRoadBadges: { type: Number, default: 0 },
       largestArmyBadges: { type: Number, default: 0 },
       totalVictoryPoints: { type: Number, default: 0 },
+      // Racha de victorias: partidas ganadas seguidas (se reinicia al perder)
+      // y la racha más larga histórica.
+      currentWinStreak: { type: Number, default: 0 },
+      longestWinStreak: { type: Number, default: 0 },
     },
   },
   { timestamps: true }

@@ -86,6 +86,67 @@ Estado actual: la Fase 1 original (MVP jugable sin DB) y gran parte de la Fase 2
 
 ---
 
+## 3.bis — Cómo evolucionó la implementación respecto al prompt original
+
+> Comparación del estado real del código contra `prompt-claude-code-catan.md`. Estas cosas **cambiaron** durante el desarrollo y conviene tenerlas presentes (el `context.md` describe el estado vigente):
+
+- **`InitialBuilding` → `Building`:** el modelo final (`state.ts`) usa `Building { id, type, spots[{number,resource,hexId?}], port? }`. El `hexId` identifica la ficha física para no duplicar producción ni VP. Durante la partida los poblados **solo crecen comprándolos** (`build`); `player:setBuildings` solo edita fichas de construcciones existentes.
+- **VP ocultos → `vpCards`:** se eliminó `hiddenVP`. El marcador es totalmente público; `victoryPoints.vpCards` cuenta las cartas de Punto de victoria **ya usadas**. Las que siguen en mano solo se ven como `devCardsCount`.
+- **Reglas extra (`ExtraRules`), nuevas, no estaban en el prompt:** `unequalTrades`, `sharedPorts` (usar puerto ajeno con comisión), `noSpecialBuild`, `robberNoStealFirstRound`, `robberEmptyGivesResource`. Toggles del host en el lobby.
+- **Modo `seedInitialResources`:** se puede iniciar "sin fichas" (nadie recibe recursos de inicio y el registro de poblados es opcional).
+- **Fase de Construcción Especial = jugador opuesto:** la implementación abre la fase para el **jugador opuesto** en la mesa (variante tipo "paired"), no la cola horaria completa del prompt.
+- **Amigos (feature nueva):** `Friendship` model, `auth/friends.ts`, `FriendsPanel.tsx` — solicitudes/aceptación de amistad. No estaba en el prompt.
+- **Color `purple` añadido a los colores base; `game:end`** (host finaliza sin ganador) añadido.
+- **Íconos:** PNGs temáticos propios en `client/src/assets/icons/` (no el arte oficial de cartas), centralizados en `assets/icons.tsx` con fallback emoji. Avatar generado determinístico por defecto.
+
+---
+
+## 3.ter — Iteración de cambios actual (`cambios.txt`)
+
+> Dos cambios solicitados. **Backend = orquestador; frontend = agentes.** Tras cada agente: verificar build/tests, commit y push a la rama de trabajo y mantener el PR a `main` actualizado.
+
+### Cambio A — Bloquear "Terminar turno" hasta registrar las fichas del poblado construido
+
+**Problema:** al comprar un Poblado en tu turno (`build` con `type:'settlement'`), se crea con `spots: []` y queda pendiente registrar qué fichas toca. Hoy el jugador puede terminar el turno sin registrarlas, perdiendo producción futura.
+
+**Backend (orquestador):**
+1. `Player.pendingSettlementRegistration: string[]` (ids de poblados construidos este turno que aún no tienen fichas). Inicializar `[]` en `rooms.ts:createPlayer`.
+2. En `build` (rama `settlement`): empujar el `id` del nuevo poblado a la lista.
+3. En `player:setBuildings`: quitar de la lista los ids que ya tengan `spots.length > 0`.
+4. En `turn:end`: si el jugador activo tiene la lista no vacía → `error` claro y **no** avanzar el turno.
+5. Igual en `specialBuild:done` (un poblado comprado en construcción especial también debe registrarse antes de pasar).
+6. Limpiar la lista al rotar de turno (`nextTurn`), por seguridad.
+7. Exponer `pendingSettlementRegistration` en la vista del dueño (`views.ts:me`) para que el cliente sepa que debe registrar.
+
+**Frontend (agentes):** deshabilitar/condicionar "Terminar turno" cuando haya registro pendiente, resaltar el poblado nuevo en la tabla de construcción con un CTA "Registrar fichas", y copy claro del por qué.
+
+### Cambio B — Racha de victorias (win streak) + insignia de fuego
+
+**Backend / DB (orquestador):**
+1. `User.stats`: añadir `currentWinStreak` y `longestWinStreak` (default 0).
+2. `persistMatch.ts`: al persistir, usar update con **pipeline de agregación** por jugador:
+   - Ganador: `currentWinStreak += 1`; luego `longestWinStreak = max(longestWinStreak, currentWinStreak)`.
+   - Perdedor: `currentWinStreak = 0` (longest sin cambios).
+   - Usar `$ifNull` para usuarios viejos sin los campos.
+3. `toPublicUser` ya expone `stats` completo (los nuevos campos viajan solos).
+
+**Frontend (agentes):**
+1. `types.ts`: añadir `currentWinStreak`, `longestWinStreak` a `UserStats`.
+2. **ProfileScreen:** insignia 🔥 **arriba a la derecha** del perfil con el número de victorias seguidas (`currentWinStreak`, visible cuando > 0); y un campo nuevo en las stats: **"Racha más larga"** (`longestWinStreak`).
+3. **visual-designer:** estilo de la insignia de fuego (acento dorado/llama, tema Catán).
+4. **motion-engineer:** micro-animación sutil de la llama (respeta `prefers-reduced-motion`).
+
+### Orquestación de agentes para esta iteración (en orden)
+
+1. **ux-architect** → brief de ambos cambios (UX del bloqueo de fin de turno y de la insignia de racha) en `docs/brief-cambios-v3.md`.
+2. **ui-engineer** → implementa el frontend de A y B (guard de fin de turno, tipos, insignia 🔥, campo "Racha más larga").
+3. **ux-writer** → copy: mensaje de bloqueo, CTA "Registrar fichas", labels de racha.
+4. **visual-designer** → tratamiento visual de la insignia de fuego y el campo de racha.
+5. **motion-engineer** → animación sutil de la llama.
+6. **qa-auditor** → auditoría P0–P3 de ambos cambios; el orquestador corrige P0/P1.
+
+---
+
 ## 4. Contrato entre fases / agentes
 
 Cada agente recibe del anterior:

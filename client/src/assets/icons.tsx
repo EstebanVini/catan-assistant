@@ -50,6 +50,7 @@ export const DEV_CARD_EMOJI: Record<DevCardType, string> = {
 };
 
 export const ROBBER_EMOJI = '🥷';
+export const FIRE_EMOJI = '🔥';
 
 // Trazo común del set (nogal casi negro, cálido).
 const STROKE = '#1a130c';
@@ -247,6 +248,65 @@ export function BadgeGlyph({
           <path d="M7 15.5 C 9 15.5, 9.5 9.5, 12 9.5 S 15 15.5, 17 15.5" stroke={goldDeep} strokeWidth="1.1" strokeDasharray="1.6 1.9" />
         </g>
       )}
+    </svg>
+  );
+}
+
+// ─── Racha de victorias (llama) ──────────────────────────────────────────────
+
+// Glifo de llama para la insignia de racha. Decorativo (`aria-hidden`): el
+// significado lo lleva el `aria-label` del contenedor.
+//
+// Paleta del TEMA (no el amber genérico de Tailwind): la llama va de la base
+// terracota (--resource-brick #c4663f) por el cuerpo dorado (--gold #d9a93e /
+// --gold-light #ecc35f) hasta un corazón claro (#fff3d6, derivado de ink-light).
+// Así el fuego pertenece al lenguaje de medalla/sello Catán (mismo dorado de
+// las insignias) en lugar de leerse como un ámbar de framework. El gradiente
+// vertical (base más caliente, punta más luminosa) da volumen de brasa.
+// El motion-engineer la anima respetando `prefers-reduced-motion`.
+//
+// `gradId` es único por instancia (varios FireGlyph conviven en la pantalla de
+// perfil: insignia + estadística) para que los <defs> no colisionen.
+let fireGradSeq = 0;
+export function FireGlyph({
+  size = 16,
+  className,
+  fallback = false,
+}: GlyphProps): JSX.Element {
+  if (fallback) {
+    return <EmojiGlyph emoji={FIRE_EMOJI} size={size} className={className} />;
+  }
+  const gradId = `fireGrad-${(fireGradSeq = (fireGradSeq + 1) % 100000)}`;
+  const coreId = `fireCore-${gradId}`;
+  return (
+    <svg {...svgProps(size, className)}>
+      <defs>
+        {/* Cuerpo: terracota en la base → dorado → dorado claro en la punta. */}
+        <linearGradient id={gradId} x1="12" y1="22" x2="12" y2="2" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#b8552f" />
+          <stop offset="0.42" stopColor="#d9a93e" />
+          <stop offset="1" stopColor="#ecc35f" />
+        </linearGradient>
+        {/* Corazón: dorado claro → casi blanco cálido (brasa interior). */}
+        <linearGradient id={coreId} x1="12" y1="20.2" x2="12" y2="10.5" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#ecc35f" />
+          <stop offset="1" stopColor="#fff3d6" />
+        </linearGradient>
+      </defs>
+      {/* Llama exterior. Borde nogal cálido (mismo STROKE del set) para que
+          el glifo recorte limpio sobre el acento dorado del medallón. */}
+      <path
+        d="M12 2 C 13.2 5.4, 16.6 7, 16.6 11.6 C 16.6 16.2, 13.4 18.8, 12 22 C 10.6 18.8, 7.4 16.4, 7.4 11.8 C 7.4 8.9, 9.2 7.4, 10 5.2 C 10.6 6.9, 11.4 7.6, 11.9 9.1 C 12.2 6.5, 12.1 4.2, 12 2 Z"
+        fill={`url(#${gradId})`}
+        stroke="#6e3b1d"
+        strokeWidth="0.9"
+        strokeLinejoin="round"
+      />
+      {/* Llama interior (corazón de brasa). */}
+      <path
+        d="M12 10.6 C 13 12.4, 13.8 13.6, 13.8 15.5 C 13.8 17.6, 12.9 18.9, 12 20.4 C 11.1 18.9, 10.2 17.6, 10.2 15.5 C 10.2 14, 11 12.8, 12 10.6 Z"
+        fill={`url(#${coreId})`}
+      />
     </svg>
   );
 }

@@ -136,6 +136,9 @@ function nextTurn(state: GameState): void {
   // Las pasamos al pool jugable para el dueño que las compró.
   for (const p of state.players) {
     if (p.devCardsBoughtThisTurn.length > 0) p.devCardsBoughtThisTurn = [];
+    // El registro pendiente es por turno: al rotar, ningún poblado queda
+    // bloqueando (turn:end/specialBuild:done ya lo exigieron en su momento).
+    if (p.pendingSettlementRegistration.length > 0) p.pendingSettlementRegistration = [];
   }
   state.turnsPlayed += 1;
   state.currentTurnIndex = (state.currentTurnIndex + 1) % state.turnOrder.length;
@@ -462,6 +465,14 @@ export function registerHandlers(io: Server, socket: Socket): void {
       })),
       ...(b.port ? { port: b.port } : {}),
     }));
+    // Un poblado pendiente de registro deja de estarlo cuando ya tiene fichas
+    // (o si el dueño lo eliminó por error de la tabla).
+    if (player.pendingSettlementRegistration.length > 0) {
+      player.pendingSettlementRegistration = player.pendingSettlementRegistration.filter((id) => {
+        const b = player.buildings.find((x) => x.id === id);
+        return b !== undefined && b.spots.length === 0;
+      });
+    }
     // Sincronizar puertos derivados de los edificios con puerto registrado.
     const buildingPorts = player.buildings.filter((b) => b.port).map((b) => b.port as PortType);
     if (buildingPorts.length > 0) {
@@ -815,7 +826,11 @@ export function registerHandlers(io: Server, socket: Socket): void {
         logAction(state, `${player.name} compró una carta de desarrollo.`, player.id);
         io.to(state.code).emit('build:notify', { text: `${player.name} compró una carta de desarrollo.` });
       } else if (type === 'settlement') {
-        player.buildings.push({ id: nanoid(8), type: 'settlement', spots: [] });
+        const newSettlement = { id: nanoid(8), type: 'settlement' as const, spots: [] };
+        player.buildings.push(newSettlement);
+        // Queda pendiente registrar las fichas que toca: no podrá terminar el
+        // turno hasta hacerlo (ver turn:end / specialBuild:done).
+        player.pendingSettlementRegistration.push(newSettlement.id);
         state.hexes = rebuildHexes(state.players, state.hexes);
         recomputeVictoryPoints(state);
         logAction(state, `${player.name} construyó un Poblado. Le falta registrar sus fichas.`, player.id);
@@ -834,6 +849,27 @@ export function registerHandlers(io: Server, socket: Socket): void {
       checkVictory(io, state, player);
     }
   );
+
+  // Confirmar que un poblado recién construido NO toca recursos (solo desierto
+  // o mar): libera el bloqueo de fin de turno sin registrar fichas. Evita el
+  // callejón sin salida del poblado de pura costa/desierto.
+  socket.on('building:ackNoResources', ({ buildingId }: { buildingId: string }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    const idx = player.pendingSettlementRegistration.indexOf(buildingId);
+    if (idx === -1) return;
+    const building = player.buildings.find((b) => b.id === buildingId);
+    if (!building || building.spots.length > 0) {
+      socket.emit('error', { message: 'Ese poblado sí tiene fichas registradas.' });
+      return;
+    }
+    pushSnapshot(state);
+    player.pendingSettlementRegistration.splice(idx, 1);
+    logAction(state, `${player.name} confirmó que su poblado nuevo no toca recursos.`, player.id);
+    broadcastState(io, state);
+  });
 
   // === Cartas de desarrollo ===
   socket.on('dev:play', ({ card, payload }: { card: 'knight' | 'monopoly' | 'yearOfPlenty' | 'roadBuilding' | 'vp'; payload?: any }) => {
@@ -1187,6 +1223,13 @@ export function registerHandlers(io: Server, socket: Socket): void {
     const state = getRoom(socket.data.code ?? '');
     if (!state) return;
     if (state.phase === 'main' && ensureActive(state, socket.data.playerId)) {
+      const player = findPlayer(state, socket.data.playerId ?? '');
+      if (player && player.pendingSettlementRegistration.length > 0) {
+        socket.emit('error', {
+          message: 'Registra las fichas del poblado que construiste antes de terminar el turno.',
+        });
+        return;
+      }
       pushSnapshot(state);
       advanceTurnOrSpecialBuild(state);
       broadcastState(io, state);
@@ -1198,6 +1241,13 @@ export function registerHandlers(io: Server, socket: Socket): void {
     const state = getRoom(socket.data.code ?? '');
     if (!state || state.phase !== 'specialBuild') return;
     if (state.specialBuildQueue[0] !== socket.data.playerId) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (player && player.pendingSettlementRegistration.length > 0) {
+      socket.emit('error', {
+        message: 'Registra las fichas del poblado que construiste antes de terminar.',
+      });
+      return;
+    }
     pushSnapshot(state);
     state.specialBuildQueue.shift();
     if (state.specialBuildQueue.length === 0) {

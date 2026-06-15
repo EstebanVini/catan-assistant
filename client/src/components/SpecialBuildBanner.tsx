@@ -87,6 +87,11 @@ export function SpecialBuildBanner(): JSX.Element | null {
   const isMyTurn = head.id === me.id;
   const canSkip = me.id === state.hostId || me.id === state.bankManagerId;
 
+  // Recordatorio pasivo: si compré un poblado aquí y aún no registro sus fichas,
+  // no podré pasar (el aviso fuerte vive junto a "Listo, paso" en ActionGrid).
+  const hasPendingRegistration =
+    isMyTurn && (me.pendingSettlementRegistration?.length ?? 0) > 0;
+
   const elapsedHead = now - queueHeadRef.current.since;
   const showSkip =
     canSkip && (!head.connected || elapsedHead >= SKIP_DELAY_MS);
@@ -123,6 +128,11 @@ export function SpecialBuildBanner(): JSX.Element | null {
           {subtitleText ? (
             <p className="mt-0.5 text-[11px] leading-snug text-sky-100/80">
               {subtitleText}
+            </p>
+          ) : null}
+          {hasPendingRegistration ? (
+            <p className="mt-1 text-[11px] font-medium leading-snug text-amber-200">
+              Antes de pasar, registra las fichas del poblado que construiste.
             </p>
           ) : null}
         </div>

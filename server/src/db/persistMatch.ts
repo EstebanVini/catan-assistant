@@ -37,21 +37,42 @@ export async function persistMatchResult(state: GameState): Promise<void> {
     await Promise.all(
       state.players
         .filter((p) => p.userId)
-        .map((p) =>
-          User.updateOne(
-            { _id: p.userId },
+        .map((p) => {
+          const won = p.id === state.winnerId;
+          // Update con pipeline de agregación: permite calcular la racha
+          // (incremento condicional + máximo) en una sola operación atómica.
+          // $ifNull cubre a usuarios creados antes de existir estos campos.
+          return User.updateOne({ _id: p.userId }, [
             {
-              $inc: {
-                'stats.gamesPlayed': 1,
-                'stats.wins': p.id === state.winnerId ? 1 : 0,
-                'stats.losses': p.id === state.winnerId ? 0 : 1,
-                'stats.longestRoadBadges': p.victoryPoints.longestRoad ? 1 : 0,
-                'stats.largestArmyBadges': p.victoryPoints.largestArmy ? 1 : 0,
-                'stats.totalVictoryPoints': totalVictoryPoints(p),
+              $set: {
+                'stats.gamesPlayed': { $add: [{ $ifNull: ['$stats.gamesPlayed', 0] }, 1] },
+                'stats.wins': { $add: [{ $ifNull: ['$stats.wins', 0] }, won ? 1 : 0] },
+                'stats.losses': { $add: [{ $ifNull: ['$stats.losses', 0] }, won ? 0 : 1] },
+                'stats.longestRoadBadges': {
+                  $add: [{ $ifNull: ['$stats.longestRoadBadges', 0] }, p.victoryPoints.longestRoad ? 1 : 0],
+                },
+                'stats.largestArmyBadges': {
+                  $add: [{ $ifNull: ['$stats.largestArmyBadges', 0] }, p.victoryPoints.largestArmy ? 1 : 0],
+                },
+                'stats.totalVictoryPoints': {
+                  $add: [{ $ifNull: ['$stats.totalVictoryPoints', 0] }, totalVictoryPoints(p)],
+                },
+                // El ganador suma 1 a su racha; el resto la reinicia a 0.
+                'stats.currentWinStreak': won
+                  ? { $add: [{ $ifNull: ['$stats.currentWinStreak', 0] }, 1] }
+                  : 0,
               },
-            }
-          )
-        )
+            },
+            {
+              // Tras actualizar la racha actual, recalcular la más larga.
+              $set: {
+                'stats.longestWinStreak': {
+                  $max: [{ $ifNull: ['$stats.longestWinStreak', 0] }, '$stats.currentWinStreak'],
+                },
+              },
+            },
+          ]);
+        })
     );
     console.log(`[db] Match ${state.code} persistido (${state.players.length} jugadores).`);
   } catch (err) {

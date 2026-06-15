@@ -42,6 +42,7 @@ export function ConstructionTable(): JSX.Element | null {
   const view = useStore((s) => s.view);
   const setBuildings = useStore((s) => s.setBuildings);
   const setPorts = useStore((s) => s.setPorts);
+  const ackNoResources = useStore((s) => s.ackNoResources);
   const moveRobber = useStore((s) => s.moveRobber);
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [portSheet, setPortSheet] = useState<string | null>(null); // buildingId
@@ -55,6 +56,11 @@ export function ConstructionTable(): JSX.Element | null {
 
   const isRobberPhase = state.phase === 'robber' && state.pendingRobberMove;
   const isMyTurn = !!me && state.turnOrder[state.currentTurnIndex] === me.id;
+
+  // Cambio A: poblados comprados este turno cuyas fichas faltan por registrar.
+  // El server libera el id en cuanto el poblado tiene `spots.length > 0`.
+  const pendingIds = new Set(me?.pendingSettlementRegistration ?? []);
+  const hasPending = pendingIds.size > 0;
 
   const robberHex = state.hexes.find((h) => h.robber) ?? null;
   const robberLabel = robberHex
@@ -134,7 +140,19 @@ export function ConstructionTable(): JSX.Element | null {
         id="constructionTable"
         title="Tabla de construcción"
         defaultCollapsed
-        forceOpen={isRobberPhase}
+        forceOpen={isRobberPhase || hasPending}
+        titleBadge={
+          hasPending ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-200"
+              role="status"
+            >
+              {pendingIds.size > 1
+                ? `${pendingIds.size} por registrar`
+                : 'Falta registrar'}
+            </span>
+          ) : null
+        }
         summary={
           <span className="nums text-xs text-neutral-500">
             {settlements.length} {settlements.length === 1 ? 'poblado' : 'poblados'} ·{' '}
@@ -165,16 +183,19 @@ export function ConstructionTable(): JSX.Element | null {
                 title="Poblados"
                 emptyCopy="Sin poblados. Se agregan comprándolos en Construir."
                 buildings={settlements}
+                pendingIds={pendingIds}
                 onAddSpot={(id) => setSheet({ buildingId: id, spotIdx: null })}
                 onEditSpot={(id, j) => setSheet({ buildingId: id, spotIdx: j })}
                 onRemoveSpot={removeSpot}
                 onRemove={requestRemove}
                 onSetPort={(id) => setPortSheet(id)}
+                onAckNoResources={ackNoResources}
               />
               <BuildingList
                 title="Ciudades"
                 emptyCopy="Sin ciudades. Compra una en Construir y elige qué poblado sube."
                 buildings={cities}
+                pendingIds={pendingIds}
                 onAddSpot={(id) => setSheet({ buildingId: id, spotIdx: null })}
                 onEditSpot={(id, j) => setSheet({ buildingId: id, spotIdx: j })}
                 onRemoveSpot={removeSpot}
@@ -310,20 +331,28 @@ function BuildingList({
   title,
   emptyCopy,
   buildings,
+  pendingIds,
   onAddSpot,
   onEditSpot,
   onRemoveSpot,
   onRemove,
   onSetPort,
+  onAckNoResources,
 }: {
   title: string;
   emptyCopy: string;
   buildings: Building[];
+  // Ids de poblados comprados este turno sin fichas registradas (Cambio A).
+  pendingIds: Set<string>;
   onAddSpot: (buildingId: string) => void;
   onEditSpot: (buildingId: string, spotIdx: number) => void;
   onRemoveSpot: (buildingId: string, spotIdx: number) => void;
   onRemove: (buildingId: string, label: string) => void;
   onSetPort: (buildingId: string) => void;
+  // Cambio A: solo lo recibe la lista de Poblados. Confirma que un poblado
+  // pendiente sin fichas no toca recursos (pura costa/desierto) y libera el
+  // bloqueo de fin de turno. Las ciudades nunca lo reciben.
+  onAckNoResources?: (buildingId: string) => void;
 }): JSX.Element {
   return (
     <div>
@@ -340,14 +369,29 @@ function BuildingList({
           {buildings.map((b, i) => {
             const maxSpots = b.port ? 2 : 3;
             const label = `${title === 'Poblados' ? 'Poblado' : 'Ciudad'} ${i + 1}`;
+            const isPending = pendingIds.has(b.id);
             return (
               <li
                 key={b.id}
-                className="rounded-xl border border-white/10 bg-neutral-900/50 p-2.5"
+                className={
+                  'rounded-xl border p-2.5 ' +
+                  (isPending
+                    ? 'border-amber-400/70 bg-amber-500/[0.10] ring-1 ring-amber-400/40 shadow-[0_0_0_1px_rgba(251,191,36,0.10),0_4px_14px_-6px_rgba(245,158,11,0.5)]'
+                    : 'border-white/10 bg-neutral-900/50')
+                }
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-neutral-100">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-neutral-100">
                     {label}
+                    {isPending ? (
+                      <span
+                        role="status"
+                        aria-label={`${label}: falta registrar sus fichas`}
+                        className="inline-flex items-center rounded-full border border-amber-400/60 bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-wide text-amber-200"
+                      >
+                        Pendiente
+                      </span>
+                    ) : null}
                   </p>
                   <button
                     type="button"
@@ -439,14 +483,48 @@ function BuildingList({
                   </div>
                 )}
                 {b.spots.length < maxSpots ? (
+                  isPending ? (
+                    // CTA primario del poblado pendiente: mismo destino que
+                    // "+ Agregar ficha" (abre el SpotPicker) pero con peso de
+                    // acción requerida (ámbar sólido).
+                    <button
+                      type="button"
+                      onClick={() => onAddSpot(b.id)}
+                      className="mt-2 min-h-[44px] w-full rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold tracking-tight text-neutral-950 shadow-cta-amber ring-1 ring-amber-300/60 transition-all active:scale-[0.99] active:bg-amber-300"
+                    >
+                      Registrar fichas
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onAddSpot(b.id)}
+                      className="mt-2 min-h-[44px] w-full rounded-lg border border-white/12 bg-surface-2 px-3 py-2 text-xs font-medium text-neutral-100 transition-colors active:bg-white/10"
+                    >
+                      + Agregar ficha
+                      {b.port ? <span className="ml-1 text-[10px] text-neutral-400">(máx. 2 con puerto)</span> : null}
+                    </button>
+                  )
+                ) : null}
+                {/* Acción secundaria discreta: solo para poblados pendientes
+                    sin ninguna ficha (pura costa/desierto). No aparece en
+                    ciudades (no reciben onAckNoResources) ni en poblados con
+                    fichas ya registradas. */}
+                {isPending && b.spots.length === 0 && onAckNoResources ? (
                   <button
                     type="button"
-                    onClick={() => onAddSpot(b.id)}
-                    className="mt-2 min-h-[44px] w-full rounded-lg border border-white/12 bg-surface-2 px-3 py-2 text-xs font-medium text-neutral-100 transition-colors active:bg-white/10"
+                    onClick={() => onAckNoResources(b.id)}
+                    className="mt-2 min-h-[36px] w-full rounded-md px-3 py-1.5 text-center text-[12px] font-medium text-amber-200/70 underline decoration-amber-200/30 underline-offset-2 transition-colors active:bg-amber-500/10 active:text-amber-100"
                   >
-                    + Agregar ficha
-                    {b.port ? <span className="ml-1 text-[10px] text-neutral-400">(máx. 2 con puerto)</span> : null}
+                    No toca recursos
                   </button>
+                ) : null}
+                {isPending ? (
+                  <p className="mt-1.5 text-[11px] leading-snug text-amber-200/90">
+                    Registra las fichas (número + recurso) que toca este poblado
+                    nuevo para poder terminar el turno. ¿Está en pura costa o
+                    desierto y no toca ningún recurso? Confírmalo con «No toca
+                    recursos».
+                  </p>
                 ) : null}
               </li>
             );

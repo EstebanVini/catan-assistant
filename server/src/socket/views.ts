@@ -25,6 +25,7 @@ export interface PlayerView {
     hand: Player['hand'];
     devCards: Player['devCards'];
     devCardsBoughtThisTurn: Player['devCardsBoughtThisTurn'];
+    pendingSettlementRegistration: Player['pendingSettlementRegistration'];
     ports: Player['ports'];
     buildings: Player['buildings'];
     sessionToken?: string; // solo se manda en el handshake inicial
@@ -70,6 +71,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
           hand: me.hand,
           devCards: me.devCards,
           devCardsBoughtThisTurn: me.devCardsBoughtThisTurn,
+          pendingSettlementRegistration: me.pendingSettlementRegistration,
           ports: me.ports,
           buildings: me.buildings,
         }

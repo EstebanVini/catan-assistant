@@ -12,6 +12,7 @@ import {
   SESSION_EXPIRED,
 } from '../lib/spanish';
 import { CheckIcon } from '../components/InitialBuildSetup';
+import { FireGlyph } from '../assets/icons';
 
 // Pantalla Perfil (Fase 3, brief §2). Accesible SOLO desde Home (chip de
 // cuenta): durante la partida el perfil es ruido y el `Player.name` de una
@@ -222,8 +223,11 @@ function IdentityCard({
   }) => Promise<'ok' | 'expired' | 'error'>;
 }): JSX.Element {
   const since = memberSince(user.createdAt);
+  // Cambio B: racha actual. Tolera `undefined` (usuarios viejos) como 0.
+  const streak = user.stats.currentWinStreak ?? 0;
   return (
-    <section className="mt-4 rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card">
+    <section className="relative mt-4 rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card">
+      {streak >= 1 ? <WinStreakBadge streak={streak} /> : null}
       <div className="flex flex-col items-center">
         <Avatar
           seed={user.username}
@@ -247,6 +251,45 @@ function IdentityCard({
 
       <ColorPreference user={user} onSave={onSave} />
     </section>
+  );
+}
+
+// Insignia de racha de victorias (Cambio B). Flota en la esquina superior
+// derecha del bloque de identidad. Decorativa, no interactiva: el `aria-label`
+// lleva el significado y el glifo va `aria-hidden`. Cápsula de ancho flexible
+// para acomodar rachas de 2–3 cifras sin romperse. El visual-designer afina el
+// acento; el motion-engineer anima la llama (respetando reduced-motion).
+function WinStreakBadge({ streak }: { streak: number }): JSX.Element {
+  const label = `Racha actual: ${streak} ${
+    streak === 1 ? 'victoria seguida' : 'victorias seguidas'
+  }`;
+  // Medallón de fuego: lenguaje de sello Catán (mismo dorado/relieve que
+  // BadgeChip) con calor de brasa. El degradado terracota→nogal y el aro
+  // interior dorado (shadow-medal) lo anclan al tema; el número va en
+  // gold-light (#ecc35f) sobre una base oscura cálida → contraste AA holgado.
+  // `min-w` + `justify-center` mantienen el medallón estable con 1–3 cifras.
+  // Movimiento (motion-engineer):
+  //  - Entrada: la insignia hace un `scale-in` corto al montar (cuando el
+  //    perfil carga con racha activa), igual que el resto de superficies del
+  //    proyecto. Degrada a fade-in 120 ms con reduced-motion.
+  //  - Llama viva: el glifo respira muy levemente (ver `.anim-ember-breathe`).
+  //    Solo el glifo se anima, no la cápsula ni el número (el conteo debe
+  //    quedar quieto y legible). Con reduced-motion la llama queda estática.
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="anim-scale-in absolute right-2.5 top-2.5 z-10 inline-flex min-w-[2.6rem] items-center justify-center gap-1 rounded-full border border-gold/55 bg-gradient-to-b from-[#3a2417] to-[#241509] px-2 py-1 leading-none shadow-medal"
+    >
+      <FireGlyph
+        size={17}
+        className="anim-ember-breathe drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]"
+      />
+      <span className="nums text-sm font-bold tracking-tight text-gold-light [text-shadow:0_1px_0_rgba(0,0,0,0.55)]">
+        {streak}
+      </span>
+    </span>
   );
 }
 
@@ -757,6 +800,8 @@ function StatsCard({ user }: { user: User }): JSX.Element {
   const winPct =
     s.gamesPlayed > 0 ? Math.round((s.wins / s.gamesPlayed) * 100) : null;
   const hasBadges = s.longestRoadBadges > 0 || s.largestArmyBadges > 0;
+  // Cambio B: racha más larga. Tolera `undefined` (usuarios viejos) como 0.
+  const longestStreak = s.longestWinStreak ?? 0;
 
   return (
     <section className="mt-4 rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card">
@@ -789,6 +834,19 @@ function StatsCard({ user }: { user: User }): JSX.Element {
                 Derrotas
               </p>
             </div>
+          </div>
+          {/* Racha más larga en fila propia (3+1) para no apretar 4 columnas
+              en 360px. Mismo acento de fuego/dorado que la insignia 🔥 para
+              vincularlas, pero sutil (hairline dorado tenue) para no competir
+              con las tres métricas principales de arriba. */}
+          <div className="mt-2.5 flex items-center justify-between gap-3 rounded-lg border border-gold/20 bg-gold/[0.05] px-3 py-2.5">
+            <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-neutral-300">
+              <FireGlyph size={15} />
+              Racha más larga
+            </p>
+            <p className="nums text-count leading-none text-gold-light">
+              {longestStreak}
+            </p>
           </div>
           {winPct !== null ? (
             <p className="mt-2.5 text-center text-xs text-neutral-400">

@@ -62,6 +62,9 @@ degradado llega a `--ocean-high #176087` y solo hospeda los títulos display
 |---|---|---|---|---|
 | gold-light / surface-1 | `#ecc35f` / `#1f1812` | 10.47:1 | Insignias, acentos dorados sobre paneles | ✅ |
 | gold-light / gold·12% ⊕ surface-1 | `#ecc35f` / `#352917` | 8.47:1 | BadgeChip (medalla) | ✅ |
+| gold-light / medallón fuego (base) | `#ecc35f` / `#241509` | 10.57:1 | Nº de la insignia de racha 🔥 (degradado terracota→nogal, peor caso = base oscura) | ✅ |
+| gold-light / gold·5% ⊕ surface-1 | `#ecc35f` / `#211910` | 10.35:1 | Nº "Racha más larga" (estadísticas) | ✅ |
+| neutral-300 / gold·5% ⊕ surface-1 | `#c5b290` / `#211910` | 8.38:1 | Label "Racha más larga" | ✅ |
 | emerald-300 / surface-1 | `#6ee7b7` / `#1f1812` | 11.50:1 | Estados "listo"/éxito, header "Sigue donde lo dejaste" | ✅ |
 | neutral-950 / emerald-500 | `#191310` / `#10b981` | 7.25:1 | CTAs primarios (Iniciar, Jugar como invitado) | ✅ |
 | amber-200 / surface-2 | `#fde68a` / `#271e15` | 13.14:1 | Header "Panel del banco" | ✅ |
