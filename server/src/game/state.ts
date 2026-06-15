@@ -54,6 +54,10 @@ export interface Player {
   ports: PortType[];
   devCards: DevCardCounts; // PRIVADO en tipos; conteo total + caballeros jugados es público
   devCardsBoughtThisTurn: DevCardType[]; // no jugables el mismo turno
+  // Poblados comprados en el turno/construcción especial actual cuyas fichas
+  // aún no se registran (spots vacíos). Bloquea terminar el turno hasta que el
+  // dueño registre los recursos del poblado. Se vacía al rotar de turno.
+  pendingSettlementRegistration: string[]; // ids de Building pendientes
   knightsPlayed: number; // público
   victoryPoints: {
     settlements: number;

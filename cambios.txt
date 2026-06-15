@@ -1,20 +1,5 @@
 cambios: 
 
-Agregar color morado
+Cuando compras un poblado en tu turno, que no te deje terminar el turno hasta que registres los recursos de ese poblado.
 
-Cuándo se inicia una partida sin recursos, todos los jugadores aparecen sin poblados. La partida tiene que iniciar con cada quién 2 poblados pero sin ninguna ficha de recursos
-
-Pedir confirmación al eliminar un poblado
-
-Agregar un toggle para desactivar la construcción especial en cuando el juego es de 5-6 jugadores en las reglas especiales
-
-Agregar un toggle para que el ladrón no robe recursos en la primera ronda
-
-La construcción especial en el tipo de juego para 5-6 jugadores está mal, No todos los jugadores pueden construir en el tiempo de construcción especial. Solo puede construir el jugador opuesto a la persona que acababa de tener el turno.
-
-Cuándo alguien manda un intercambio, si alguien que no tiene los recursos necesarios acepta el cambio, le quita la notificación a todos los demás. Mejor que si alguien sin los recursos necesarios para hacer el intercambio intenta aceptar el intercambio, simplemente no pueda o que su notificación traiga el botón de "aceptar intercambio" desactivado
-
-Cuándo alguien quiere usar el puerto de alguien (regla extra) más, el dueño del puerto puede cobrar la comisión por usar su puerto sin ningún tipo de confirmación.
-Quiero que cuando el dueño del puerto quiera cobrar una comisión, que la persona que quiere usar el puerto reciba una notificación para confirmar el cobro de la comisión
-
-Agrega la siguiente regla extra: Si mueves al ladrón a un recurso/ficha de recursos vacío o al desierto, el banco te da un recurso aleatorio
+Agregar un contador de "Racha de victorias" que vaya incrementando coforme vayas acumulando victorias seguidas y que ponga un "Fuego" en la parte superior derecha de tu perfil y dentro el número de partidas ganadas seguidas que llevas, además en los stats del jugador que agregue un campo que diga la racha de victorias más larga que has tenido
