@@ -71,6 +71,24 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
   const myVP = myPublic ? totalVictoryPoints(myPublic.victoryPoints) : 0;
   const canDeclare = inMain && myVP >= 10;
 
+  // Cambio A: poblados comprados este turno sin fichas registradas. El servidor
+  // rechaza terminar el turno / pasar en construcción especial mientras esto no
+  // esté vacío; lo anticipamos deshabilitando el botón y guiando al registro.
+  const pendingCount = me.pendingSettlementRegistration?.length ?? 0;
+  const hasPendingRegistration = pendingCount > 0;
+  const pendingReason =
+    pendingCount > 1
+      ? `Registra las fichas de tus ${pendingCount} poblados nuevos antes de terminar.`
+      : 'Registra las fichas del poblado que construiste antes de terminar el turno.';
+
+  // Abre la Tabla de construcción (forzada abierta mientras haya pendientes) y
+  // la trae a la vista: ruta de un toque desde el botón bloqueado al registro.
+  function revealConstructionTable(): void {
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById('section-constructionTable');
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   const canActWhy = (): string | null => {
     if (state.status !== 'playing') return 'La partida aún no empieza.';
     if (state.phase === 'discard') return 'Hay que descartar primero.';
@@ -238,29 +256,79 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
           </button>
         ) : null}
         {inSpecial ? (
+          // "Listo, paso": bloqueado si hay un poblado nuevo sin registrar
+          // (el server rechaza `specialBuild:done`). Tap bloqueado → toast +
+          // revelar la Tabla de construcción.
           <button
             type="button"
-            onClick={specialBuildDone}
-            className="min-h-[56px] w-full rounded-xl bg-emerald-500 px-3 py-2 text-base font-bold tracking-tight text-neutral-950 shadow-cta transition-all active:scale-[0.99] active:bg-emerald-400"
+            aria-disabled={hasPendingRegistration}
+            title={hasPendingRegistration ? pendingReason : undefined}
+            onClick={() => {
+              if (hasPendingRegistration) {
+                pushToast('info', pendingReason);
+                revealConstructionTable();
+                return;
+              }
+              specialBuildDone();
+            }}
+            className={
+              'min-h-[56px] w-full rounded-xl px-3 py-2 text-base font-bold tracking-tight transition-all ' +
+              (hasPendingRegistration
+                ? 'cursor-not-allowed border border-amber-400/30 bg-surface-2 text-neutral-500'
+                : 'bg-emerald-500 text-neutral-950 shadow-cta active:scale-[0.99] active:bg-emerald-400')
+            }
           >
             Listo, paso
           </button>
         ) : (
           <button
             type="button"
-            disabled={!inMain}
-            title={inMain ? undefined : (baseDisabled ?? 'No es tu turno.')}
-            onClick={endTurn}
+            aria-disabled={!inMain || hasPendingRegistration}
+            disabled={!inMain && !hasPendingRegistration}
+            title={
+              hasPendingRegistration
+                ? pendingReason
+                : inMain
+                  ? undefined
+                  : (baseDisabled ?? 'No es tu turno.')
+            }
+            onClick={() => {
+              if (!inMain) return;
+              if (hasPendingRegistration) {
+                pushToast('info', pendingReason);
+                revealConstructionTable();
+                return;
+              }
+              endTurn();
+            }}
             className={
               'min-h-[56px] w-full rounded-xl px-3 py-2 text-base font-bold tracking-tight transition-all ' +
-              (inMain
+              (inMain && !hasPendingRegistration
                 ? 'bg-emerald-500 text-neutral-950 shadow-cta active:scale-[0.99] active:bg-emerald-400'
-                : 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-500')
+                : inMain && hasPendingRegistration
+                  ? 'cursor-not-allowed border border-amber-400/30 bg-surface-2 text-neutral-500'
+                  : 'cursor-not-allowed border border-white/10 bg-surface-2 text-neutral-500')
             }
           >
             Terminar turno
           </button>
         )}
+        {/* Aviso ámbar siempre visible cuando hay registro pendiente, en mi
+            turno (main o construcción especial). No depende de tocar el botón. */}
+        {hasPendingRegistration && (inMain || inSpecial) ? (
+          <button
+            type="button"
+            onClick={revealConstructionTable}
+            className="flex w-full items-start gap-2 rounded-lg border border-amber-400/40 bg-amber-500/[0.08] px-3 py-2 text-left transition-colors active:bg-amber-500/[0.14]"
+          >
+            <PendingWarnIcon />
+            <span className="flex-1 text-[12px] font-medium leading-snug text-amber-200">
+              {pendingCount > 1
+                ? `Te faltan ${pendingCount} poblados por registrar. Toca para ir a la Tabla de construcción.`
+                : 'Registra las fichas de tu poblado nuevo para terminar. Toca para ir a la Tabla de construcción.'}
+            </span>
+          </button>
+        ) : null}
       </div>
       {tradeOpen ? <TradeModal onClose={() => setTradeOpen(false)} /> : null}
       {purchase ? (
@@ -409,6 +477,35 @@ function PurchaseConfirmModal({
         </div>
       </div>
     </div>
+  );
+}
+
+// Triángulo de aviso (acción requerida, no error destructivo). Decorativo: el
+// texto vecino lleva el significado.
+function PendingWarnIcon(): JSX.Element {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      aria-hidden
+      className="mt-0.5 flex-shrink-0 text-amber-300"
+    >
+      <path
+        d="M12 3.5 L21.5 20 H2.5 Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 9.5 V14"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="17" r="1.1" fill="currentColor" />
+    </svg>
   );
 }
 

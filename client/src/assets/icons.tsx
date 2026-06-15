@@ -50,6 +50,7 @@ export const DEV_CARD_EMOJI: Record<DevCardType, string> = {
 };
 
 export const ROBBER_EMOJI = '🥷';
+export const FIRE_EMOJI = '🔥';
 
 // Trazo común del set (nogal casi negro, cálido).
 const STROKE = '#1a130c';
@@ -247,6 +248,39 @@ export function BadgeGlyph({
           <path d="M7 15.5 C 9 15.5, 9.5 9.5, 12 9.5 S 15 15.5, 17 15.5" stroke={goldDeep} strokeWidth="1.1" strokeDasharray="1.6 1.9" />
         </g>
       )}
+    </svg>
+  );
+}
+
+// ─── Racha de victorias (llama) ──────────────────────────────────────────────
+
+// Glifo de llama para la insignia de racha. Decorativo (`aria-hidden`): el
+// significado lo lleva el `aria-label` del contenedor. Acento llama/dorado del
+// tema. El visual-designer puede afinar gradiente/tonos; el motion-engineer la
+// anima respetando `prefers-reduced-motion`.
+export function FireGlyph({
+  size = 16,
+  className,
+  fallback = false,
+}: GlyphProps): JSX.Element {
+  if (fallback) {
+    return <EmojiGlyph emoji={FIRE_EMOJI} size={size} className={className} />;
+  }
+  return (
+    <svg {...svgProps(size, className)}>
+      {/* Llama exterior */}
+      <path
+        d="M12 2.5 C 14 6, 16.5 7.5, 16.5 11.5 C 16.5 16, 13.2 18.5, 12 21.5 C 10.8 18.5, 7.5 16, 7.5 11.5 C 7.5 8.8, 9.3 7.6, 10 5.5 C 10.6 7, 11.4 7.6, 12 9 C 12.2 6.6, 12 4.5, 12 2.5 Z"
+        fill="#f59e0b"
+        stroke="#b45309"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
+      {/* Llama interior (corazón) */}
+      <path
+        d="M12 11 C 13 12.6, 13.8 13.8, 13.8 15.4 C 13.8 17.4, 12.9 18.7, 12 20.2 C 11.1 18.7, 10.2 17.4, 10.2 15.4 C 10.2 14, 11 13, 12 11 Z"
+        fill="#fde68a"
+      />
     </svg>
   );
 }

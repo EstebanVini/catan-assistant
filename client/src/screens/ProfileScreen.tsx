@@ -12,6 +12,7 @@ import {
   SESSION_EXPIRED,
 } from '../lib/spanish';
 import { CheckIcon } from '../components/InitialBuildSetup';
+import { FireGlyph } from '../assets/icons';
 
 // Pantalla Perfil (Fase 3, brief §2). Accesible SOLO desde Home (chip de
 // cuenta): durante la partida el perfil es ruido y el `Player.name` de una
@@ -222,8 +223,11 @@ function IdentityCard({
   }) => Promise<'ok' | 'expired' | 'error'>;
 }): JSX.Element {
   const since = memberSince(user.createdAt);
+  // Cambio B: racha actual. Tolera `undefined` (usuarios viejos) como 0.
+  const streak = user.stats.currentWinStreak ?? 0;
   return (
-    <section className="mt-4 rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card">
+    <section className="relative mt-4 rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card">
+      {streak >= 1 ? <WinStreakBadge streak={streak} /> : null}
       <div className="flex flex-col items-center">
         <Avatar
           seed={user.username}
@@ -247,6 +251,28 @@ function IdentityCard({
 
       <ColorPreference user={user} onSave={onSave} />
     </section>
+  );
+}
+
+// Insignia de racha de victorias (Cambio B). Flota en la esquina superior
+// derecha del bloque de identidad. Decorativa, no interactiva: el `aria-label`
+// lleva el significado y el glifo va `aria-hidden`. Cápsula de ancho flexible
+// para acomodar rachas de 2–3 cifras sin romperse. El visual-designer afina el
+// acento; el motion-engineer anima la llama (respetando reduced-motion).
+function WinStreakBadge({ streak }: { streak: number }): JSX.Element {
+  const label = `Racha actual: ${streak} ${
+    streak === 1 ? 'victoria seguida' : 'victorias seguidas'
+  }`;
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-500/[0.14] px-2 py-1 leading-none shadow-medal"
+    >
+      <FireGlyph size={16} />
+      <span className="nums text-sm font-bold text-amber-200">{streak}</span>
+    </span>
   );
 }
 
@@ -757,6 +783,8 @@ function StatsCard({ user }: { user: User }): JSX.Element {
   const winPct =
     s.gamesPlayed > 0 ? Math.round((s.wins / s.gamesPlayed) * 100) : null;
   const hasBadges = s.longestRoadBadges > 0 || s.largestArmyBadges > 0;
+  // Cambio B: racha más larga. Tolera `undefined` (usuarios viejos) como 0.
+  const longestStreak = s.longestWinStreak ?? 0;
 
   return (
     <section className="mt-4 rounded-2xl border border-white/10 bg-surface-1 p-4 shadow-card">
@@ -789,6 +817,17 @@ function StatsCard({ user }: { user: User }): JSX.Element {
                 Derrotas
               </p>
             </div>
+          </div>
+          {/* Racha más larga en fila propia (3+1) para no apretar 4 columnas
+              en 360px. Acento de llama para vincularla con la insignia 🔥. */}
+          <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-400/25 bg-amber-500/[0.06] px-3 py-2.5">
+            <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-neutral-400">
+              <FireGlyph size={14} />
+              Racha más larga
+            </p>
+            <p className="nums text-count leading-none text-amber-200">
+              {longestStreak}
+            </p>
           </div>
           {winPct !== null ? (
             <p className="mt-2.5 text-center text-xs text-neutral-400">

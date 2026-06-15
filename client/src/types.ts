@@ -148,6 +148,10 @@ export interface UserStats {
   longestRoadBadges: number;
   largestArmyBadges: number;
   totalVictoryPoints: number;
+  // Racha de victorias. El backend usa `$ifNull` para usuarios viejos, pero el
+  // cliente trata `undefined` como 0 por robustez hasta que todo esté migrado.
+  currentWinStreak?: number;
+  longestWinStreak?: number;
 }
 
 export interface User {
@@ -207,6 +211,10 @@ export interface MeView {
   sessionToken?: string;
   // Mi tabla de construcción (hidratación al reconectar).
   buildings?: Building[];
+  // Ids de poblados comprados este turno cuyas fichas aún no se registran. El
+  // servidor rechaza `turn:end` / `specialBuild:done` mientras no esté vacío;
+  // el cliente lo anticipa deshabilitando esos botones y guiando el registro.
+  pendingSettlementRegistration?: string[];
 }
 
 export interface PublicGameState {
