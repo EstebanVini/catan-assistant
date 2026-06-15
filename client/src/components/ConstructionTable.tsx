@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useStore } from '../store';
 import { Building, Hex, PortType, Resource, RESOURCES } from '../types';
 import { RESOURCE_NAMES_LOWER } from '../lib/spanish';
@@ -6,6 +6,7 @@ import { ColorChip } from './ColorChip';
 import { ResourceIcon } from './ResourceIcon';
 import { CollapsibleSection } from './CollapsibleSection';
 import { SpotPickerSheet } from './InitialBuildSetup';
+import { useModalA11y } from '../lib/useModalA11y';
 import { BuildingGlyph, DesertGlyph, RobberGlyph } from '../assets/icons';
 
 // Tabla de construcción: SOLO mis poblados y ciudades, en dos listas. Cada
@@ -23,6 +24,11 @@ import { BuildingGlyph, DesertGlyph, RobberGlyph } from '../assets/icons';
 
 type SheetState = { buildingId: string; spotIdx: number | null };
 
+// Confirmación destructiva al quitar una construcción (brief §3): label legible
+// ("Poblado 2"/"Ciudad 1") y `n` = nº de fichas registradas, para advertir la
+// pérdida. Solo al confirmar se ejecuta el borrado real.
+type RemoveTarget = { id: string; label: string; n: number };
+
 const PORT_SHORT: Record<PortType, string> = {
   '3:1': 'Puerto 3:1',
   brick: 'Puerto Ladrillo',
@@ -39,6 +45,7 @@ export function ConstructionTable(): JSX.Element | null {
   const moveRobber = useStore((s) => s.moveRobber);
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [portSheet, setPortSheet] = useState<string | null>(null); // buildingId
+  const [removeTarget, setRemoveTarget] = useState<RemoveTarget | null>(null);
   if (!view) return null;
   const { state, me } = view;
 
@@ -87,6 +94,13 @@ export function ConstructionTable(): JSX.Element | null {
 
   function removeBuilding(buildingId: string): void {
     setBuildings(buildings.filter((b) => b.id !== buildingId));
+  }
+
+  // El disparador "Quitar" no borra: abre el alertdialog con el contexto
+  // (label + nº de fichas). El borrado real ocurre solo al confirmar.
+  function requestRemove(buildingId: string, label: string): void {
+    const b = buildings.find((x) => x.id === buildingId);
+    setRemoveTarget({ id: buildingId, label, n: b?.spots.length ?? 0 });
   }
 
   function confirmPort(buildingId: string, port: PortType | null): void {
@@ -154,7 +168,7 @@ export function ConstructionTable(): JSX.Element | null {
                 onAddSpot={(id) => setSheet({ buildingId: id, spotIdx: null })}
                 onEditSpot={(id, j) => setSheet({ buildingId: id, spotIdx: j })}
                 onRemoveSpot={removeSpot}
-                onRemove={removeBuilding}
+                onRemove={requestRemove}
                 onSetPort={(id) => setPortSheet(id)}
               />
               <BuildingList
@@ -164,7 +178,7 @@ export function ConstructionTable(): JSX.Element | null {
                 onAddSpot={(id) => setSheet({ buildingId: id, spotIdx: null })}
                 onEditSpot={(id, j) => setSheet({ buildingId: id, spotIdx: j })}
                 onRemoveSpot={removeSpot}
-                onRemove={removeBuilding}
+                onRemove={requestRemove}
                 onSetPort={(id) => setPortSheet(id)}
               />
               <p className="text-[11px] leading-snug text-neutral-500">
@@ -212,7 +226,83 @@ export function ConstructionTable(): JSX.Element | null {
           onConfirm={(port) => confirmPort(portSheetBuilding.id, port)}
         />
       ) : null}
+
+      {removeTarget ? (
+        <RemoveBuildingConfirm
+          target={removeTarget}
+          onCancel={() => setRemoveTarget(null)}
+          onConfirm={() => {
+            removeBuilding(removeTarget.id);
+            setRemoveTarget(null);
+          }}
+        />
+      ) : null}
     </>
+  );
+}
+
+// Alertdialog rojo de confirmación al quitar un poblado/ciudad (brief §3).
+// Mismo patrón que `KickConfirm` (LobbyScreen): foco inicial en "Cancelar"
+// (acción segura por defecto), ESC = cancelar, focus trap vía useModalA11y.
+function RemoveBuildingConfirm({
+  target,
+  onCancel,
+  onConfirm,
+}: {
+  target: RemoveTarget;
+  onCancel: () => void;
+  onConfirm: () => void;
+}): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null);
+  useModalA11y(ref, onCancel);
+  const fichas =
+    target.n > 0
+      ? ` y sus ${target.n} ${target.n === 1 ? 'ficha' : 'fichas'}`
+      : '';
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4"
+      onClick={onCancel}
+    >
+      <div
+        ref={ref}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="remove-building-title"
+        aria-describedby="remove-building-desc"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xs rounded-2xl border border-white/10 bg-neutral-900 p-4 shadow-2xl ring-1 ring-white/5"
+      >
+        <h2
+          id="remove-building-title"
+          className="text-sm font-semibold tracking-tight text-neutral-50"
+        >
+          ¿Quitar {target.label}?
+        </h2>
+        <p
+          id="remove-building-desc"
+          className="mt-1.5 text-xs leading-relaxed text-neutral-400"
+        >
+          Se borrará de tu tabla{fichas}.
+        </p>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm font-medium transition-colors active:bg-white/10"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="min-h-[44px] flex-1 rounded-lg border border-red-500/40 bg-red-500/[0.08] px-3 py-2 text-sm font-bold text-red-300 transition-colors active:bg-red-500/[0.16]"
+          >
+            Sí, quitar
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -232,7 +322,7 @@ function BuildingList({
   onAddSpot: (buildingId: string) => void;
   onEditSpot: (buildingId: string, spotIdx: number) => void;
   onRemoveSpot: (buildingId: string, spotIdx: number) => void;
-  onRemove: (buildingId: string) => void;
+  onRemove: (buildingId: string, label: string) => void;
   onSetPort: (buildingId: string) => void;
 }): JSX.Element {
   return (
@@ -249,6 +339,7 @@ function BuildingList({
         <ul className="mt-1.5 space-y-2">
           {buildings.map((b, i) => {
             const maxSpots = b.port ? 2 : 3;
+            const label = `${title === 'Poblados' ? 'Poblado' : 'Ciudad'} ${i + 1}`;
             return (
               <li
                 key={b.id}
@@ -256,11 +347,12 @@ function BuildingList({
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-neutral-100">
-                    {title === 'Poblados' ? 'Poblado' : 'Ciudad'} {i + 1}
+                    {label}
                   </p>
                   <button
                     type="button"
-                    onClick={() => onRemove(b.id)}
+                    onClick={() => onRemove(b.id, label)}
+                    aria-label={`Quitar ${label}`}
                     className="min-h-[36px] rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-[11px] text-red-200 transition-colors active:bg-red-500/20"
                   >
                     Quitar
