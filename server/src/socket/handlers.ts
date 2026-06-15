@@ -108,19 +108,24 @@ function ensureHost(state: GameState, playerId: string | undefined): boolean {
   return !!playerId && state.hostId === playerId;
 }
 
-// Avanza al siguiente turno. En extensión 5–6, abre fase de construcción especial.
+// Avanza al siguiente turno. En extensión 5–6 (salvo que el anfitrión la
+// desactive con la regla extra noSpecialBuild) abre la fase de construcción
+// especial. Regla corregida: SOLO construye el jugador OPUESTO al que acaba
+// de terminar su turno (≈ media vuelta en el orden), no todos.
 function advanceTurnOrSpecialBuild(state: GameState): void {
-  if (state.extension56) {
-    // Construir cola: todos menos el activo, en orden horario empezando por el siguiente
+  if (state.extension56 && !state.extraRules.noSpecialBuild) {
+    const n = state.turnOrder.length;
     const activeIdx = state.currentTurnIndex;
-    const order = state.turnOrder;
-    const queue: string[] = [];
-    for (let i = 1; i < order.length; i++) {
-      queue.push(order[(activeIdx + i) % order.length]);
+    const oppositeIdx = (activeIdx + Math.floor(n / 2)) % n;
+    const oppositeId = state.turnOrder[oppositeIdx];
+    if (oppositeId && oppositeId !== state.turnOrder[activeIdx]) {
+      state.specialBuildQueue = [oppositeId];
+      state.phase = 'specialBuild';
+      const p = findPlayer(state, oppositeId);
+      logAction(state, `Construcción especial: turno de ${p?.name ?? 'jugador'} (jugador opuesto).`, oppositeId);
+    } else {
+      nextTurn(state);
     }
-    state.specialBuildQueue = queue;
-    state.phase = 'specialBuild';
-    logAction(state, 'Empieza la fase de Construcción especial.');
   } else {
     nextTurn(state);
   }
@@ -509,6 +514,18 @@ export function registerHandlers(io: Server, socket: Socket): void {
         return;
       }
     }
+    // Modo "sin recursos": cada jugador empieza con sus 2 poblados de salida
+    // pero SIN fichas de recursos (nadie recibe cartas). Garantiza que la
+    // Tabla de construcción muestre 2 poblados aunque no se haya registrado
+    // nada en el lobby.
+    if (!state.seedInitialResources) {
+      for (const player of state.players) {
+        player.buildings = [
+          { id: nanoid(8), type: 'settlement', spots: [] },
+          { id: nanoid(8), type: 'settlement', spots: [] },
+        ];
+      }
+    }
     state.status = 'playing';
     state.phase = 'roll';
     state.currentTurnIndex = 0;
@@ -685,9 +702,25 @@ export function registerHandlers(io: Server, socket: Socket): void {
     logAction(state, `${active.name} movió el ladrón.`, active.id);
     io.to(state.code).emit('notice', { level: 'warn', text: `${active.name} movió el ladrón a ${targetHex.resource ? `${targetHex.number} ${esResource(targetHex.resource)}` : 'el desierto'}.` });
 
-    // Verificar si hay a quién robar
     const candidates = targetHex.owners.filter((o) => o.playerId !== active.id);
-    if (candidates.length === 0) {
+    // Ficha "vacía": el desierto o cualquier hex sin jugadores a quien robar.
+    const emptyOrDesert = !targetHex.resource || candidates.length === 0;
+
+    // Regla extra: ladrón a ficha vacía/desierto → el banco da 1 recurso al azar.
+    if (state.extraRules.robberEmptyGivesResource && emptyOrDesert) {
+      const r = RESOURCES[Math.floor(Math.random() * RESOURCES.length)];
+      drainBank(state.bank, r, 1);
+      active.hand[r] += 1;
+      logAction(state, `El banco le dio 1 ${esResource(r)} a ${active.name} por mover el ladrón a una ficha vacía.`, active.id);
+      io.to(state.code).emit('notice', { level: 'info', text: `${active.name} recibió 1 recurso del banco (ladrón en ficha vacía).` });
+    }
+
+    // Regla extra: el ladrón no roba durante la primera ronda de turnos.
+    const firstRound = state.turnsPlayed < state.turnOrder.length;
+    if (state.extraRules.robberNoStealFirstRound && firstRound) {
+      logAction(state, 'En la primera ronda el ladrón no roba recursos.');
+      state.phase = 'main';
+    } else if (candidates.length === 0) {
       logAction(state, 'No hay a quién robarle en esa ficha.');
       state.phase = 'main';
     } else {
@@ -964,10 +997,34 @@ export function registerHandlers(io: Server, socket: Socket): void {
     }
     const from = findPlayer(state, offer.fromId);
     if (!from) return;
-    const val = validateTradeOffer(from, responder, offer.give, offer.receive, state.extraRules.unequalTrades);
-    if (!val.ok) {
-      socket.emit('error', { message: val.reason ?? 'La oferta ya no es válida.' });
+    // Si el OFERTANTE ya no tiene las cartas que ofrece, la oferta está muerta
+    // para todos: se retira.
+    const offererCanPay = (Object.entries(offer.give) as [Resource, number][]).every(
+      ([res, n]) => from.hand[res] >= n
+    );
+    if (!offererCanPay) {
+      socket.emit('error', { message: `${from.name} ya no tiene las cartas que ofrecía.` });
       state.activeTrade = undefined;
+      logAction(state, 'La oferta se retiró: el ofertante ya no tiene esas cartas.');
+      broadcastState(io, state);
+      return;
+    }
+    // Si quien acepta NO tiene las cartas necesarias (lado `receive`), es un
+    // fallo INDIVIDUAL: la oferta sigue activa para los demás y a esta persona
+    // se le marca como rechazada (no debe poder bloquear a nadie).
+    const responderCanPay = (Object.entries(offer.receive) as [Resource, number][]).every(
+      ([res, n]) => responder.hand[res] >= n
+    );
+    if (!responderCanPay) {
+      socket.emit('error', { message: 'No tienes las cartas necesarias para aceptar este intercambio.' });
+      offer.rejectedBy.push(responder.id);
+      const eligible = offer.toId
+        ? [offer.toId]
+        : state.players.filter((p) => p.id !== offer.fromId).map((p) => p.id);
+      if (eligible.every((id) => offer.rejectedBy.includes(id))) {
+        state.activeTrade = undefined;
+        logAction(state, 'Nadie pudo aceptar el intercambio: la oferta se retiró.');
+      }
       broadcastState(io, state);
       return;
     }
@@ -1033,12 +1090,16 @@ export function registerHandlers(io: Server, socket: Socket): void {
         give,
         receive,
         ratio,
+        status: 'awaitingOwner',
       };
       logAction(state, `${player.name} pidió usar el puerto de ${owner.name}.`, player.id);
       broadcastState(io, state);
     }
   );
 
+  // Paso 2: el dueño aprueba o rechaza, fijando una comisión opcional. Si la
+  // comisión es 0 (gratis) se ejecuta de inmediato; si hay comisión, pasa a
+  // 'awaitingRequester' para que el SOLICITANTE confirme el cobro (paso 3).
   socket.on(
     'port:respond',
     ({ accept, commission }: { accept: boolean; commission?: Partial<Hand> }) => {
@@ -1046,6 +1107,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
       if (!state || !state.activePortUse) return;
       const req = state.activePortUse;
       if (socket.data.playerId !== req.ownerId) return;
+      if (req.status !== 'awaitingOwner') return;
       const owner = findPlayer(state, req.ownerId);
       const requester = findPlayer(state, req.requesterId);
       if (!owner || !requester) {
@@ -1059,7 +1121,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
         broadcastState(io, state);
         return;
       }
-      // Comisión: cartas que el solicitante paga al dueño (puede ir vacía).
+      // Comisión: cartas que el solicitante pagará al dueño (puede ir vacía).
       const fee: Partial<Hand> = {};
       let feeTotal = 0;
       for (const [res, n] of Object.entries(commission ?? {}) as [Resource, number][]) {
@@ -1067,53 +1129,56 @@ export function registerHandlers(io: Server, socket: Socket): void {
         fee[res] = Math.floor(n);
         feeTotal += Math.floor(n);
       }
-      // El solicitante debe cubrir la proporción del puerto Y la comisión.
-      const needed: Partial<Hand> = { [req.give]: req.ratio };
-      for (const [res, n] of Object.entries(fee) as [Resource, number][]) {
-        needed[res] = (needed[res] ?? 0) + n;
+      if (feeTotal === 0) {
+        // Gratis: nada que confirmar, se ejecuta directo.
+        const r = executePortUse(io, state, fee);
+        if (!r.ok) socket.emit('error', { message: r.reason ?? 'No se pudo usar el puerto.' });
+        broadcastState(io, state);
+        return;
       }
-      for (const [res, n] of Object.entries(needed) as [Resource, number][]) {
-        if (requester.hand[res] < n) {
-          socket.emit('error', { message: `${requester.name} ya no tiene cartas para pagar el intercambio y la comisión.` });
-          state.activePortUse = undefined;
-          broadcastState(io, state);
-          return;
-        }
-      }
-      pushSnapshot(state);
-      // Intercambio de banco usando el puerto del dueño.
-      requester.hand[req.give] -= req.ratio;
-      state.bank[req.give] += req.ratio;
-      requester.hand[req.receive] += 1;
-      drainBank(state.bank, req.receive, 1);
-      // Pago de la comisión: del solicitante al dueño.
-      for (const [res, n] of Object.entries(fee) as [Resource, number][]) {
-        requester.hand[res] -= n;
-        owner.hand[res] += n;
-      }
-      state.activePortUse = undefined;
-      const feeLabel =
-        feeTotal > 0
-          ? ` (comisión: ${(Object.entries(fee) as [Resource, number][]).map(([r, n]) => `${n} ${esResource(r)}`).join(', ')})`
-          : ' (gratis)';
+      // Con comisión: esperar la confirmación del solicitante.
+      req.status = 'awaitingRequester';
+      req.commission = fee;
       logAction(
         state,
-        `${requester.name} usó el puerto ${req.ratio}:1 de ${owner.name}: dio ${req.ratio} ${esResource(req.give)}, recibió 1 ${esResource(req.receive)}${feeLabel}.`,
-        requester.id
+        `${owner.name} aceptó prestar su puerto con una comisión de ${(Object.entries(fee) as [Resource, number][]).map(([r, n]) => `${n} ${esResource(r)}`).join(', ')}. Falta que ${requester.name} confirme.`,
+        owner.id
       );
       io.to(state.code).emit('notice', {
         level: 'info',
-        text: `${requester.name} usó el puerto de ${owner.name}${feeTotal > 0 ? ` y le pagó comisión` : ' gratis'}.`,
+        text: `${owner.name} pide comisión por su puerto. ${requester.name} debe confirmar.`,
       });
       broadcastState(io, state);
     }
   );
 
+  // Paso 3: el solicitante confirma (paga la comisión y ejecuta) o rechaza el
+  // cobro.
+  socket.on('port:confirm', ({ accept }: { accept: boolean }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.activePortUse) return;
+    const req = state.activePortUse;
+    if (socket.data.playerId !== req.requesterId) return;
+    if (req.status !== 'awaitingRequester') return;
+    if (!accept) {
+      const requester = findPlayer(state, req.requesterId);
+      state.activePortUse = undefined;
+      logAction(state, `${requester?.name ?? 'El solicitante'} no aceptó la comisión: el intercambio se canceló.`, req.requesterId);
+      broadcastState(io, state);
+      return;
+    }
+    const r = executePortUse(io, state, req.commission ?? {});
+    if (!r.ok) socket.emit('error', { message: r.reason ?? 'No se pudo usar el puerto.' });
+    broadcastState(io, state);
+  });
+
   socket.on('port:cancel', () => {
     const state = getRoom(socket.data.code ?? '');
     if (!state || !state.activePortUse) return;
     if (state.activePortUse.requesterId !== socket.data.playerId) return;
+    const requester = findPlayer(state, state.activePortUse.requesterId);
     state.activePortUse = undefined;
+    logAction(state, `${requester?.name ?? 'El solicitante'} canceló la solicitud de puerto.`, requester?.id);
     broadcastState(io, state);
   });
 
@@ -1320,6 +1385,59 @@ export function registerHandlers(io: Server, socket: Socket): void {
     setPlayerConnection(state, data.playerId, false);
     broadcastState(io, state);
   });
+}
+
+// Ejecuta un uso de puerto ajeno ya aprobado (con o sin comisión): valida que
+// el solicitante cubra la proporción + comisión, hace el intercambio de banco
+// con la proporción del DUEÑO y le paga la comisión. Limpia activePortUse.
+function executePortUse(io: Server, state: GameState, fee: Partial<Hand>): { ok: boolean; reason?: string } {
+  const req = state.activePortUse;
+  if (!req) return { ok: false, reason: 'No hay solicitud de puerto.' };
+  const owner = findPlayer(state, req.ownerId);
+  const requester = findPlayer(state, req.requesterId);
+  if (!owner || !requester) {
+    state.activePortUse = undefined;
+    return { ok: false, reason: 'Jugador no encontrado.' };
+  }
+  let feeTotal = 0;
+  for (const n of Object.values(fee)) feeTotal += n ?? 0;
+  // El solicitante debe cubrir la proporción del puerto Y la comisión.
+  const needed: Partial<Hand> = { [req.give]: req.ratio };
+  for (const [res, n] of Object.entries(fee) as [Resource, number][]) {
+    needed[res] = (needed[res] ?? 0) + n;
+  }
+  for (const [res, n] of Object.entries(needed) as [Resource, number][]) {
+    if (requester.hand[res] < n) {
+      state.activePortUse = undefined;
+      return { ok: false, reason: `${requester.name} ya no tiene cartas para pagar el intercambio y la comisión.` };
+    }
+  }
+  pushSnapshot(state);
+  // Intercambio de banco usando el puerto del dueño.
+  requester.hand[req.give] -= req.ratio;
+  state.bank[req.give] += req.ratio;
+  requester.hand[req.receive] += 1;
+  drainBank(state.bank, req.receive, 1);
+  // Pago de la comisión: del solicitante al dueño.
+  for (const [res, n] of Object.entries(fee) as [Resource, number][]) {
+    requester.hand[res] -= n;
+    owner.hand[res] += n;
+  }
+  state.activePortUse = undefined;
+  const feeLabel =
+    feeTotal > 0
+      ? ` (comisión: ${(Object.entries(fee) as [Resource, number][]).map(([r, n]) => `${n} ${esResource(r)}`).join(', ')})`
+      : ' (gratis)';
+  logAction(
+    state,
+    `${requester.name} usó el puerto ${req.ratio}:1 de ${owner.name}: dio ${req.ratio} ${esResource(req.give)}, recibió 1 ${esResource(req.receive)}${feeLabel}.`,
+    requester.id
+  );
+  io.to(state.code).emit('notice', {
+    level: 'info',
+    text: `${requester.name} usó el puerto de ${owner.name}${feeTotal > 0 ? ' y le pagó comisión' : ' gratis'}.`,
+  });
+  return { ok: true };
 }
 
 function esResource(r: Resource): string {

@@ -54,7 +54,7 @@ function newPlayer(id: string, sessionToken: string, name: string, profile?: Use
   };
 }
 
-const ALL_COLORS: PlayerColor[] = ['red', 'blue', 'white', 'orange', 'green', 'brown'];
+const ALL_COLORS: PlayerColor[] = ['red', 'blue', 'white', 'orange', 'green', 'brown', 'purple'];
 
 // Intenta asignar el color preferido del usuario si es válido para el modo y está libre.
 function tryPreferredColor(state: GameState, player: Player, preferred?: string): void {
