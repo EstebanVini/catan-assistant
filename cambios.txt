@@ -1,5 +1,5 @@
-cambios: 
+Cambios:
 
-Cuando compras un poblado en tu turno, que no te deje terminar el turno hasta que registres los recursos de ese poblado.
+No es posible activar los toggles de "El ladrón no roba en la primera ronda" ni de "Recurso por ladrón en ficha vacía", por alguna razón les doy click pero no me permite activarlos
 
-Agregar un contador de "Racha de victorias" que vaya incrementando coforme vayas acumulando victorias seguidas y que ponga un "Fuego" en la parte superior derecha de tu perfil y dentro el número de partidas ganadas seguidas que llevas, además en los stats del jugador que agregue un campo que diga la racha de victorias más larga que has tenido
+Por alguna razón, cuando intento utilizar el puerto de alguien más 2 la primera vez funciona perfectamente pero la segunda vez al dueño del puerto le llega bien la notificación pero los botones de "Aprobar y cobrar comisión" o "Dejar usar el puerto gratis" e incluso el de "No prestar" se desactivan y en toda la partida no vuelve a funcionar este feature con ninguno de los demás jugadores ¿Por qué está pasando esto? resuelve ese bug 

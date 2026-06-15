@@ -4,6 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#07243a" />
+    <meta
+      name="description"
+      content="Asistente digital para partidas presenciales de Catán: lleva recursos, construcciones y cartas sin trampas y en tiempo real desde tu celular."
+    />
+
+    <!-- PWA: instalable desde el navegador (Chrome/Edge/Android) y "Agregar a inicio" en iOS. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Favicons de la pestaña. -->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png" />
+
+    <!-- iOS no lee el manifest: necesita sus propias meta/íconos para instalar. -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Catán" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
     <title>Asistente de Catán</title>
   </head>
   <!-- El fondo océano vive en body::before (index.css); aquí solo el texto base. -->

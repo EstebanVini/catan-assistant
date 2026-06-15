@@ -375,15 +375,27 @@ export function registerHandlers(io: Server, socket: Socket): void {
     broadcastState(io, state);
   });
 
-  // Reglas extra (intercambios desiguales, uso de puertos ajenos).
+  // Reglas extra (todos los toggles del host en el lobby). El cliente puede
+  // mandar cualquier subconjunto de claves; aplicamos solo las booleanas
+  // presentes. Recorrer las claves conocidas evita que un toggle nuevo quede
+  // silenciosamente ignorado (bug previo: solo se aplicaban unequalTrades y
+  // sharedPorts, así que los toggles del ladrón y noSpecialBuild no activaban).
   socket.on(
     'lobby:setExtraRules',
-    ({ unequalTrades, sharedPorts }: { unequalTrades?: boolean; sharedPorts?: boolean }) => {
+    (rules: Partial<Record<keyof GameState['extraRules'], boolean>>) => {
       const state = getRoom(socket.data.code ?? '');
       if (!state || state.status !== 'lobby') return;
       if (!ensureHost(state, socket.data.playerId)) return;
-      if (typeof unequalTrades === 'boolean') state.extraRules.unequalTrades = unequalTrades;
-      if (typeof sharedPorts === 'boolean') state.extraRules.sharedPorts = sharedPorts;
+      const keys: (keyof GameState['extraRules'])[] = [
+        'unequalTrades',
+        'sharedPorts',
+        'noSpecialBuild',
+        'robberNoStealFirstRound',
+        'robberEmptyGivesResource',
+      ];
+      for (const key of keys) {
+        if (typeof rules[key] === 'boolean') state.extraRules[key] = rules[key] as boolean;
+      }
       broadcastState(io, state);
     }
   );

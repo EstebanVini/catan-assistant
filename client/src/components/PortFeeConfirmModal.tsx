@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { RESOURCES, Resource } from '../types';
 import type { Hand } from '../types';
@@ -21,7 +21,7 @@ export function PortFeeConfirmModal(): JSX.Element | null {
   // Bloqueo anti-doble-emisión: `confirmPort` es un emit fire-and-forget; un
   // doble tap (o ESC tras tap) emitiría `port:confirm` dos veces antes de que
   // el server retire la solicitud. Tras la primera decisión deshabilitamos
-  // ambas acciones hasta que el modal se desmonte por cambio de estado.
+  // ambas acciones hasta que el server confirme (ver el reset más abajo).
   const [submitted, setSubmitted] = useState(false);
   const submittedRef = useRef(false);
   const decide = (accept: boolean) => {
@@ -30,6 +30,24 @@ export function PortFeeConfirmModal(): JSX.Element | null {
     setSubmitted(true);
     confirmPort(accept);
   };
+  // ¿Hay una decisión pendiente PARA MÍ ahora mismo? Sólo cuando soy el
+  // solicitante y la solicitud sigue en `awaitingRequester` (la misma condición
+  // del early-return de abajo). Este modal vive montado de forma permanente en
+  // GameScreen, así que el guard no se limpia solo: lo reseteamos cuando NO hay
+  // decisión pendiente. Como `awaitingRequester` se mantiene hasta que el server
+  // procesa mi confirmación, el guard sigue bloqueando el doble-tap durante esa
+  // ventana y sólo se libera con el eco del server, justo a tiempo para la
+  // siguiente solicitud.
+  const pendingForMe =
+    !!view?.state.activePortUse &&
+    view.state.activePortUse.requesterId === view.me?.id &&
+    view.state.activePortUse.status === 'awaitingRequester';
+  useEffect(() => {
+    if (!pendingForMe) {
+      submittedRef.current = false;
+      setSubmitted(false);
+    }
+  }, [pendingForMe]);
   // ESC = rechazar la comisión (no ejecuta el cambio).
   useModalA11y(dialogRef, () => decide(false));
 

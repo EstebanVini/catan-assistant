@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { RESOURCES, Resource } from '../types';
 import type { Hand } from '../types';
@@ -27,7 +27,7 @@ export function PortIncomingModal(): JSX.Element | null {
   // Bloqueo anti-doble-emisión: `respondPort` es un emit fire-and-forget; entre
   // el tap y el eco de estado del server hay una ventana en la que un segundo
   // tap reemitiría `port:respond`. Tras la primera decisión deshabilitamos
-  // ambas acciones hasta que el modal cambie de estado y se desmonte.
+  // ambas acciones hasta que el server confirme (ver el reset más abajo).
   const [responded, setResponded] = useState(false);
   const respondedRef = useRef(false);
   const respond = (accept: boolean, commission?: Partial<Hand>) => {
@@ -36,6 +36,24 @@ export function PortIncomingModal(): JSX.Element | null {
     setResponded(true);
     respondPort(accept, commission);
   };
+  // ¿Hay una decisión pendiente PARA MÍ ahora mismo? Sólo cuando soy el dueño y
+  // la solicitud sigue en `awaitingOwner` (el estado en que se ven mis botones).
+  // Este modal vive montado de forma permanente en GameScreen, así que el guard
+  // no se limpia solo: lo reseteamos cuando NO hay decisión pendiente (sin
+  // solicitud, o ya pasó a `awaitingRequester`, o el server la retiró). Como
+  // `awaitingOwner` se mantiene hasta que el server procesa mi respuesta, el
+  // guard sigue bloqueando el doble-tap durante esa ventana y sólo se libera
+  // con el eco del server, justo a tiempo para la siguiente solicitud.
+  const pendingForMe =
+    !!view?.state.activePortUse &&
+    view.state.activePortUse.ownerId === view.me?.id &&
+    view.state.activePortUse.status === 'awaitingOwner';
+  useEffect(() => {
+    if (!pendingForMe) {
+      respondedRef.current = false;
+      setResponded(false);
+    }
+  }, [pendingForMe]);
   // Modal principal: forzado, no se cierra con ESC ni con tap fuera.
   useModalA11y(dialogRef, () => {
     /* no-op: paso obligatorio */

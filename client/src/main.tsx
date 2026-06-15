@@ -13,3 +13,12 @@ ReactDOM.createRoot(rootElement).render(
     <App />
   </React.StrictMode>
 );
+
+// PWA: registrar el service worker (lo que hace la app instalable y permite el
+// arranque básico sin red). Solo en producción: en `vite dev` un SW interfiere
+// con el HMR. El archivo vive en client/public/sw.js → se sirve en /sw.js.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js');
+  });
+}
