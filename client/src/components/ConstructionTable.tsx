@@ -376,7 +376,7 @@ function BuildingList({
                 className={
                   'rounded-xl border p-2.5 ' +
                   (isPending
-                    ? 'border-amber-400/70 bg-amber-500/[0.07] ring-1 ring-amber-400/30'
+                    ? 'border-amber-400/70 bg-amber-500/[0.10] ring-1 ring-amber-400/40 shadow-[0_0_0_1px_rgba(251,191,36,0.10),0_4px_14px_-6px_rgba(245,158,11,0.5)]'
                     : 'border-white/10 bg-neutral-900/50')
                 }
               >
@@ -490,7 +490,7 @@ function BuildingList({
                     <button
                       type="button"
                       onClick={() => onAddSpot(b.id)}
-                      className="mt-2 min-h-[44px] w-full rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold tracking-tight text-neutral-950 shadow-cta-amber transition-all active:scale-[0.99] active:bg-amber-300"
+                      className="mt-2 min-h-[44px] w-full rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold tracking-tight text-neutral-950 shadow-cta-amber ring-1 ring-amber-300/60 transition-all active:scale-[0.99] active:bg-amber-300"
                     >
                       Registrar fichas
                     </button>
@@ -519,7 +519,7 @@ function BuildingList({
                   </button>
                 ) : null}
                 {isPending ? (
-                  <p className="mt-1.5 text-[11px] leading-snug text-amber-200/80">
+                  <p className="mt-1.5 text-[11px] leading-snug text-amber-200/90">
                     Registra las fichas (número + recurso) que toca este poblado
                     nuevo para poder terminar el turno. ¿Está en pura costa o
                     desierto y no toca ningún recurso? Confírmalo con «No toca

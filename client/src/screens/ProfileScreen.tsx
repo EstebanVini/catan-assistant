@@ -263,15 +263,22 @@ function WinStreakBadge({ streak }: { streak: number }): JSX.Element {
   const label = `Racha actual: ${streak} ${
     streak === 1 ? 'victoria seguida' : 'victorias seguidas'
   }`;
+  // Medallón de fuego: lenguaje de sello Catán (mismo dorado/relieve que
+  // BadgeChip) con calor de brasa. El degradado terracota→nogal y el aro
+  // interior dorado (shadow-medal) lo anclan al tema; el número va en
+  // gold-light (#ecc35f) sobre una base oscura cálida → contraste AA holgado.
+  // `min-w` + `justify-center` mantienen el medallón estable con 1–3 cifras.
   return (
     <span
       role="img"
       aria-label={label}
       title={label}
-      className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-500/[0.14] px-2 py-1 leading-none shadow-medal"
+      className="absolute right-2.5 top-2.5 z-10 inline-flex min-w-[2.6rem] items-center justify-center gap-1 rounded-full border border-gold/55 bg-gradient-to-b from-[#3a2417] to-[#241509] px-2 py-1 leading-none shadow-medal"
     >
-      <FireGlyph size={16} />
-      <span className="nums text-sm font-bold text-amber-200">{streak}</span>
+      <FireGlyph size={17} className="drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]" />
+      <span className="nums text-sm font-bold tracking-tight text-gold-light [text-shadow:0_1px_0_rgba(0,0,0,0.55)]">
+        {streak}
+      </span>
     </span>
   );
 }
@@ -819,13 +826,15 @@ function StatsCard({ user }: { user: User }): JSX.Element {
             </div>
           </div>
           {/* Racha más larga en fila propia (3+1) para no apretar 4 columnas
-              en 360px. Acento de llama para vincularla con la insignia 🔥. */}
-          <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-400/25 bg-amber-500/[0.06] px-3 py-2.5">
-            <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-neutral-400">
-              <FireGlyph size={14} />
+              en 360px. Mismo acento de fuego/dorado que la insignia 🔥 para
+              vincularlas, pero sutil (hairline dorado tenue) para no competir
+              con las tres métricas principales de arriba. */}
+          <div className="mt-2.5 flex items-center justify-between gap-3 rounded-lg border border-gold/20 bg-gold/[0.05] px-3 py-2.5">
+            <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-neutral-300">
+              <FireGlyph size={15} />
               Racha más larga
             </p>
-            <p className="nums text-count leading-none text-amber-200">
+            <p className="nums text-count leading-none text-gold-light">
               {longestStreak}
             </p>
           </div>
