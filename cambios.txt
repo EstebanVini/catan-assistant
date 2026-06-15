@@ -1,22 +1,20 @@
 cambios: 
 
-Poder agregar amigos, ver sus estadísticas y poder invitar amigos a una partida
+Agregar color morado
 
-cuándo estás en el lobby, que sea posible sacar a una persona antes de iniciar el juego 
+Cuándo se inicia una partida sin recursos, todos los jugadores aparecen sin poblados. La partida tiene que iniciar con cada quién 2 poblados pero sin ninguna ficha de recursos
 
-también que sea posible iniciar la partida son que los poblados tengan fichas (y que nadie reciba recursos) 
+Pedir confirmación al eliminar un poblado
 
-en el lobby hay un bug de diseño. cuándo soy el administrador de la partida, la ventana de "iniciar partida o cancelar partida" estorba al recuadro de controles del anfitrión, no me deja sortear el órden de los dados ni asignar a otro administrador.
+Agregar un toggle para desactivar la construcción especial en cuando el juego es de 5-6 jugadores en las reglas especiales
 
+Agregar un toggle para que el ladrón no robe recursos en la primera ronda
 
-al momento de mover al ladrón, es un poco ambigüo, porque pueden haber varios recursos con el mismo número pero el juego agrupa todos. Busca una forma de resolver este bug. se me ocurre que cuando crees un poblado, que puedas agruparlos con otras fichas ya existentes o en su defecto crear más.
+La construcción especial en el tipo de juego para 5-6 jugadores está mal, No todos los jugadores pueden construir en el tiempo de construcción especial. Solo puede construir el jugador opuesto a la persona que acababa de tener el turno.
 
+Cuándo alguien manda un intercambio, si alguien que no tiene los recursos necesarios acepta el cambio, le quita la notificación a todos los demás. Mejor que si alguien sin los recursos necesarios para hacer el intercambio intenta aceptar el intercambio, simplemente no pueda o que su notificación traiga el botón de "aceptar intercambio" desactivado
 
-"reglas extra" 
+Cuándo alguien quiere usar el puerto de alguien (regla extra) más, el dueño del puerto puede cobrar la comisión por usar su puerto sin ningún tipo de confirmación.
+Quiero que cuando el dueño del puerto quiera cobrar una comisión, que la persona que quiere usar el puerto reciba una notificación para confirmar el cobro de la comisión
 
-agrega una opción para activar reglas extras. estas son las reglas extra: 
-
-que sea posible hacer intercambios "vacíos"  que una persona no dé nada y aún así reciba algo. 
-
-también que en tu turno sea posible utilizar los puertos de las demás personas y que la persona pueda pedir una comisión (n cantidad de recursos) a cambio de usar su puerto o que deje que usen su puerto gratis.
-
+Agrega la siguiente regla extra: Si mueves al ladrón a un recurso/ficha de recursos vacío o al desierto, el banco te da un recurso aleatorio
