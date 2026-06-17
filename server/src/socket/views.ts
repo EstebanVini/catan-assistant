@@ -45,6 +45,9 @@ export interface PlayerView {
     pendingSettlementRegistration: Player['pendingSettlementRegistration'];
     ports: Player['ports'];
     buildings: Player['buildings'];
+    // Caballeros y Ciudades: ¿tengo disponible mi mejora gratuita a Ciudad
+    // inicial? (true mientras no la haya usado). false en el modo base.
+    freeCityAvailable: boolean;
     sessionToken?: string; // solo se manda en el handshake inicial
   } | null;
   state: {
@@ -102,6 +105,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
           pendingSettlementRegistration: me.pendingSettlementRegistration,
           ports: me.ports,
           buildings: me.buildings,
+          freeCityAvailable: state.citiesKnights && !me.freeCityUsed,
         }
       : null,
     state: {

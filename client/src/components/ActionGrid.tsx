@@ -106,8 +106,12 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
   const allowTrades = inMain; // En specialBuild no se puede intercambiar.
   const allowDevPlay = inMain; // En specialBuild no se puede jugar dev.
 
+  // Caballeros y Ciudades: la primera Ciudad es gratis (ciudad inicial).
+  const freeCity = !!me?.freeCityAvailable;
+
   function canAfford(type: BuildType): boolean {
     if (!me) return false;
+    if (type === 'city' && freeCity) return true; // ciudad inicial gratuita
     const cost = BUILD_COSTS[type];
     return (Object.entries(cost) as [Resource, number][]).every(
       ([r, n]) => me.hand[r] >= n
@@ -195,7 +199,13 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
               </div>
               {!recipesHidden ? (
                 <div className="mt-2">
-                  <BuildCostBadge type={t} />
+                  {t === 'city' && freeCity ? (
+                    <span className="inline-flex items-center rounded-md border border-gold/40 bg-gold/[0.12] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-gold-light">
+                      Gratis · ciudad inicial
+                    </span>
+                  ) : (
+                    <BuildCostBadge type={t} />
+                  )}
                 </div>
               ) : null}
               {reason ? (
@@ -334,6 +344,7 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
       {purchase ? (
         <PurchaseConfirmModal
           type={purchase}
+          free={purchase === 'city' && freeCity}
           settlements={mySettlements}
           onClose={() => setPurchase(null)}
           onConfirm={(settlementId) => {
@@ -351,11 +362,13 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
 // la Tabla de construcción se actualiza sola al confirmar.
 function PurchaseConfirmModal({
   type,
+  free = false,
   settlements,
   onClose,
   onConfirm,
 }: {
   type: BuildType;
+  free?: boolean;
   settlements: Building[];
   onClose: () => void;
   onConfirm: (settlementId?: string) => void;
@@ -395,10 +408,16 @@ function PurchaseConfirmModal({
               id="purchase-title"
               className="text-base font-semibold tracking-tight text-neutral-50"
             >
-              Comprar {buildTypeLabel(type).toLowerCase()}
+              {free ? 'Establecer ciudad inicial' : `Comprar ${buildTypeLabel(type).toLowerCase()}`}
             </h2>
             <div className="mt-1.5">
-              <BuildCostBadge type={type} />
+              {free ? (
+                <span className="inline-flex items-center rounded-md border border-gold/40 bg-gold/[0.12] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-gold-light">
+                  Gratis · ciudad inicial
+                </span>
+              ) : (
+                <BuildCostBadge type={type} />
+              )}
             </div>
           </div>
         </div>

@@ -1126,7 +1126,11 @@ export function registerHandlers(io: Server, socket: Socket): void {
         socket.emit('error', { message: 'Elige qué poblado se convierte en ciudad.' });
         return;
       }
-      const cost = BUILD_COSTS[type];
+      // Caballeros y Ciudades: la PRIMERA ciudad de cada jugador es gratis
+      // (representa la "ciudad inicial" que en el juego oficial se coloca en el
+      // reparto). Las siguientes cuestan lo normal (2 trigo + 3 mineral).
+      const isFreeCity = type === 'city' && state.citiesKnights && !player.freeCityUsed;
+      const cost = isFreeCity ? {} : BUILD_COSTS[type];
       if (!canAfford(player.hand, cost)) {
         const lack = shortfall(player.hand, cost);
         const parts = (Object.entries(lack) as [Resource, number][]).map(([r, n]) => `${n} ${esResource(r)}`);
@@ -1160,10 +1164,19 @@ export function registerHandlers(io: Server, socket: Socket): void {
         io.to(state.code).emit('build:notify', { text: `${player.name} construyó un Poblado.` });
       } else if (type === 'city') {
         targetSettlement!.type = 'city';
+        if (isFreeCity) player.freeCityUsed = true;
         state.hexes = rebuildHexes(state.players, state.hexes);
         recomputeVictoryPoints(state);
-        logAction(state, `${player.name} construyó una Ciudad (subió un poblado).`, player.id);
-        io.to(state.code).emit('build:notify', { text: `${player.name} construyó una Ciudad.` });
+        logAction(
+          state,
+          isFreeCity
+            ? `${player.name} estableció su Ciudad inicial gratis (subió un poblado).`
+            : `${player.name} construyó una Ciudad (subió un poblado).`,
+          player.id
+        );
+        io.to(state.code).emit('build:notify', {
+          text: isFreeCity ? `${player.name} estableció su Ciudad inicial.` : `${player.name} construyó una Ciudad.`,
+        });
       } else {
         logAction(state, `${player.name} construyó un Camino.`, player.id);
         io.to(state.code).emit('build:notify', { text: `${player.name} construyó un Camino.` });

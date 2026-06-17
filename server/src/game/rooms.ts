@@ -57,6 +57,7 @@ function newPlayer(id: string, sessionToken: string, name: string, profile?: Use
     knights: [],
     defenderCards: 0,
     walls: 0,
+    freeCityUsed: false,
     ports: [],
     devCards: emptyDevCards(),
     devCardsBoughtThisTurn: [],

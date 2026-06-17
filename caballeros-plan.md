@@ -157,7 +157,8 @@ Piezas en el tablero (intersecciones), con **rango** y **estado**:
   - *Trade Monopoly* (2) — nombra una mercancía; cada jugador te da 1.
 
 ### 2.11 Setup inicial en C&K
-- Igual que el base: cada jugador coloca **2 poblados + 2 caminos** (la app sigue registrando las 2 construcciones de salida con sus fichas). El 2º otorga recursos de inicio.
+- **Regla oficial:** cada jugador empieza con **1 poblado + 1 ciudad** (la 2ª colocación inicial es una **ciudad**, no un poblado), más sus 2 caminos.
+- **Implementación en esta app (decisión confirmada con Esteban):** el **registro inicial se mantiene con 2 poblados** (sin tocar el flujo `InitialBuildSetup`); ya en partida, cada jugador puede **subir UN poblado a ciudad GRATIS** (la "Ciudad inicial"). Las siguientes ciudades cuestan lo normal (2 trigo + 3 mineral). Esto se implementa con `Player.freeCityUsed` y la rama de `build('city')`: si `citiesKnights && !freeCityUsed`, el costo es 0 y se marca `freeCityUsed`. La vista expone `me.freeCityAvailable` y `ActionGrid` muestra "Gratis · ciudad inicial".
 - Diferencias: el **ladrón** se coloca en el desierto pero **inmovilizado** (§2.8); el **barco bárbaro** arranca en el paso 0; nadie empieza con caballeros, mercancías ni mejoras.
 - Mazo de cartas de desarrollo del base **no se usa**; en su lugar, los 3 mazos de progreso.
 

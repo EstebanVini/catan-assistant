@@ -317,6 +317,9 @@ export interface MeView {
   devCardsBoughtThisTurn: DevCardType[];
   ports: PortType[];
   sessionToken?: string;
+  // Caballeros y Ciudades: ¿tengo disponible mi mejora gratuita a Ciudad
+  // inicial? (true mientras no la haya usado). false/undefined en el base.
+  freeCityAvailable?: boolean;
   // Mi tabla de construcción (hidratación al reconectar).
   buildings?: Building[];
   // Ids de poblados comprados este turno cuyas fichas aún no se registran. El
