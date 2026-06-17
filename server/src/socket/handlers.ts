@@ -36,6 +36,7 @@ import {
   drainCommodityBank,
   drawsProgressCard,
   upgradeCityImprovement,
+  resolveBarbarianAttack,
   executeTrade,
   findPlayer,
   payToBank,
@@ -727,22 +728,11 @@ export function registerHandlers(io: Server, socket: Socket): void {
       if (eventDie === 'barbarian') {
         state.barbarianStep = Math.min(7, state.barbarianStep + 1);
         if (state.barbarianStep >= 7) {
-          // Los bárbaros llegan a Catán. La RESOLUCIÓN del combate (fuerza de
-          // caballeros vs ciudades, pérdida de ciudad, Defensor de Catán) se
-          // implementa en la Fase D; aquí registramos el ataque, activamos el
-          // ladrón (primer ataque) y reiniciamos la pista. Mientras tanto, la
-          // mesa resuelve el combate físicamente.
-          state.barbarianAttacks += 1;
-          const first = state.barbarianAttacks === 1;
-          if (first) state.robberActive = true;
-          state.barbarianStep = 0;
-          logAction(state, '¡Los bárbaros llegaron a Catán y atacaron!');
-          io.to(state.code).emit('notice', {
-            level: 'warn',
-            text: first
-              ? '¡Los bárbaros atacaron! El ladrón entra en juego. Resuelvan el combate en la mesa (resolución automática en una próxima versión).'
-              : '¡Los bárbaros atacaron! Resuelvan el combate en la mesa.',
-          });
+          // Los bárbaros llegan a Catán: se resuelve el combate (fuerza de
+          // caballeros activos vs ciudades+metrópolis), se otorga el Defensor de
+          // Catán (o cartas en empate), se marcan perdedores, se desactivan los
+          // caballeros y se activa el ladrón en el primer ataque.
+          resolveBarbarianAttackCK(io, state);
         } else {
           logAction(state, `El barco bárbaro avanza a ${state.barbarianStep}/7.`);
         }
@@ -1433,6 +1423,34 @@ export function registerHandlers(io: Server, socket: Socket): void {
     broadcastState(io, state);
   });
 
+  // Tras un saqueo bárbaro: el perdedor elige qué ciudad degradar a poblado.
+  socket.on('barbarian:downgradeCity', ({ buildingId }: { buildingId: string }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    if (!state.pendingBarbarianLoss.includes(player.id)) return;
+    // No se puede degradar una metrópolis: debe quedar al menos una ciudad
+    // no-metrópolis para poder elegir.
+    if (player.victoryPoints.cities - player.metropolises.length <= 0) {
+      socket.emit('error', { message: 'No tienes una ciudad (no metrópolis) que degradar.' });
+      return;
+    }
+    const building = player.buildings.find((b) => b.id === buildingId && b.type === 'city');
+    if (!building) {
+      socket.emit('error', { message: 'Elige una de tus ciudades.' });
+      return;
+    }
+    pushSnapshot(state);
+    building.type = 'settlement';
+    state.hexes = rebuildHexes(state.players, state.hexes);
+    recomputeVictoryPoints(state);
+    state.pendingBarbarianLoss = state.pendingBarbarianLoss.filter((id) => id !== player.id);
+    logAction(state, `${player.name} degradó una ciudad a poblado por el saqueo bárbaro.`, player.id);
+    io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} perdió una ciudad ante los bárbaros.` });
+    broadcastState(io, state);
+  });
+
   // === Intercambio entre jugadores ===
   socket.on(
     'trade:offer',
@@ -2006,6 +2024,32 @@ const PROGRESS_CARD_NAMES_ES: Record<ProgressCardType, string> = {
 
 function esProgressCard(card: ProgressCardType): string {
   return PROGRESS_CARD_NAMES_ES[card];
+}
+
+// Resuelve el ataque bárbaro (cuando el barco llega a 7) y anuncia el resultado.
+function resolveBarbarianAttackCK(io: Server, state: GameState): void {
+  const r = resolveBarbarianAttack(state);
+  logAction(state, `¡Los bárbaros atacaron! Fuerza bárbara ${r.attack} vs defensa ${r.defense}.`);
+  if (r.defended) {
+    if (r.uniqueDefender) {
+      const w = findPlayer(state, r.uniqueDefender);
+      logAction(state, `Catán se defendió. ${w?.name ?? 'Alguien'} recibe el Defensor de Catán (+1 PV).`, r.uniqueDefender);
+      io.to(state.code).emit('notice', { level: 'success', text: `Catán repelió a los bárbaros. ${w?.name ?? 'Alguien'} es el Defensor de Catán (+1 PV).` });
+    } else if (r.tieRewardDraws.length) {
+      const names = r.tieRewardDraws.map((d) => findPlayer(state, d.playerId)?.name).filter(Boolean).join(', ');
+      logAction(state, `Catán se defendió. Empate de defensa: ${names} roban una carta de progreso.`);
+      io.to(state.code).emit('notice', { level: 'success', text: `Catán repelió a los bárbaros. Empate: ${names} roban carta de progreso.` });
+    } else {
+      io.to(state.code).emit('notice', { level: 'success', text: 'Catán repelió a los bárbaros.' });
+    }
+  } else if (r.losers.length) {
+    const names = r.losers.map((id) => findPlayer(state, id)?.name).filter(Boolean).join(', ');
+    logAction(state, `¡Los bárbaros saquearon! ${names} debe(n) degradar una ciudad a poblado.`);
+    io.to(state.code).emit('notice', { level: 'warn', text: `¡Los bárbaros saquearon Catán! ${names} debe(n) degradar una ciudad a poblado.` });
+  } else {
+    logAction(state, '¡Los bárbaros atacaron, pero nadie tenía una ciudad que perder!');
+    io.to(state.code).emit('notice', { level: 'warn', text: '¡Los bárbaros saquearon, pero no había ciudades que perder!' });
+  }
 }
 
 function checkVictory(io: Server, state: GameState, player: Player): void {

@@ -182,6 +182,8 @@ export interface Player {
   progressCards: ProgressCardType[];
   // Caballeros del jugador (público: rango + estado activo). Solo C&K.
   knights: Knight[];
+  // Cartas "Defensor de Catán" acumuladas (+1 PV cada una). Público. Solo C&K.
+  defenderCards: number;
   ports: PortType[];
   devCards: DevCardCounts; // PRIVADO en tipos; conteo total + caballeros jugados es público
   devCardsBoughtThisTurn: DevCardType[]; // no jugables el mismo turno
@@ -325,6 +327,9 @@ export interface GameState {
   // Jugadores que deben descartar cartas de progreso por exceder el límite de 4
   // (al robar la 5ª). playerId → cuántas debe soltar (normalmente 1). Solo C&K.
   pendingProgressDiscard: Record<string, number>;
+  // Tras un ataque bárbaro perdido: jugadores que deben degradar una ciudad a
+  // poblado (eligen cuál). Solo C&K. Vacío cuando no hay pendiente.
+  pendingBarbarianLoss: string[];
   devDeck: DevCardType[]; // mazo barajado (servidor)
   diceStats: Record<number, number>;
   startedAt: number | null; // epoch ms al iniciar la partida (para persistir el Match)

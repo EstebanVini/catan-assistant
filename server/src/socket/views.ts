@@ -24,6 +24,7 @@ export interface PublicPlayer {
   metropolises: Player['metropolises']; // disciplinas con metrópolis (público)
   progressCardsCount: number; // total de cartas de progreso (público); detalle privado
   knights: Player['knights']; // caballeros (rango + activo); público. Solo C&K.
+  defenderCards: number; // cartas Defensor de Catán (+1 PV c/u); público
   devCardsCount: number;
   knightsPlayed: number;
   ports: Player['ports'];
@@ -59,6 +60,7 @@ export interface PlayerView {
     lastRedDie: number | null;
     lastEventDie: GameState['lastEventDie'];
     pendingProgressDiscard: GameState['pendingProgressDiscard'];
+    pendingBarbarianLoss: string[];
     seedInitialResources: boolean;
     extraRules: GameState['extraRules'];
     players: PublicPlayer[];
@@ -115,6 +117,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
       lastRedDie: state.lastRedDie,
       lastEventDie: state.lastEventDie,
       pendingProgressDiscard: state.pendingProgressDiscard,
+      pendingBarbarianLoss: state.pendingBarbarianLoss,
       seedInitialResources: state.seedInitialResources,
       extraRules: state.extraRules,
       players: state.players.map((p) => toPublic(p, state)),
@@ -157,6 +160,7 @@ function toPublic(p: Player, state: GameState): PublicPlayer {
     metropolises: [...p.metropolises],
     progressCardsCount: p.progressCards.length,
     knights: p.knights.map((k) => ({ ...k })),
+    defenderCards: p.defenderCards,
     devCardsCount: devCardsTotal(p.devCards),
     knightsPlayed: p.knightsPlayed,
     ports: p.ports,

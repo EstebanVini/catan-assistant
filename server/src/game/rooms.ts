@@ -55,6 +55,7 @@ function newPlayer(id: string, sessionToken: string, name: string, profile?: Use
     metropolises: [],
     progressCards: [],
     knights: [],
+    defenderCards: 0,
     ports: [],
     devCards: emptyDevCards(),
     devCardsBoughtThisTurn: [],
@@ -107,6 +108,7 @@ export function createRoom(hostName: string, profile?: UserProfileInfo): { state
     lastRedDie: null,
     lastEventDie: null,
     pendingProgressDiscard: {},
+    pendingBarbarianLoss: [],
     devDeck: buildDevDeck(false),
     diceStats: { 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0 },
     startedAt: null,
@@ -200,6 +202,7 @@ export function pushSnapshot(state: GameState): void {
     lastRedDie: state.lastRedDie,
     lastEventDie: state.lastEventDie,
     pendingProgressDiscard: state.pendingProgressDiscard,
+    pendingBarbarianLoss: state.pendingBarbarianLoss,
   }));
   if (stack.length > MAX_UNDO) stack.shift();
   undoStack.set(state.code, stack);

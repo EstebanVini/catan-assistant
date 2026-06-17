@@ -11,6 +11,7 @@ import {
   publicVictoryPoints,
   buildProgressDecks,
   drawsProgressCard,
+  resolveBarbarianAttack,
 } from './rules';
 import {
   GameState,
@@ -21,6 +22,7 @@ import {
   fullCommodityBank,
   emptyImprovements,
   emptyMetropolisOwners,
+  emptyProgressDecks,
   knightDefenseStrength,
 } from './state';
 
@@ -28,23 +30,26 @@ function makeState(): GameState {
   const p1 = {
     id: 'p1', sessionToken: 't1', name: 'A', color: 'red' as const, connected: true,
     hand: { brick: 1, lumber: 1, wool: 0, grain: 0, ore: 0 }, commodities: emptyCommodities(),
-    improvements: emptyImprovements(), metropolises: [], buildings: [],
+    improvements: emptyImprovements(), metropolises: [], buildings: [], progressCards: [],
+    knights: [], defenderCards: 0,
     ports: [], devCards: emptyDevCards(), devCardsBoughtThisTurn: [], knightsPlayed: 0,
     victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
   };
   const p2 = {
     id: 'p2', sessionToken: 't2', name: 'B', color: 'blue' as const, connected: true,
     hand: emptyHand(), commodities: emptyCommodities(),
-    improvements: emptyImprovements(), metropolises: [], buildings: [],
+    improvements: emptyImprovements(), metropolises: [], buildings: [], progressCards: [],
+    knights: [], defenderCards: 0,
     ports: [], devCards: emptyDevCards(), devCardsBoughtThisTurn: [], knightsPlayed: 0,
     victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
   };
   return {
     code: 'TEST', hostId: 'p1', bankManagerId: 'p1', status: 'playing', extension56: false,
-    citiesKnights: false, barbarianStep: 0, robberActive: true,
+    citiesKnights: false, barbarianStep: 0, barbarianAttacks: 0, robberActive: true,
     players: [p1, p2], turnOrder: ['p1', 'p2'], currentTurnIndex: 0, phase: 'roll',
     specialBuildQueue: [], hexes: [], bank: fullBank(false), commodityBank: fullCommodityBank(),
-    metropolisOwners: emptyMetropolisOwners(),
+    metropolisOwners: emptyMetropolisOwners(), progressDecks: emptyProgressDecks(),
+    lastRedDie: null, lastEventDie: null, pendingProgressDiscard: {}, pendingBarbarianLoss: [],
     devDeck: [], diceStats: {2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0},
     log: [], pendingDiscards: {}, pendingRobberMove: false, pendingRobberSteal: false,
   };
@@ -248,6 +253,42 @@ describe('knightDefenseStrength', () => {
       ])
     ).toBe(4);
     expect(knightDefenseStrength([])).toBe(0);
+  });
+});
+
+describe('resolveBarbarianAttack', () => {
+  it('defensa >= ataque: el mayor defensor recibe Defensor de Catán (+1 PV)', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    s.players[0].buildings = [{ id: 'c1', type: 'city', spots: [] }]; // 1 ciudad → ataque 1
+    s.players[0].knights = [{ id: 'k1', rank: 2, active: true }]; // defensa 2
+    const r = resolveBarbarianAttack(s);
+    expect(r.attack).toBe(1);
+    expect(r.defense).toBe(2);
+    expect(r.defended).toBe(true);
+    expect(r.uniqueDefender).toBe('p1');
+    expect(s.players[0].defenderCards).toBe(1);
+    // tras el ataque: caballeros desactivados, pista en 0, ladrón activo.
+    expect(s.players[0].knights[0].active).toBe(false);
+    expect(s.barbarianStep).toBe(0);
+    expect(s.barbarianAttacks).toBe(1);
+    expect(s.robberActive).toBe(true);
+  });
+
+  it('defensa < ataque: el de menor defensa con ciudad pierde una (pendiente)', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    // p1: 2 ciudades, sin caballeros (defensa 0). p2: 1 ciudad, 1 caballero activo.
+    s.players[0].buildings = [
+      { id: 'c1', type: 'city', spots: [] },
+      { id: 'c2', type: 'city', spots: [] },
+    ];
+    s.players[1].buildings = [{ id: 'c3', type: 'city', spots: [] }];
+    s.players[1].knights = [{ id: 'k1', rank: 1, active: true }];
+    const r = resolveBarbarianAttack(s); // ataque 3, defensa 1 → saqueo
+    expect(r.defended).toBe(false);
+    expect(r.losers).toEqual(['p1']); // p1 tiene la menor defensa (0) y ciudades
+    expect(s.pendingBarbarianLoss).toEqual(['p1']);
   });
 });
 

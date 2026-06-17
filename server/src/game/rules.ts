@@ -19,6 +19,7 @@ import {
   ProgressDecks,
   PROGRESS_DECK_COUNTS,
   emptyProgressDecks,
+  knightDefenseStrength,
   emptyHand,
   fullBank,
   handTotal,
@@ -347,6 +348,8 @@ export function publicVictoryPoints(p: Player): number {
     2 * p.victoryPoints.cities +
     // Cada metrópolis suma +2 sobre la ciudad que la hospeda (ciudad 2 → 4 PV).
     2 * (p.metropolises?.length ?? 0) +
+    // Cada carta "Defensor de Catán" vale +1 PV.
+    (p.defenderCards ?? 0) +
     (p.victoryPoints.longestRoad ? 2 : 0) +
     (p.victoryPoints.largestArmy ? 2 : 0) +
     p.victoryPoints.vpCards
@@ -357,6 +360,88 @@ export function publicVictoryPoints(p: Player): number {
 // una vez USADAS (mientras están en la mano son una carta de desarrollo más).
 export function totalVictoryPoints(p: Player): number {
   return publicVictoryPoints(p);
+}
+
+// === Resolución del ataque bárbaro (Caballeros y Ciudades) ===
+export interface BarbarianResult {
+  attack: number; // fuerza bárbara = total de ciudades+metrópolis
+  defense: number; // fuerza de defensa = suma de caballeros activos de todos
+  defended: boolean;
+  topDefenders: string[]; // mayor aporte individual de defensa (>0)
+  uniqueDefender: string | null; // único top → recibe Defensor de Catán
+  tieRewardDraws: Array<{ playerId: string; card: ProgressCardType; discipline: Discipline }>;
+  losers: string[]; // pillaje: deben degradar una ciudad (eligen cuál)
+}
+
+// Calcula y APLICA el resultado del ataque: otorga Defensor de Catán (o cartas
+// de progreso en empate), marca a los perdedores que deben degradar una ciudad,
+// desactiva TODOS los caballeros, cuenta el ataque (activa el ladrón en el
+// primero) y reinicia la pista. La degradación de ciudad la hace cada perdedor
+// después (barbarian:downgradeCity), por eso aquí solo se marcan.
+export function resolveBarbarianAttack(state: GameState): BarbarianResult {
+  recomputeVictoryPoints(state); // ciudades al día
+
+  const contrib = state.players.map((p) => ({
+    id: p.id,
+    defense: knightDefenseStrength(p.knights),
+    cities: p.victoryPoints.cities,
+    spareCities: p.victoryPoints.cities - p.metropolises.length, // ciudades no-metrópolis
+  }));
+  const attack = contrib.reduce((s, c) => s + c.cities, 0);
+  const defense = contrib.reduce((s, c) => s + c.defense, 0);
+  const defended = defense >= attack;
+
+  const result: BarbarianResult = {
+    attack, defense, defended, topDefenders: [], uniqueDefender: null,
+    tieRewardDraws: [], losers: [],
+  };
+
+  if (defended) {
+    const maxDef = Math.max(0, ...contrib.map((c) => c.defense));
+    if (maxDef > 0) {
+      const top = contrib.filter((c) => c.defense === maxDef).map((c) => c.id);
+      result.topDefenders = top;
+      if (top.length === 1) {
+        const winner = state.players.find((p) => p.id === top[0]);
+        if (winner) winner.defenderCards += 1;
+        result.uniqueDefender = top[0];
+      } else {
+        // Empate: cada top roba 1 carta de progreso (disciplina al azar con mazo).
+        for (const id of top) {
+          const p = state.players.find((pp) => pp.id === id);
+          if (!p) continue;
+          const avail = (['trade', 'politics', 'science'] as Discipline[]).filter(
+            (d) => state.progressDecks[d].length > 0
+          );
+          if (avail.length === 0) continue;
+          const disc = avail[Math.floor(Math.random() * avail.length)];
+          const card = state.progressDecks[disc].pop() as ProgressCardType;
+          p.progressCards.push(card);
+          if (p.progressCards.length > 4) {
+            state.pendingProgressDiscard[p.id] = p.progressCards.length - 4;
+          }
+          result.tieRewardDraws.push({ playerId: id, card, discipline: disc });
+        }
+      }
+    }
+  } else {
+    // Pillaje: los de MENOR defensa (sobre TODOS) que tengan una ciudad
+    // no-metrópolis pierden una ciudad. Quien no tenga ciudad está a salvo.
+    const minDef = Math.min(...contrib.map((c) => c.defense));
+    const losers = contrib
+      .filter((c) => c.defense === minDef && c.spareCities > 0)
+      .map((c) => c.id);
+    result.losers = losers;
+    state.pendingBarbarianLoss = losers;
+  }
+
+  // Desactivar todos los caballeros y reiniciar la pista.
+  for (const p of state.players) for (const k of p.knights) k.active = false;
+  state.barbarianAttacks += 1;
+  if (state.barbarianAttacks === 1) state.robberActive = true;
+  state.barbarianStep = 0;
+
+  return result;
 }
 
 // === Ejército más grande ===
