@@ -23,6 +23,7 @@ export interface PublicPlayer {
   improvements: Player['improvements']; // niveles de mejora de ciudad (público)
   metropolises: Player['metropolises']; // disciplinas con metrópolis (público)
   progressCardsCount: number; // total de cartas de progreso (público); detalle privado
+  knights: Player['knights']; // caballeros (rango + activo); público. Solo C&K.
   devCardsCount: number;
   knightsPlayed: number;
   ports: Player['ports'];
@@ -155,6 +156,7 @@ function toPublic(p: Player, state: GameState): PublicPlayer {
     improvements: { ...p.improvements },
     metropolises: [...p.metropolises],
     progressCardsCount: p.progressCards.length,
+    knights: p.knights.map((k) => ({ ...k })),
     devCardsCount: devCardsTotal(p.devCards),
     knightsPlayed: p.knightsPlayed,
     ports: p.ports,

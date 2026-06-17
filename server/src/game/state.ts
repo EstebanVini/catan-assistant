@@ -100,6 +100,30 @@ export const PROGRESS_HAND_LIMIT = 4;
 // Caras del dado de evento: barco bárbaro o una "puerta" de color (disciplina).
 export type EventDie = 'barbarian' | Discipline;
 
+// === Caballeros (Caballeros y Ciudades) ===
+// Piezas con rango (1 básico, 2 fuerte, 3 poderoso) y estado activo/inactivo.
+// En el asistente NO hay geometría de tablero (decisión caballeros-plan.md §13):
+// se contabilizan rango y estado; los movimientos/expulsiones se arbitran en la
+// mesa. La fuerza de defensa contra los bárbaros = suma del rango de los
+// caballeros ACTIVOS.
+export type KnightRank = 1 | 2 | 3;
+export interface Knight {
+  id: string;
+  rank: KnightRank;
+  active: boolean;
+}
+export const MAX_KNIGHTS = 6; // 2 de cada rango (informativo)
+
+// Costos (en recursos) de las acciones de caballero.
+export const KNIGHT_BUILD_COST: Partial<Hand> = { wool: 1, ore: 1 };
+export const KNIGHT_ACTIVATE_COST: Partial<Hand> = { grain: 1 };
+export const KNIGHT_PROMOTE_COST: Partial<Hand> = { wool: 1, ore: 1 };
+
+// Fuerza de defensa de un jugador: suma del rango de sus caballeros ACTIVOS.
+export function knightDefenseStrength(knights: Knight[]): number {
+  return knights.reduce((sum, k) => sum + (k.active ? k.rank : 0), 0);
+}
+
 export type DevCardType = 'knight' | 'vp' | 'roadBuilding' | 'yearOfPlenty' | 'monopoly';
 
 export type PortType = '3:1' | Resource;
@@ -156,6 +180,8 @@ export interface Player {
   metropolises: Discipline[];
   // Cartas de progreso en mano (PRIVADO; máx 4). Solo C&K. El conteo es público.
   progressCards: ProgressCardType[];
+  // Caballeros del jugador (público: rango + estado activo). Solo C&K.
+  knights: Knight[];
   ports: PortType[];
   devCards: DevCardCounts; // PRIVADO en tipos; conteo total + caballeros jugados es público
   devCardsBoughtThisTurn: DevCardType[]; // no jugables el mismo turno

@@ -21,6 +21,7 @@ import {
   fullCommodityBank,
   emptyImprovements,
   emptyMetropolisOwners,
+  knightDefenseStrength,
 } from './state';
 
 function makeState(): GameState {
@@ -234,6 +235,19 @@ describe('cartas de progreso (calendario)', () => {
     // El mazo de comercio tiene 6 Mercaderes y 4 Monopolio de recurso.
     expect(decks.trade.filter((c) => c === 'merchant')).toHaveLength(6);
     expect(decks.trade.filter((c) => c === 'resourceMonopoly')).toHaveLength(4);
+  });
+});
+
+describe('knightDefenseStrength', () => {
+  it('suma solo el rango de los caballeros ACTIVOS', () => {
+    expect(
+      knightDefenseStrength([
+        { id: 'a', rank: 1, active: true },
+        { id: 'b', rank: 2, active: false }, // inactivo: no suma
+        { id: 'c', rank: 3, active: true },
+      ])
+    ).toBe(4);
+    expect(knightDefenseStrength([])).toBe(0);
   });
 });
 

@@ -54,6 +54,7 @@ function newPlayer(id: string, sessionToken: string, name: string, profile?: Use
     improvements: emptyImprovements(),
     metropolises: [],
     progressCards: [],
+    knights: [],
     ports: [],
     devCards: emptyDevCards(),
     devCardsBoughtThisTurn: [],

@@ -80,6 +80,24 @@ export const PROGRESS_NEEDS_COMMODITY: ProgressCardType[] = ['tradeMonopoly'];
 // Caras del dado de evento: barco bárbaro o una puerta de color (disciplina).
 export type EventDie = 'barbarian' | Discipline;
 
+// Caballeros (Caballeros y Ciudades). Espejo del server.
+export type KnightRank = 1 | 2 | 3;
+export interface Knight {
+  id: string;
+  rank: KnightRank;
+  active: boolean;
+}
+export const MAX_KNIGHTS = 6;
+export const KNIGHT_RANK_NAMES: Record<KnightRank, string> = {
+  1: 'Básico',
+  2: 'Fuerte',
+  3: 'Poderoso',
+};
+
+export function knightDefenseStrength(knights: Knight[]): number {
+  return knights.reduce((sum, k) => sum + (k.active ? k.rank : 0), 0);
+}
+
 export type DevCardType =
   | 'knight'
   | 'vp'
@@ -181,6 +199,7 @@ export interface PublicPlayer {
   improvements: CityImprovements; // niveles de mejora de ciudad (público)
   metropolises: Discipline[]; // disciplinas con metrópolis (público)
   progressCardsCount: number; // total de cartas de progreso (público); detalle privado
+  knights: Knight[]; // caballeros (rango + activo); público. Solo C&K.
   devCardsCount: number;
   knightsPlayed: number;
   ports: PortType[];

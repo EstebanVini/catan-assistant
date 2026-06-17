@@ -15,6 +15,10 @@ import {
   EventDie,
   ProgressCardType,
   PROGRESS_HAND_LIMIT,
+  MAX_KNIGHTS,
+  KNIGHT_BUILD_COST,
+  KNIGHT_ACTIVATE_COST,
+  KNIGHT_PROMOTE_COST,
   emptyHand,
   fullBank,
   handTotal,
@@ -1306,6 +1310,127 @@ export function registerHandlers(io: Server, socket: Socket): void {
       });
     }
     checkVictory(io, state, player);
+  });
+
+  // === Caballeros (Caballeros y Ciudades) ===
+  // Helper: ¿el jugador puede actuar ahora (su turno en main, o cabeza de cola
+  // en construcción especial)?
+  function canActCK(state: GameState, player: Player): boolean {
+    return (
+      (ensureActive(state, player.id) && state.phase === 'main') ||
+      (state.phase === 'specialBuild' && state.specialBuildQueue[0] === player.id)
+    );
+  }
+
+  socket.on('knight:build', () => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    if (!canActCK(state, player)) {
+      socket.emit('error', { message: 'Solo puedes contratar caballeros en tu turno, después de tirar.' });
+      return;
+    }
+    if (player.knights.length >= MAX_KNIGHTS) {
+      socket.emit('error', { message: `Máximo ${MAX_KNIGHTS} caballeros.` });
+      return;
+    }
+    if (!canAfford(player.hand, KNIGHT_BUILD_COST)) {
+      socket.emit('error', { message: 'Necesitas 1 lana y 1 mineral para un caballero.' });
+      return;
+    }
+    pushSnapshot(state);
+    payToBank(player.hand, state.bank, KNIGHT_BUILD_COST);
+    player.knights.push({ id: nanoid(8), rank: 1, active: false });
+    logAction(state, `${player.name} contrató un caballero básico (inactivo).`, player.id);
+    broadcastState(io, state);
+  });
+
+  socket.on('knight:activate', ({ knightId }: { knightId: string }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    if (!canActCK(state, player)) {
+      socket.emit('error', { message: 'Solo puedes activar caballeros en tu turno, después de tirar.' });
+      return;
+    }
+    const knight = player.knights.find((k) => k.id === knightId);
+    if (!knight) return;
+    if (knight.active) {
+      socket.emit('error', { message: 'Ese caballero ya está activo.' });
+      return;
+    }
+    if (!canAfford(player.hand, KNIGHT_ACTIVATE_COST)) {
+      socket.emit('error', { message: 'Necesitas 1 trigo para activar un caballero.' });
+      return;
+    }
+    pushSnapshot(state);
+    payToBank(player.hand, state.bank, KNIGHT_ACTIVATE_COST);
+    knight.active = true;
+    logAction(state, `${player.name} activó un caballero (fuerza ${knight.rank}).`, player.id);
+    broadcastState(io, state);
+  });
+
+  socket.on('knight:promote', ({ knightId }: { knightId: string }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    if (!canActCK(state, player)) {
+      socket.emit('error', { message: 'Solo puedes promover caballeros en tu turno, después de tirar.' });
+      return;
+    }
+    const knight = player.knights.find((k) => k.id === knightId);
+    if (!knight) return;
+    if (knight.rank >= 3) {
+      socket.emit('error', { message: 'Ese caballero ya es poderoso (nivel máximo).' });
+      return;
+    }
+    // Promover a nivel 3 (poderoso) requiere Fortaleza (Política nivel 3).
+    if (knight.rank === 2 && player.improvements.politics < 3) {
+      socket.emit('error', { message: 'Necesitas la Fortaleza (Política nivel 3) para promover a caballero poderoso.' });
+      return;
+    }
+    if (!canAfford(player.hand, KNIGHT_PROMOTE_COST)) {
+      socket.emit('error', { message: 'Necesitas 1 lana y 1 mineral para promover un caballero.' });
+      return;
+    }
+    pushSnapshot(state);
+    payToBank(player.hand, state.bank, KNIGHT_PROMOTE_COST);
+    knight.rank = (knight.rank + 1) as 1 | 2 | 3;
+    logAction(state, `${player.name} promovió un caballero a fuerza ${knight.rank}.`, player.id);
+    broadcastState(io, state);
+  });
+
+  // Acción de un caballero ACTIVO (mover/expulsar/ahuyentar). Sin geometría de
+  // tablero: se arbitra en la mesa (decisión §13). Usar el caballero lo
+  // desactiva. 'chaseRobber' solo tras el primer ataque bárbaro.
+  socket.on('knight:action', ({ knightId, kind }: { knightId: string; kind: 'move' | 'displace' | 'chaseRobber' }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    if (!canActCK(state, player)) {
+      socket.emit('error', { message: 'Solo puedes usar caballeros en tu turno.' });
+      return;
+    }
+    const knight = player.knights.find((k) => k.id === knightId);
+    if (!knight) return;
+    if (!knight.active) {
+      socket.emit('error', { message: 'El caballero debe estar activo para actuar.' });
+      return;
+    }
+    if (kind === 'chaseRobber' && !state.robberActive) {
+      socket.emit('error', { message: 'El ladrón aún no está en juego (falta el primer ataque bárbaro).' });
+      return;
+    }
+    pushSnapshot(state);
+    knight.active = false; // usar el caballero lo desactiva
+    const verb = kind === 'move' ? 'movió' : kind === 'displace' ? 'expulsó con' : 'ahuyentó al ladrón con';
+    logAction(state, `${player.name} ${verb} un caballero. Resuélvanlo en la mesa.`, player.id);
+    io.to(state.code).emit('notice', { level: 'info', text: `${player.name} usó un caballero (${kind === 'chaseRobber' ? 'ahuyentar ladrón' : kind === 'displace' ? 'expulsar' : 'mover'}). Resuélvanlo en la mesa.` });
+    broadcastState(io, state);
   });
 
   // === Intercambio entre jugadores ===

@@ -156,6 +156,10 @@ interface StoreState {
     resource?: Resource;
     commodity?: Commodity;
   }) => void;
+  buildKnight: () => void;
+  activateKnight: (knightId: string) => void;
+  promoteKnight: (knightId: string) => void;
+  knightAction: (knightId: string, kind: 'move' | 'displace' | 'chaseRobber') => void;
   submitDiscard: (resourcesToDiscard: Partial<Hand>) => void;
   forceRandomDiscard: (targetPlayerId: string) => void;
   moveRobber: (hexId: string) => void;
@@ -427,6 +431,10 @@ export const useStore = create<StoreState>((set, get) => ({
     socket.emit('turn:rollCK', { production, redDie, eventDie }),
   discardProgress: (card) => socket.emit('progress:discard', { card }),
   playProgress: (payload) => socket.emit('progress:play', payload),
+  buildKnight: () => socket.emit('knight:build'),
+  activateKnight: (knightId) => socket.emit('knight:activate', { knightId }),
+  promoteKnight: (knightId) => socket.emit('knight:promote', { knightId }),
+  knightAction: (knightId, kind) => socket.emit('knight:action', { knightId, kind }),
   submitDiscard: (resourcesToDiscard) =>
     socket.emit('discard:submit', { resourcesToDiscard }),
   forceRandomDiscard: (targetPlayerId) =>
