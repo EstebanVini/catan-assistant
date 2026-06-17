@@ -151,6 +151,11 @@ interface StoreState {
   rollNumber: (n: number) => void;
   rollCK: (production: number, redDie: number, eventDie: EventDie) => void;
   discardProgress: (card: ProgressCardType) => void;
+  playProgress: (payload: {
+    card: ProgressCardType;
+    resource?: Resource;
+    commodity?: Commodity;
+  }) => void;
   submitDiscard: (resourcesToDiscard: Partial<Hand>) => void;
   forceRandomDiscard: (targetPlayerId: string) => void;
   moveRobber: (hexId: string) => void;
@@ -421,6 +426,7 @@ export const useStore = create<StoreState>((set, get) => ({
   rollCK: (production, redDie, eventDie) =>
     socket.emit('turn:rollCK', { production, redDie, eventDie }),
   discardProgress: (card) => socket.emit('progress:discard', { card }),
+  playProgress: (payload) => socket.emit('progress:play', payload),
   submitDiscard: (resourcesToDiscard) =>
     socket.emit('discard:submit', { resourcesToDiscard }),
   forceRandomDiscard: (targetPlayerId) =>

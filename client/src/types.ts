@@ -67,6 +67,16 @@ export const PROGRESS_CARD_DISCIPLINE: Record<ProgressCardType, Discipline> = {
 
 export const PROGRESS_HAND_LIMIT = 4;
 
+// Cartas de progreso con automatización plena en la app (las demás son de
+// "registro asistido": se juegan y se resuelven en la mesa). Espejo de la
+// lógica de progress:play en el servidor.
+export const PROGRESS_AUTOMATED: ProgressCardType[] = [
+  'printer', 'constitution', 'resourceMonopoly', 'tradeMonopoly', 'irrigation', 'mining',
+];
+// Cartas que requieren elegir un recurso / una mercancía al jugarse.
+export const PROGRESS_NEEDS_RESOURCE: ProgressCardType[] = ['resourceMonopoly'];
+export const PROGRESS_NEEDS_COMMODITY: ProgressCardType[] = ['tradeMonopoly'];
+
 // Caras del dado de evento: barco bárbaro o una puerta de color (disciplina).
 export type EventDie = 'barbarian' | Discipline;
 

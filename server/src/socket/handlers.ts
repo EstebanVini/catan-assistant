@@ -830,6 +830,100 @@ export function registerHandlers(io: Server, socket: Socket): void {
     broadcastState(io, state);
   });
 
+  // === Jugar una carta de progreso (Caballeros y Ciudades) ===
+  // Decisión del proyecto (caballeros-plan.md §13.2): "registro asistido". Las
+  // cartas autocontenidas se automatizan por completo; las que dependen de
+  // caballeros/muros/caminos o de geometría de tablero se registran (se quitan
+  // de la mano + log/notice) para que la mesa las resuelva físicamente. Esas
+  // recibirán automatización plena en las fases D/E.
+  socket.on(
+    'progress:play',
+    ({ card, resource, commodity }: { card: ProgressCardType; resource?: Resource; commodity?: Commodity }) => {
+      const state = getRoom(socket.data.code ?? '');
+      if (!state || !state.citiesKnights) return;
+      const player = findPlayer(state, socket.data.playerId ?? '');
+      if (!player) return;
+      if (!ensureActive(state, player.id) || state.phase !== 'main') {
+        socket.emit('error', { message: 'Solo puedes jugar cartas de progreso en tu turno, después de tirar.' });
+        return;
+      }
+      const idx = player.progressCards.indexOf(card);
+      if (idx === -1) {
+        socket.emit('error', { message: 'No tienes esa carta de progreso.' });
+        return;
+      }
+      pushSnapshot(state);
+      const name = esProgressCard(card);
+      let handled = true;
+
+      if (card === 'printer' || card === 'constitution') {
+        // +1 PV permanente (como las cartas de PV del base).
+        player.victoryPoints.vpCards += 1;
+        logAction(state, `${player.name} jugó ${name}: +1 punto de victoria.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó ${name} (+1 PV).` });
+      } else if (card === 'resourceMonopoly') {
+        // Nombra un recurso; cada jugador te da hasta 2 de ese recurso.
+        if (!resource || !RESOURCES.includes(resource)) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige un recurso válido.' });
+          return;
+        }
+        let total = 0;
+        for (const other of state.players) {
+          if (other.id === player.id) continue;
+          const take = Math.min(2, other.hand[resource]);
+          other.hand[resource] -= take;
+          total += take;
+        }
+        player.hand[resource] += total;
+        logAction(state, `${player.name} jugó Monopolio de Recurso (${esResource(resource)}) y tomó ${total}.`, player.id);
+        io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} jugó Monopolio de ${esResource(resource)} (tomó ${total}).` });
+      } else if (card === 'tradeMonopoly') {
+        // Nombra una mercancía; cada jugador te da 1 si tiene.
+        if (!commodity || !COMMODITIES.includes(commodity)) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige una mercancía válida.' });
+          return;
+        }
+        let total = 0;
+        for (const other of state.players) {
+          if (other.id === player.id) continue;
+          const take = Math.min(1, other.commodities[commodity]);
+          other.commodities[commodity] -= take;
+          total += take;
+        }
+        player.commodities[commodity] += total;
+        logAction(state, `${player.name} jugó Monopolio de Comercio (${esCommodity(commodity)}) y tomó ${total}.`, player.id);
+        io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} jugó Monopolio de Comercio de ${esCommodity(commodity)} (tomó ${total}).` });
+      } else if (card === 'irrigation' || card === 'mining') {
+        // 2 recursos por cada ficha (spot) del recurso que toquen tus
+        // construcciones. irrigation→trigo, mining→mineral.
+        const res: Resource = card === 'irrigation' ? 'grain' : 'ore';
+        let spots = 0;
+        for (const b of player.buildings) {
+          for (const s of b.spots) if (s.resource === res) spots += 1;
+        }
+        const gained = spots * 2;
+        player.hand[res] += gained;
+        drainBank(state.bank, res, gained);
+        logAction(state, `${player.name} jugó ${name}: ganó ${gained} ${esResource(res)} (${spots} fichas de ${esResource(res)}).`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó ${name} (+${gained} ${esResource(res)}).` });
+      } else {
+        // Registro asistido: la carta se retira y la mesa la resuelve.
+        handled = false;
+        logAction(state, `${player.name} jugó ${name}. Resuélvanla en la mesa.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó ${name}. Resuélvanla en la mesa.` });
+      }
+
+      // Quitar la carta de la mano (por índice; ya validado arriba).
+      const removeAt = player.progressCards.indexOf(card);
+      if (removeAt !== -1) player.progressCards.splice(removeAt, 1);
+      void handled; // (handled se conserva por claridad; ambas ramas quitan la carta)
+      broadcastState(io, state);
+      checkVictory(io, state, player);
+    }
+  );
+
   // === Descarte ===
   socket.on('discard:submit', ({ resourcesToDiscard }: { resourcesToDiscard: Partial<Hand> }) => {
     const state = getRoom(socket.data.code ?? '');
@@ -1772,6 +1866,22 @@ const ABILITY_NAMES: Record<'tradingHouse' | 'fortress' | 'aqueduct', string> = 
   fortress: 'la Fortaleza',
   aqueduct: 'el Acueducto',
 };
+
+const PROGRESS_CARD_NAMES_ES: Record<ProgressCardType, string> = {
+  alchemist: 'Alquimista', crane: 'Grúa', engineer: 'Ingeniero', inventor: 'Inventor',
+  irrigation: 'Irrigación', mining: 'Minería', medicine: 'Medicina',
+  roadBuildingP: 'Construcción de Caminos', smith: 'Herrero', printer: 'Imprenta',
+  spy: 'Espía', bishop: 'Obispo', constitution: 'Constitución', deserter: 'Desertor',
+  diplomat: 'Diplomático', intrigue: 'Intriga', saboteur: 'Saboteador',
+  warlord: 'Señor de la Guerra', wedding: 'Boda',
+  merchant: 'Mercader', merchantFleet: 'Flota Mercante', commercialHarbor: 'Puerto Comercial',
+  masterMerchant: 'Maestro Mercader', resourceMonopoly: 'Monopolio de Recurso',
+  tradeMonopoly: 'Monopolio de Comercio',
+};
+
+function esProgressCard(card: ProgressCardType): string {
+  return PROGRESS_CARD_NAMES_ES[card];
+}
 
 function checkVictory(io: Server, state: GameState, player: Player): void {
   recomputeVictoryPoints(state);
