@@ -457,6 +457,109 @@ export function ProgressCardGlyph({
   );
 }
 
+// ─── Caballeros (Caballeros y Ciudades, §2.6) ─────────────────────────────────
+//
+// Arte RECICLADO del medallón de caballero del base (`caballero.png`, el mismo
+// que la carta de desarrollo `knight`). NO hay arte por rango ni por estado: el
+// componente los resuelve en CSS, sin arte nuevo (missing-icons.md):
+//  - RANGO (1 Básico / 2 Fuerte / 3 Poderoso): galones (chevrones) bajo el
+//    medallón, uno por nivel de rango.
+//  - ESTADO: ACTIVO → realce dorado heráldico (aro --gold, medallón a plena
+//    opacidad); INACTIVO → acero frío desaturado (aro --ck-steel, medallón
+//    atenuado), el caballero "en reserva".
+// El color del aro y la opacidad son el distintivo; el nombre/etiqueta vecina
+// (KNIGHT_RANK_NAMES + "Activo/Inactivo") lo precisa. Cuando llegue arte propio
+// por rango basta cambiar `knightUrl` o mapear por rango aquí.
+
+const KNIGHT_ACTIVE_RING = '#d9a93e'; // dorado heráldico (= --gold) → activo
+const KNIGHT_INACTIVE_RING = '#8b919b'; // acero (= --ck-steel) → inactivo
+
+export function KnightGlyph({
+  rank,
+  active,
+  size = 28,
+  className,
+}: {
+  rank: 1 | 2 | 3;
+  active: boolean;
+  size?: number;
+  className?: string;
+}): JSX.Element {
+  const ring = active ? KNIGHT_ACTIVE_RING : KNIGHT_INACTIVE_RING;
+  const inner = Math.round(size * 0.74);
+  // Galón por rango: alto fijo bajo el medallón; uno por nivel de rango.
+  const chevronH = Math.max(3, Math.round(size * 0.12));
+  const chevronGap = Math.max(1, Math.round(size * 0.04));
+  return (
+    <span
+      aria-hidden
+      className={className}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: chevronGap,
+        flexShrink: 0,
+      }}
+    >
+      <span
+        style={{
+          position: 'relative',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: size,
+          height: size,
+          borderRadius: '9999px',
+          background: active
+            ? `radial-gradient(closest-side, ${ring}26, ${ring}0f 70%, transparent)`
+            : `radial-gradient(closest-side, ${ring}1a, ${ring}08 70%, transparent)`,
+          border: `1.5px solid ${ring}`,
+          boxShadow: `inset 0 0 0 1px ${STROKE}33, 0 0 0 1px ${STROKE}22`,
+        }}
+      >
+        <img
+          src={knightUrl}
+          width={inner}
+          height={inner}
+          alt=""
+          aria-hidden
+          draggable={false}
+          style={{
+            display: 'block',
+            objectFit: 'contain',
+            // El caballero inactivo (en reserva) se atenúa y desatura para
+            // leerse "apagado" frente al activo (dorado, a plena opacidad).
+            opacity: active ? 1 : 0.55,
+            filter: active ? 'none' : 'grayscale(0.7)',
+          }}
+        />
+      </span>
+      {/* Galones de rango: 1 (Básico) / 2 (Fuerte) / 3 (Poderoso). */}
+      <span
+        aria-hidden
+        style={{ display: 'inline-flex', gap: chevronGap, height: chevronH }}
+      >
+        {Array.from({ length: rank }, (_, i) => (
+          <span
+            key={i}
+            style={{
+              width: chevronH,
+              height: chevronH,
+              borderRadius: '2px',
+              background: ring,
+              border: `1px solid ${STROKE}66`,
+              transform: 'rotate(45deg)',
+            }}
+          />
+        ))}
+      </span>
+    </span>
+  );
+}
+
 // ─── Ladrón ──────────────────────────────────────────────────────────────────
 
 // Arte medallón del ladrón. Se usa en la Tabla de construcción (ficha

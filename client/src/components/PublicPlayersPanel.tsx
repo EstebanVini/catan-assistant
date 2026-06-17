@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../store';
-import { Discipline, PublicPlayer } from '../types';
+import { Discipline, Knight, PublicPlayer, knightDefenseStrength } from '../types';
 import { ColorChip } from './ColorChip';
 import { DISCIPLINE_NAMES, portLabel } from '../lib/spanish';
 import { playerHex } from '../lib/playerColors';
 import { BadgeChip, BadgeIcon } from './BadgeIcon';
+import { KnightGlyph } from '../assets/icons';
 import { CollapsibleSection } from './CollapsibleSection';
 
 // Estado público por jugador. Manos ajenas nunca se muestran (privacidad).
@@ -315,6 +316,13 @@ export function PublicPlayersPanel(): JSX.Element | null {
                       ))}
                     </div>
                   ) : null}
+                  {/* Caballeros (C&K): recuento total + fuerza de defensa
+                      pública (suma del rango de los ACTIVOS), distinguiendo
+                      activos/inactivos. Los caballeros viven en `p.knights`
+                      (públicos: rango + activo). Solo en C&K. */}
+                  {state.citiesKnights ? (
+                    <KnightsSummary knights={p.knights} />
+                  ) : null}
                   {p.ports.length > 0 ? (
                     <div className="mt-1 flex flex-wrap items-center gap-1">
                       {p.ports.map((port) => (
@@ -450,6 +458,39 @@ const DISCIPLINE_CHIP_DOT: Record<Discipline, string> = {
   politics: 'bg-discipline-politics',
   science: 'bg-discipline-science',
 };
+
+// Resumen público de caballeros de un jugador (C&K): chip con la fuerza de
+// defensa (suma de rango de los activos) y el desglose activos/inactivos. El
+// acero (--ck-steel) lo separa del lenguaje dorado de las insignias/metrópolis.
+function KnightsSummary({ knights }: { knights: Knight[] }): JSX.Element | null {
+  if (knights.length === 0) return null;
+  const defense = knightDefenseStrength(knights);
+  const active = knights.filter((k) => k.active).length;
+  const inactive = knights.length - active;
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-ck-steel/40 bg-ck-steel/[0.12] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-ck-steel-light"
+        aria-label={`Caballeros: ${knights.length} (${active} activos, ${inactive} inactivos). Fuerza de defensa ${defense}.`}
+        title={`Fuerza de defensa ${defense} · ${active} activos · ${inactive} inactivos`}
+      >
+        <KnightGlyph rank={3} active={defense > 0} size={14} />
+        <span>
+          Caballeros{' '}
+          <span className="nums text-neutral-100">{knights.length}</span>
+        </span>
+        <span aria-hidden className="text-ck-steel/60">|</span>
+        <span>
+          Defensa <span className="nums text-ck-steel-light">{defense}</span>
+        </span>
+      </span>
+      <span className="text-[10px] leading-none text-neutral-500">
+        <span className="nums text-gold-light">{active}</span> act ·{' '}
+        <span className="nums text-neutral-300">{inactive}</span> inact
+      </span>
+    </div>
+  );
+}
 
 function MetropolisChip({ discipline }: { discipline: Discipline }): JSX.Element {
   return (

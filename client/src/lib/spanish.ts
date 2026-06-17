@@ -261,6 +261,25 @@ export const PROGRESS_CARD_DESCRIPTIONS: Record<ProgressCardType, string> = {
   tradeMonopoly: 'Toma 1 mercancía a elección de cada rival.',
 };
 
+// Caballeros (Caballeros y Ciudades, §2.6). Las acciones de un caballero ACTIVO
+// se resuelven en la mesa (registro asistido): la app las anuncia y desactiva el
+// caballero, pero el movimiento físico de la pieza lo hace el jugador.
+export type KnightActionKind = 'move' | 'displace' | 'chaseRobber';
+
+export const KNIGHT_ACTION_NAMES: Record<KnightActionKind, string> = {
+  move: 'Mover',
+  displace: 'Expulsar',
+  chaseRobber: 'Ahuyentar ladrón',
+};
+
+export const KNIGHT_ACTION_DESCRIPTIONS: Record<KnightActionKind, string> = {
+  move: 'Mueve el caballero por tus caminos a una intersección libre.',
+  displace:
+    'Expulsa a un caballero rival de menor rango en una intersección sobre tus caminos.',
+  chaseRobber:
+    'Mueve el ladrón a otra ficha sin necesidad de un 7 (solo tras el primer ataque bárbaro).',
+};
+
 // Caras del dado de evento (Caballeros y Ciudades, §2.2): barco bárbaro o una
 // puerta de color (disciplina). Nombre visible canónico para el input de la
 // tirada y los avisos.

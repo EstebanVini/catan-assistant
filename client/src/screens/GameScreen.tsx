@@ -21,6 +21,7 @@ import { DiceStats } from '../components/DiceStats';
 import { CityCalendarPanel } from '../components/CityCalendarPanel';
 import { ProgressHand } from '../components/ProgressHand';
 import { BarbarianTrack } from '../components/BarbarianTrack';
+import { KnightsPanel } from '../components/KnightsPanel';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { DevCardType, totalVictoryPoints, victoryTarget } from '../types';
 import { DEV_CARD_NAMES, vpCardsCopy } from '../lib/spanish';
@@ -155,6 +156,19 @@ export function GameScreen(): JSX.Element | null {
               defaultCollapsed={false}
             >
               <CityCalendarPanel />
+            </CollapsibleSection>
+          ) : null}
+          {/* Caballeros (Caballeros y Ciudades): contratar / activar / promover
+              y registrar sus acciones, con rango, estado y fuerza de defensa.
+              Solo C&K. Colapsable junto a la construcción; por defecto abierto:
+              es una acción de turno recurrente en C&K. */}
+          {state.citiesKnights ? (
+            <CollapsibleSection
+              id="knights"
+              title="Caballeros"
+              defaultCollapsed={false}
+            >
+              <KnightsPanel />
             </CollapsibleSection>
           ) : null}
           <DevCardsPanel />
