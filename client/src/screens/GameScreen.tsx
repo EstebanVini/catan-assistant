@@ -19,6 +19,8 @@ import { YearOfPlentyPickerModal } from '../components/YearOfPlentyPickerModal';
 import { RoadBuildingConfirmModal } from '../components/RoadBuildingConfirmModal';
 import { DiceStats } from '../components/DiceStats';
 import { CityCalendarPanel } from '../components/CityCalendarPanel';
+import { ProgressHand } from '../components/ProgressHand';
+import { BarbarianTrack } from '../components/BarbarianTrack';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { DevCardType, totalVictoryPoints, victoryTarget } from '../types';
 import { DEV_CARD_NAMES, vpCardsCopy } from '../lib/spanish';
@@ -114,6 +116,10 @@ export function GameScreen(): JSX.Element | null {
         </div>
       ) : null}
       <TopBar />
+      {/* Pista del barco bárbaro (Caballeros y Ciudades): indicador público de
+          tensión, visible para todos cerca del TopBar. Solo en C&K (el propio
+          componente se oculta fuera del modo). */}
+      <BarbarianTrack />
       {/* Layout responsivo (sólo md+/lg+; en móvil estos wrappers son <div>
           neutros que no cambian el flujo en columna):
            - md (tablet): 2 columnas — izquierda: banners + mano + acciones y
@@ -152,6 +158,24 @@ export function GameScreen(): JSX.Element | null {
             </CollapsibleSection>
           ) : null}
           <DevCardsPanel />
+          {/* Mano de cartas de progreso (Caballeros y Ciudades): privada del
+              dueño. Solo C&K. Colapsable junto a la mano / dev cards. Cuando hay
+              excedente (>4) el panel pide soltar cartas; lo dejamos por defecto
+              ABIERTO para que el aviso no quede oculto. */}
+          {state.citiesKnights ? (
+            <CollapsibleSection
+              id="progressHand"
+              title="Cartas de progreso"
+              defaultCollapsed={false}
+              summary={
+                <span className="nums text-[11px] text-neutral-400">
+                  {view.me.progressCards.length} / 4
+                </span>
+              }
+            >
+              <ProgressHand />
+            </CollapsibleSection>
+          ) : null}
         </div>
         <div className="min-w-0">
           <PublicPlayersPanel />

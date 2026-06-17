@@ -2,9 +2,11 @@ import {
   Commodity,
   DevCardType,
   Discipline,
+  EventDie,
   GamePhase,
   PlayerColor,
   PortType,
+  ProgressCardType,
   Resource,
 } from '../types';
 
@@ -191,6 +193,82 @@ export const DEV_CARD_DESCRIPTIONS: Record<
     'Declara un recurso: todos los demás jugadores te entregan TODAS sus cartas de ese recurso.',
   yearOfPlenty: 'Toma 2 cartas del banco, del recurso o los recursos que elijas.',
   roadBuilding: 'Coloca 2 caminos en el tablero sin pagar recursos.',
+};
+
+// Cartas de progreso (Caballeros y Ciudades, §2.10). Nombre canónico en
+// español de cada una de las 25 cartas. Identificadores en inglés (espejo de
+// `ProgressCardType` en types.ts); el nombre visible siempre sale de aquí.
+// Nunca mostrar el id crudo ("alchemist", "warlord") en la UI.
+export const PROGRESS_CARD_NAMES: Record<ProgressCardType, string> = {
+  // Ciencia (verde / papel)
+  alchemist: 'Alquimista',
+  crane: 'Grúa',
+  engineer: 'Ingeniero',
+  inventor: 'Inventor',
+  irrigation: 'Irrigación',
+  mining: 'Minería',
+  medicine: 'Medicina',
+  roadBuildingP: 'Construcción de Caminos',
+  smith: 'Herrero',
+  printer: 'Imprenta',
+  // Política (azul / moneda)
+  spy: 'Espía',
+  bishop: 'Obispo',
+  constitution: 'Constitución',
+  deserter: 'Desertor',
+  diplomat: 'Diplomático',
+  intrigue: 'Intriga',
+  saboteur: 'Saboteador',
+  warlord: 'Señor de la Guerra',
+  wedding: 'Boda',
+  // Comercio (amarillo / tela)
+  merchant: 'Mercader',
+  merchantFleet: 'Flota Mercante',
+  commercialHarbor: 'Puerto Comercial',
+  masterMerchant: 'Maestro Mercader',
+  resourceMonopoly: 'Monopolio de Recurso',
+  tradeMonopoly: 'Monopolio de Comercio',
+};
+
+// Descripción breve de cada carta de progreso para el tooltip / subtítulo
+// (espejo del efecto resumido del §2.10). Aún NO son jugables (Fase C3): el
+// texto sirve para que el jugador sepa qué guarda en la mano.
+export const PROGRESS_CARD_DESCRIPTIONS: Record<ProgressCardType, string> = {
+  alchemist: 'Antes de tirar, eliges el resultado de los dos dados de producción.',
+  crane: 'Mejora una ciudad pagando 1 mercancía menos.',
+  engineer: 'Construye 1 muro gratis.',
+  inventor: 'Intercambia 2 fichas de número (no 2, 12, 6 ni 8).',
+  irrigation: 'Gana 2 trigo por cada poblado o ciudad junto a una ficha de trigo.',
+  mining: 'Gana 2 mineral por cada poblado o ciudad junto a una ficha de mineral.',
+  medicine: 'Mejora un poblado a ciudad por 2 mineral y 1 trigo.',
+  roadBuildingP: 'Coloca 2 caminos sin pagar recursos.',
+  smith: 'Promueve gratis 2 de tus caballeros.',
+  printer: 'Carta permanente: +1 punto de victoria.',
+  spy: 'Mira las cartas de progreso de otro jugador y róbale una.',
+  bishop: 'Mueve el ladrón y roba 1 carta a todos los jugadores junto a esa ficha.',
+  constitution: 'Carta permanente: +1 punto de victoria.',
+  deserter: 'Un rival retira un caballero; tú colocas uno gratis del mismo rango.',
+  diplomat: 'Retira un camino abierto; si era tuyo, recolócalo gratis.',
+  intrigue: 'Expulsa a un caballero rival que esté sobre tu camino.',
+  saboteur: 'Cada rival con tantos o más puntos que tú descarta media mano.',
+  warlord: 'Activa gratis todos tus caballeros.',
+  wedding: 'Cada rival con más puntos que tú te entrega 2 recursos o mercancías.',
+  merchant: 'Coloca el mercader sobre una ficha tuya para comerciar 2:1 con ese recurso.',
+  merchantFleet: 'Comercia 2:1 con el banco un recurso o mercancía a tu elección este turno.',
+  commercialHarbor: 'Cada rival te cambia 1 recurso por 1 mercancía tuya.',
+  masterMerchant: 'Mira la mano del jugador con más puntos y róbale 2 cartas.',
+  resourceMonopoly: 'Toma hasta 2 cartas de un recurso a elección de cada rival.',
+  tradeMonopoly: 'Toma 1 mercancía a elección de cada rival.',
+};
+
+// Caras del dado de evento (Caballeros y Ciudades, §2.2): barco bárbaro o una
+// puerta de color (disciplina). Nombre visible canónico para el input de la
+// tirada y los avisos.
+export const EVENT_DIE_NAMES: Record<EventDie, string> = {
+  barbarian: 'Barco bárbaro',
+  trade: 'Puerta de Comercio',
+  politics: 'Puerta de Política',
+  science: 'Puerta de Ciencia',
 };
 
 // Frase canónica para el bloque de cartas de Punto de victoria sin usar en la

@@ -1,4 +1,11 @@
-import { Commodity, DevCardType, Discipline, Resource } from '../types';
+import {
+  Commodity,
+  DevCardType,
+  Discipline,
+  PROGRESS_CARD_DISCIPLINE,
+  ProgressCardType,
+  Resource,
+} from '../types';
 import brickUrl from './icons/ladrillo.png';
 import lumberUrl from './icons/madera.png';
 import woolUrl from './icons/obeja.png';
@@ -360,6 +367,95 @@ export const DEV_CARD_ICON_URL: Record<DevCardType, string> = {
   yearOfPlenty: yearOfPlentyUrl,
   roadBuilding: roadBuildingUrl,
 };
+
+// ─── Cartas de progreso (Caballeros y Ciudades, §2.10) ────────────────────────
+//
+// Arte RECICLADO (no hay arte propio de las 25 cartas todavía): cada carta de
+// progreso se dibuja con el medallón de la carta de desarrollo del base que
+// mejor evoca su efecto, envuelto en el MISMO anillo del color de su disciplina
+// que usa `DisciplineGlyph` (Comercio amarillo, Política azul, Ciencia verde).
+// El anillo de color es el distintivo: una carta de progreso se lee por su
+// disciplina, no por el arte interior. El nombre vecino (PROGRESS_CARD_NAMES) la
+// identifica con precisión. Cuando llegue arte propio basta cambiar
+// `PROGRESS_CARD_ART` (o sustituir por URLs definitivas por carta).
+//
+// Mapeo arte interior por carta (criterio: el dev card cuyo significado se
+// acerca más al efecto del §2.10; el resto cae a un default por disciplina):
+//  - roadBuildingP → roadBuilding (literalmente "coloca 2 caminos").
+//  - resourceMonopoly / tradeMonopoly → monopoly (toma cartas de los rivales).
+//  - printer / constitution → vp (cartas permanentes de +1 PV).
+//  - warlord / smith / deserter / intrigue / saboteur / bishop → knight
+//    (efectos militares / de caballeros).
+//  - default por disciplina: ciencia→yearOfPlenty (ganancia del banco),
+//    comercio→monopoly (ventaja comercial), política→knight (poder militar).
+const PROGRESS_DISCIPLINE_DEFAULT_ART: Record<Discipline, DevCardType> = {
+  science: 'yearOfPlenty',
+  trade: 'monopoly',
+  politics: 'knight',
+};
+
+const PROGRESS_CARD_ART: Partial<Record<ProgressCardType, DevCardType>> = {
+  roadBuildingP: 'roadBuilding',
+  resourceMonopoly: 'monopoly',
+  tradeMonopoly: 'monopoly',
+  printer: 'vp',
+  constitution: 'vp',
+  warlord: 'knight',
+  smith: 'knight',
+  deserter: 'knight',
+  intrigue: 'knight',
+  saboteur: 'knight',
+  bishop: 'knight',
+};
+
+export function progressCardArt(card: ProgressCardType): DevCardType {
+  return (
+    PROGRESS_CARD_ART[card] ??
+    PROGRESS_DISCIPLINE_DEFAULT_ART[PROGRESS_CARD_DISCIPLINE[card]]
+  );
+}
+
+export function ProgressCardGlyph({
+  card,
+  size = 20,
+  className,
+}: GlyphProps & { card: ProgressCardType }): JSX.Element {
+  // Medallón de dev card reciclado + anillo del color de la disciplina (mismo
+  // lenguaje que `DisciplineGlyph`). El arte ocupa ~74% del área para dejar ver
+  // el aro completo.
+  const discipline = PROGRESS_CARD_DISCIPLINE[card];
+  const inner = Math.round(size * 0.74);
+  const ring = DISCIPLINE_RING[discipline];
+  return (
+    <span
+      aria-hidden
+      className={className}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: size,
+        height: size,
+        flexShrink: 0,
+        borderRadius: '9999px',
+        background: `radial-gradient(closest-side, ${ring}22, ${ring}0d 70%, transparent)`,
+        border: `1.5px solid ${ring}`,
+        boxShadow: `inset 0 0 0 1px ${STROKE}33, 0 0 0 1px ${STROKE}22`,
+      }}
+    >
+      <img
+        src={DEV_CARD_ICON_URL[progressCardArt(card)]}
+        width={inner}
+        height={inner}
+        alt=""
+        aria-hidden
+        draggable={false}
+        style={{ display: 'block', objectFit: 'contain' }}
+      />
+    </span>
+  );
+}
 
 // ─── Ladrón ──────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { NumericKeypad } from './NumericKeypad';
+import { DiceInputCK } from './DiceInputCK';
 import { useModalA11y } from '../lib/useModalA11y';
 import { DiceStats } from './DiceStats';
 import { GiveCardModal } from './GiveCardModal';
@@ -85,12 +86,21 @@ export function BankPanel(): JSX.Element | null {
           </span>
         ) : null}
       </div>
-      <NumericKeypad onPress={rollNumber} disabled={!canEnter} />
-      {!canEnter ? (
-        <p className="mt-2 text-[11px] text-neutral-400">
-          Solo puedes ingresar el dado en la fase Tirar.
-        </p>
-      ) : null}
+      {/* En Caballeros y Ciudades la tirada son 3 dados (rojo + amarillo +
+          evento): se usa `DiceInputCK` en lugar del teclado de un solo número.
+          En el modo base se conserva el `NumericKeypad` de siempre. */}
+      {state.citiesKnights ? (
+        <DiceInputCK />
+      ) : (
+        <>
+          <NumericKeypad onPress={rollNumber} disabled={!canEnter} />
+          {!canEnter ? (
+            <p className="mt-2 text-[11px] text-neutral-400">
+              Solo puedes ingresar el dado en la fase Tirar.
+            </p>
+          ) : null}
+        </>
+      )}
       <div className="mt-3 flex items-center justify-between gap-2">
         <button
           type="button"

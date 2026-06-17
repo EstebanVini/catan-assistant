@@ -215,6 +215,15 @@ export function PublicPlayersPanel(): JSX.Element | null {
                           </span>
                         </span>
                         <Sep />
+                        {/* Conteo público de cartas de progreso (C&K): solo el
+                            total — el detalle es privado, igual que la mano. */}
+                        <span>
+                          Progreso:{' '}
+                          <span className="nums font-semibold text-neutral-100">
+                            {p.progressCardsCount}
+                          </span>
+                        </span>
+                        <Sep />
                       </>
                     ) : null}
                     {/* Recuento público de la Tabla de construcción de cada
