@@ -10,6 +10,8 @@ import {
   RESOURCES,
   Commodity,
   COMMODITIES,
+  Discipline,
+  DISCIPLINES,
   emptyHand,
   fullBank,
   handTotal,
@@ -25,6 +27,7 @@ import {
   distributeForRoll,
   drainBank,
   drainCommodityBank,
+  upgradeCityImprovement,
   executeTrade,
   findPlayer,
   payToBank,
@@ -1020,6 +1023,49 @@ export function registerHandlers(io: Server, socket: Socket): void {
     broadcastState(io, state);
   });
 
+  // === Mejora de ciudad (Caballeros y Ciudades) ===
+  socket.on('city:upgrade', ({ discipline }: { discipline: Discipline }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state) return;
+    if (!state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    const canActNow =
+      (ensureActive(state, player.id) && state.phase === 'main') ||
+      (state.phase === 'specialBuild' && state.specialBuildQueue[0] === player.id);
+    if (!canActNow) {
+      socket.emit('error', { message: 'Solo puedes mejorar ciudades en tu turno, después de tirar.' });
+      return;
+    }
+    if (!DISCIPLINES.includes(discipline)) return;
+    pushSnapshot(state);
+    const r = upgradeCityImprovement(state, player, discipline);
+    if (!r.ok) {
+      popSnapshot(state);
+      socket.emit('error', { message: r.reason ?? 'No pudimos mejorar la ciudad.' });
+      return;
+    }
+    const discName = DISCIPLINE_NAMES[discipline];
+    logAction(state, `${player.name} mejoró ${discName} al nivel ${r.level}.`, player.id);
+    if (r.abilityUnlocked) {
+      const abilityName = ABILITY_NAMES[r.abilityUnlocked];
+      io.to(state.code).emit('notice', {
+        level: 'info',
+        text: `${player.name} desbloqueó ${abilityName} (${discName} nivel 3).`,
+      });
+    }
+    if (r.gainedMetropolis) {
+      const stoleFrom = r.stoleMetropolisFrom ? findPlayer(state, r.stoleMetropolisFrom) : null;
+      io.to(state.code).emit('notice', {
+        level: 'success',
+        text: stoleFrom
+          ? `${player.name} arrebató la Metrópolis de ${discName} a ${stoleFrom.name}.`
+          : `${player.name} construyó la Metrópolis de ${discName} (4 puntos).`,
+      });
+    }
+    checkVictory(io, state, player);
+  });
+
   // === Intercambio entre jugadores ===
   socket.on(
     'trade:offer',
@@ -1566,6 +1612,18 @@ function esResource(r: Resource): string {
 function esCommodity(c: Commodity): string {
   return { coin: 'moneda', paper: 'papel', cloth: 'tela' }[c];
 }
+
+const DISCIPLINE_NAMES: Record<Discipline, string> = {
+  trade: 'Comercio',
+  politics: 'Política',
+  science: 'Ciencia',
+};
+
+const ABILITY_NAMES: Record<'tradingHouse' | 'fortress' | 'aqueduct', string> = {
+  tradingHouse: 'la Casa de Comercio',
+  fortress: 'la Fortaleza',
+  aqueduct: 'el Acueducto',
+};
 
 function checkVictory(io: Server, state: GameState, player: Player): void {
   recomputeVictoryPoints(state);

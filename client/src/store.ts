@@ -5,6 +5,7 @@ import {
   Commodity,
   ConnectionStatus,
   DevCardType,
+  Discipline,
   ExtraRules,
   GameInvite,
   Hand,
@@ -115,6 +116,7 @@ interface StoreState {
   setBankManager: (playerId: string) => void;
   setExtension56: (enabled: boolean) => void;
   setCitiesKnights: (enabled: boolean) => void;
+  upgradeCity: (discipline: Discipline) => void;
   setSeedResources: (enabled: boolean) => void;
   setExtraRules: (rules: Partial<ExtraRules>) => void;
   kickPlayer: (playerId: string) => void;
@@ -384,6 +386,7 @@ export const useStore = create<StoreState>((set, get) => ({
     socket.emit('lobby:setExtension56', { enabled }),
   setCitiesKnights: (enabled) =>
     socket.emit('lobby:setCitiesKnights', { enabled }),
+  upgradeCity: (discipline) => socket.emit('city:upgrade', { discipline }),
   setSeedResources: (enabled) =>
     socket.emit('lobby:setSeedResources', { enabled }),
   setExtraRules: (rules) => socket.emit('lobby:setExtraRules', rules),

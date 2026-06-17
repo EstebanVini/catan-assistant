@@ -7,6 +7,8 @@ import {
   shortfall,
   tradeWithBank,
   bestBankRatio,
+  upgradeCityImprovement,
+  publicVictoryPoints,
 } from './rules';
 import {
   GameState,
@@ -15,18 +17,23 @@ import {
   emptyDevCards,
   emptyCommodities,
   fullCommodityBank,
+  emptyImprovements,
+  emptyMetropolisOwners,
 } from './state';
 
 function makeState(): GameState {
   const p1 = {
     id: 'p1', sessionToken: 't1', name: 'A', color: 'red' as const, connected: true,
     hand: { brick: 1, lumber: 1, wool: 0, grain: 0, ore: 0 }, commodities: emptyCommodities(),
+    improvements: emptyImprovements(), metropolises: [], buildings: [],
     ports: [], devCards: emptyDevCards(), devCardsBoughtThisTurn: [], knightsPlayed: 0,
     victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
   };
   const p2 = {
     id: 'p2', sessionToken: 't2', name: 'B', color: 'blue' as const, connected: true,
-    hand: emptyHand(), commodities: emptyCommodities(), ports: [], devCards: emptyDevCards(), devCardsBoughtThisTurn: [], knightsPlayed: 0,
+    hand: emptyHand(), commodities: emptyCommodities(),
+    improvements: emptyImprovements(), metropolises: [], buildings: [],
+    ports: [], devCards: emptyDevCards(), devCardsBoughtThisTurn: [], knightsPlayed: 0,
     victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
   };
   return {
@@ -34,6 +41,7 @@ function makeState(): GameState {
     citiesKnights: false, barbarianStep: 0, robberActive: true,
     players: [p1, p2], turnOrder: ['p1', 'p2'], currentTurnIndex: 0, phase: 'roll',
     specialBuildQueue: [], hexes: [], bank: fullBank(false), commodityBank: fullCommodityBank(),
+    metropolisOwners: emptyMetropolisOwners(),
     devDeck: [], diceStats: {2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0},
     log: [], pendingDiscards: {}, pendingRobberMove: false, pendingRobberSteal: false,
   };
@@ -133,6 +141,76 @@ describe('distributeForRoll — mercancías (Caballeros y Ciudades)', () => {
     expect(s.players[1].hand.wool).toBe(2);
     expect(s.players[1].commodities.cloth).toBe(0);
     expect(r.perPlayerCommodities).toEqual({});
+  });
+});
+
+describe('upgradeCityImprovement — mejoras de ciudad y metrópolis', () => {
+  it('cobra la mercancía correcta y sube de nivel (Ciencia ← papel)', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    s.players[0].commodities.paper = 3;
+    const r = upgradeCityImprovement(s, s.players[0], 'science');
+    expect(r.ok).toBe(true);
+    expect(r.level).toBe(1);
+    expect(s.players[0].improvements.science).toBe(1);
+    expect(s.players[0].commodities.paper).toBe(2); // nivel 1 cuesta 1
+  });
+
+  it('rechaza si no alcanza la mercancía', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    s.players[0].improvements.trade = 2; // siguiente es nivel 3 (cuesta 3 tela)
+    s.players[0].commodities.cloth = 2;
+    const r = upgradeCityImprovement(s, s.players[0], 'trade');
+    expect(r.ok).toBe(false);
+    expect(s.players[0].improvements.trade).toBe(2);
+  });
+
+  it('nivel 3 desbloquea la habilidad de la disciplina', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    s.players[0].improvements.politics = 2;
+    s.players[0].commodities.coin = 3;
+    const r = upgradeCityImprovement(s, s.players[0], 'politics');
+    expect(r.ok).toBe(true);
+    expect(r.abilityUnlocked).toBe('fortress');
+  });
+
+  it('nivel 4 reclama la metrópolis (requiere una ciudad) y vale +2 PV', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    const p = s.players[0];
+    p.improvements.science = 3;
+    p.commodities.paper = 4;
+    p.buildings = [{ id: 'c1', type: 'city', spots: [] }];
+    p.victoryPoints.cities = 1; // la ciudad que hospeda la metrópolis
+    const before = publicVictoryPoints(p); // 2 (1 ciudad)
+    const r = upgradeCityImprovement(s, p, 'science');
+    expect(r.ok).toBe(true);
+    expect(r.gainedMetropolis).toBe(true);
+    expect(s.metropolisOwners.science).toBe('p1');
+    expect(p.metropolises).toEqual(['science']);
+    expect(publicVictoryPoints(p)).toBe(before + 2); // metrópolis: +2 sobre ciudad
+  });
+
+  it('nivel 5 arrebata la metrópolis al dueño anterior', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    // p2 ya tiene la metrópolis de Comercio (llegó a nivel 4).
+    s.players[1].improvements.trade = 4;
+    s.players[1].metropolises = ['trade'];
+    s.metropolisOwners.trade = 'p2';
+    // p1 sube de 4 a 5 y la arrebata.
+    const p = s.players[0];
+    p.improvements.trade = 4;
+    p.commodities.cloth = 5;
+    p.buildings = [{ id: 'c1', type: 'city', spots: [] }];
+    const r = upgradeCityImprovement(s, p, 'trade');
+    expect(r.ok).toBe(true);
+    expect(r.stoleMetropolisFrom).toBe('p2');
+    expect(s.metropolisOwners.trade).toBe('p1');
+    expect(s.players[1].metropolises).toEqual([]);
+    expect(p.metropolises).toEqual(['trade']);
   });
 });
 

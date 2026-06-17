@@ -11,6 +11,10 @@ import {
   Commodity,
   CommodityHand,
   RESOURCE_COMMODITY,
+  Discipline,
+  DISCIPLINE_COMMODITY,
+  MAX_IMPROVEMENT_LEVEL,
+  improvementUpgradeCost,
   emptyHand,
   fullBank,
   handTotal,
@@ -230,6 +234,78 @@ export function executeTrade(from: Player, to: Player, give: Partial<Hand>, rece
   }
 }
 
+// === Mejoras de ciudad (Caballeros y Ciudades) ===
+export interface CityUpgradeResult {
+  ok: boolean;
+  reason?: string;
+  discipline?: Discipline;
+  level?: number;
+  abilityUnlocked?: 'tradingHouse' | 'fortress' | 'aqueduct'; // nivel 3
+  gainedMetropolis?: boolean;
+  stoleMetropolisFrom?: string; // playerId al que se le arrebató
+}
+
+const LEVEL3_ABILITY: Record<Discipline, 'tradingHouse' | 'fortress' | 'aqueduct'> = {
+  trade: 'tradingHouse',
+  politics: 'fortress',
+  science: 'aqueduct',
+};
+
+// Sube UN nivel la disciplina indicada para `player`. Pura sobre el estado
+// (muta player y state); el handler hace I/O (log/notice/broadcast). En el
+// asistente no hay geometría de tablero: la metrópolis se hospeda en cualquier
+// ciudad del jugador (debe tener al menos una).
+export function upgradeCityImprovement(
+  state: GameState,
+  player: Player,
+  discipline: Discipline
+): CityUpgradeResult {
+  const current = player.improvements[discipline];
+  const target = current + 1;
+  if (target > MAX_IMPROVEMENT_LEVEL) {
+    return { ok: false, reason: 'Esa disciplina ya está al nivel máximo.' };
+  }
+  const cost = improvementUpgradeCost(target);
+  const commodity = DISCIPLINE_COMMODITY[discipline];
+  if (player.commodities[commodity] < cost) {
+    return {
+      ok: false,
+      reason: `Necesitas ${cost} ${commodity === 'coin' ? 'moneda' : commodity === 'paper' ? 'papel' : 'tela'} para el nivel ${target}.`,
+    };
+  }
+  const hasCity = player.buildings.some((b) => b.type === 'city');
+  const owner = state.metropolisOwners[discipline];
+  // Para reclamar (nivel 4 con metrópolis libre) o arrebatar (nivel 5) se
+  // necesita una ciudad que hospede la metrópolis.
+  const willClaim = target === 4 && owner === null;
+  const willSteal = target === 5 && owner !== null && owner !== player.id;
+  if ((willClaim || willSteal) && !hasCity) {
+    return { ok: false, reason: 'Necesitas una ciudad para convertirla en metrópolis.' };
+  }
+
+  // Cobrar la mercancía (banco ilimitado informativo).
+  player.commodities[commodity] -= cost;
+  state.commodityBank[commodity] = Math.min(12, state.commodityBank[commodity] + cost);
+  player.improvements[discipline] = target;
+
+  const result: CityUpgradeResult = { ok: true, discipline, level: target };
+  if (target === 3) result.abilityUnlocked = LEVEL3_ABILITY[discipline];
+
+  if (willClaim) {
+    state.metropolisOwners[discipline] = player.id;
+    if (!player.metropolises.includes(discipline)) player.metropolises.push(discipline);
+    result.gainedMetropolis = true;
+  } else if (willSteal) {
+    const prev = state.players.find((p) => p.id === owner);
+    if (prev) prev.metropolises = prev.metropolises.filter((d) => d !== discipline);
+    state.metropolisOwners[discipline] = player.id;
+    if (!player.metropolises.includes(discipline)) player.metropolises.push(discipline);
+    result.gainedMetropolis = true;
+    result.stoleMetropolisFrom = owner ?? undefined;
+  }
+  return result;
+}
+
 // === Puntos de victoria ===
 export function recomputeVictoryPoints(state: GameState): void {
   // La tabla de construcción de cada jugador es la fuente de verdad: cada
@@ -244,6 +320,8 @@ export function publicVictoryPoints(p: Player): number {
   return (
     p.victoryPoints.settlements +
     2 * p.victoryPoints.cities +
+    // Cada metrópolis suma +2 sobre la ciudad que la hospeda (ciudad 2 → 4 PV).
+    2 * (p.metropolises?.length ?? 0) +
     (p.victoryPoints.longestRoad ? 2 : 0) +
     (p.victoryPoints.largestArmy ? 2 : 0) +
     p.victoryPoints.vpCards

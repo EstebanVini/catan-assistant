@@ -20,6 +20,8 @@ export interface PublicPlayer {
   setupComplete: boolean; // registro de construcciones iniciales válido (lobby)
   cardCount: number;
   commodityCount: number; // total de mercancías (público); el detalle es privado
+  improvements: Player['improvements']; // niveles de mejora de ciudad (público)
+  metropolises: Player['metropolises']; // disciplinas con metrópolis (público)
   devCardsCount: number;
   knightsPlayed: number;
   ports: Player['ports'];
@@ -49,6 +51,7 @@ export interface PlayerView {
     citiesKnights: boolean;
     barbarianStep: number;
     robberActive: boolean;
+    metropolisOwners: GameState['metropolisOwners'];
     seedInitialResources: boolean;
     extraRules: GameState['extraRules'];
     players: PublicPlayer[];
@@ -99,6 +102,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
       citiesKnights: state.citiesKnights,
       barbarianStep: state.barbarianStep,
       robberActive: state.robberActive,
+      metropolisOwners: state.metropolisOwners,
       seedInitialResources: state.seedInitialResources,
       extraRules: state.extraRules,
       players: state.players.map((p) => toPublic(p, state)),
@@ -137,6 +141,8 @@ function toPublic(p: Player, state: GameState): PublicPlayer {
     setupComplete: !state.seedInitialResources || playerSetupComplete(p),
     cardCount: handTotal(p.hand),
     commodityCount: commodityTotal(p.commodities),
+    improvements: { ...p.improvements },
+    metropolises: [...p.metropolises],
     devCardsCount: devCardsTotal(p.devCards),
     knightsPlayed: p.knightsPlayed,
     ports: p.ports,

@@ -21,6 +21,32 @@ export const RESOURCE_COMMODITY: Partial<Record<Resource, Commodity>> = {
   wool: 'cloth',
 };
 
+// === Mejoras de ciudad / disciplinas (Caballeros y Ciudades) ===
+// Tres disciplinas, cada una mejorada con SU mercancía. Nivel 0..5.
+//   trade    (Comercio, amarillo) ← cloth ; nivel 3 = Casa de comercio (2:1)
+//   politics (Política, azul)     ← coin  ; nivel 3 = Fortaleza (caballeros nivel 3)
+//   science  (Ciencia, verde)     ← paper ; nivel 3 = Acueducto
+// Nivel 4 → reclama metrópolis (ciudad de 4 PV). Nivel 5 → la arrebata.
+export type Discipline = 'trade' | 'politics' | 'science';
+export const DISCIPLINES: Discipline[] = ['trade', 'politics', 'science'];
+export const DISCIPLINE_COMMODITY: Record<Discipline, Commodity> = {
+  trade: 'cloth',
+  politics: 'coin',
+  science: 'paper',
+};
+export type CityImprovements = Record<Discipline, number>; // nivel 0..5 por disciplina
+
+export function emptyImprovements(): CityImprovements {
+  return { trade: 0, politics: 0, science: 0 };
+}
+
+export const MAX_IMPROVEMENT_LEVEL = 5;
+// Costo (en la mercancía de la disciplina) para subir AL nivel `target`
+// (1→1, 2→2, ... 5→5). Devuelve 0 si fuera de rango.
+export function improvementUpgradeCost(target: number): number {
+  return target >= 1 && target <= MAX_IMPROVEMENT_LEVEL ? target : 0;
+}
+
 export type DevCardType = 'knight' | 'vp' | 'roadBuilding' | 'yearOfPlenty' | 'monopoly';
 
 export type PortType = '3:1' | Resource;
@@ -70,6 +96,11 @@ export interface Player {
   buildings: Building[]; // tabla de construcción del jugador (ver game/setup.ts)
   hand: Hand; // PRIVADO
   commodities: CommodityHand; // PRIVADO; solo se usa en Caballeros y Ciudades
+  // Niveles de mejora de ciudad por disciplina (público). Solo C&K.
+  improvements: CityImprovements;
+  // Disciplinas en las que el jugador tiene metrópolis (ciudad de 4 PV; máx 3,
+  // una por disciplina). Cada una suma +2 PV sobre una ciudad normal. Público.
+  metropolises: Discipline[];
   ports: PortType[];
   devCards: DevCardCounts; // PRIVADO en tipos; conteo total + caballeros jugados es público
   devCardsBoughtThisTurn: DevCardType[]; // no jugables el mismo turno
@@ -200,6 +231,8 @@ export interface GameState {
   // Banco de mercancías (solo Caballeros y Ciudades). Siempre presente para no
   // ramificar tipos; en el modo base queda en 0 y nadie lo toca.
   commodityBank: CommodityHand;
+  // Dueño actual de cada metrópolis (playerId o null). Solo C&K.
+  metropolisOwners: Record<Discipline, string | null>;
   devDeck: DevCardType[]; // mazo barajado (servidor)
   diceStats: Record<number, number>;
   startedAt: number | null; // epoch ms al iniciar la partida (para persistir el Match)
@@ -233,6 +266,10 @@ export function fullCommodityBank(): CommodityHand {
 
 export function commodityTotal(c: CommodityHand): number {
   return c.coin + c.paper + c.cloth;
+}
+
+export function emptyMetropolisOwners(): Record<Discipline, string | null> {
+  return { trade: null, politics: null, science: null };
 }
 
 export function fullBank(extension56: boolean): Hand {

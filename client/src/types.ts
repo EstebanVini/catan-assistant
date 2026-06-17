@@ -19,6 +19,29 @@ export function commodityTotal(c: CommodityHand): number {
   return c.coin + c.paper + c.cloth;
 }
 
+// Mejoras de ciudad / disciplinas (Caballeros y Ciudades). Espejo del server.
+export type Discipline = 'trade' | 'politics' | 'science';
+export const DISCIPLINES: Discipline[] = ['trade', 'politics', 'science'];
+export const DISCIPLINE_COMMODITY: Record<Discipline, Commodity> = {
+  trade: 'cloth',
+  politics: 'coin',
+  science: 'paper',
+};
+export type CityImprovements = Record<Discipline, number>;
+export const MAX_IMPROVEMENT_LEVEL = 5;
+
+// Costo (en la mercancía de la disciplina) para subir AL nivel `target`.
+export function improvementUpgradeCost(target: number): number {
+  return target >= 1 && target <= MAX_IMPROVEMENT_LEVEL ? target : 0;
+}
+
+// Habilidad desbloqueada al nivel 3 de cada disciplina.
+export const DISCIPLINE_LEVEL3_ABILITY: Record<Discipline, string> = {
+  trade: 'Casa de Comercio',
+  politics: 'Fortaleza',
+  science: 'Acueducto',
+};
+
 export type DevCardType =
   | 'knight'
   | 'vp'
@@ -117,6 +140,8 @@ export interface PublicPlayer {
   connected: boolean;
   cardCount: number;
   commodityCount: number; // total de mercancías (público); el detalle es privado
+  improvements: CityImprovements; // niveles de mejora de ciudad (público)
+  metropolises: Discipline[]; // disciplinas con metrópolis (público)
   devCardsCount: number;
   knightsPlayed: number;
   ports: PortType[];
@@ -241,6 +266,7 @@ export interface PublicGameState {
   citiesKnights: boolean;
   barbarianStep: number;
   robberActive: boolean;
+  metropolisOwners: Record<Discipline, string | null>;
   seedInitialResources: boolean;
   extraRules: ExtraRules;
   players: PublicPlayer[];
