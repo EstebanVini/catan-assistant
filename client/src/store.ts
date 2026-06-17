@@ -6,6 +6,8 @@ import {
   ConnectionStatus,
   DevCardType,
   Discipline,
+  EventDie,
+  ProgressCardType,
   ExtraRules,
   GameInvite,
   Hand,
@@ -147,6 +149,8 @@ interface StoreState {
 
   // Turno y dado
   rollNumber: (n: number) => void;
+  rollCK: (production: number, redDie: number, eventDie: EventDie) => void;
+  discardProgress: (card: ProgressCardType) => void;
   submitDiscard: (resourcesToDiscard: Partial<Hand>) => void;
   forceRandomDiscard: (targetPlayerId: string) => void;
   moveRobber: (hexId: string) => void;
@@ -414,6 +418,9 @@ export const useStore = create<StoreState>((set, get) => ({
     socket.emit('building:ackNoResources', { buildingId }),
 
   rollNumber: (number) => socket.emit('turn:rollNumber', { number }),
+  rollCK: (production, redDie, eventDie) =>
+    socket.emit('turn:rollCK', { production, redDie, eventDie }),
+  discardProgress: (card) => socket.emit('progress:discard', { card }),
   submitDiscard: (resourcesToDiscard) =>
     socket.emit('discard:submit', { resourcesToDiscard }),
   forceRandomDiscard: (targetPlayerId) =>

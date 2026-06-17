@@ -47,6 +47,59 @@ export function improvementUpgradeCost(target: number): number {
   return target >= 1 && target <= MAX_IMPROVEMENT_LEVEL ? target : 0;
 }
 
+// === Cartas de progreso (Caballeros y Ciudades) ===
+// Reemplazan a las cartas de desarrollo. 3 mazos, uno por disciplina; se roban
+// por el "calendario de la ciudad" (dado de evento de color + dado rojo ≤ nivel
+// de mejora). Límite de mano: 4. No se comercian. Sus EFECTOS se implementan
+// en la fase C3; aquí solo se definen, se roban y se sostienen en la mano.
+export type ScienceCard =
+  | 'alchemist' | 'crane' | 'engineer' | 'inventor' | 'irrigation'
+  | 'mining' | 'medicine' | 'roadBuildingP' | 'smith' | 'printer';
+export type PoliticsCard =
+  | 'spy' | 'bishop' | 'constitution' | 'deserter' | 'diplomat'
+  | 'intrigue' | 'saboteur' | 'warlord' | 'wedding';
+export type TradeCard =
+  | 'merchant' | 'merchantFleet' | 'commercialHarbor' | 'masterMerchant'
+  | 'resourceMonopoly' | 'tradeMonopoly';
+export type ProgressCardType = ScienceCard | PoliticsCard | TradeCard;
+
+// Disciplina (mazo) a la que pertenece cada carta.
+export const PROGRESS_CARD_DISCIPLINE: Record<ProgressCardType, Discipline> = {
+  alchemist: 'science', crane: 'science', engineer: 'science', inventor: 'science',
+  irrigation: 'science', mining: 'science', medicine: 'science', roadBuildingP: 'science',
+  smith: 'science', printer: 'science',
+  spy: 'politics', bishop: 'politics', constitution: 'politics', deserter: 'politics',
+  diplomat: 'politics', intrigue: 'politics', saboteur: 'politics', warlord: 'politics',
+  wedding: 'politics',
+  merchant: 'trade', merchantFleet: 'trade', commercialHarbor: 'trade',
+  masterMerchant: 'trade', resourceMonopoly: 'trade', tradeMonopoly: 'trade',
+};
+
+// Composición de cada mazo (cantidades oficiales: 18 por disciplina, 54 total).
+export const PROGRESS_DECK_COUNTS: Record<Discipline, Partial<Record<ProgressCardType, number>>> = {
+  science: {
+    alchemist: 2, crane: 2, engineer: 1, inventor: 2, irrigation: 2,
+    mining: 2, medicine: 2, roadBuildingP: 2, smith: 2, printer: 1,
+  },
+  politics: {
+    spy: 3, bishop: 2, constitution: 1, deserter: 2, diplomat: 2,
+    intrigue: 2, saboteur: 2, warlord: 2, wedding: 2,
+  },
+  trade: {
+    merchant: 6, merchantFleet: 2, commercialHarbor: 2, masterMerchant: 2,
+    resourceMonopoly: 4, tradeMonopoly: 2,
+  },
+};
+
+// Cartas de progreso que otorgan +1 PV permanente al jugarse (como las VP del base).
+export const PROGRESS_VP_CARDS: ProgressCardType[] = ['printer', 'constitution'];
+
+export type ProgressDecks = Record<Discipline, ProgressCardType[]>;
+export const PROGRESS_HAND_LIMIT = 4;
+
+// Caras del dado de evento: barco bárbaro o una "puerta" de color (disciplina).
+export type EventDie = 'barbarian' | Discipline;
+
 export type DevCardType = 'knight' | 'vp' | 'roadBuilding' | 'yearOfPlenty' | 'monopoly';
 
 export type PortType = '3:1' | Resource;
@@ -101,6 +154,8 @@ export interface Player {
   // Disciplinas en las que el jugador tiene metrópolis (ciudad de 4 PV; máx 3,
   // una por disciplina). Cada una suma +2 PV sobre una ciudad normal. Público.
   metropolises: Discipline[];
+  // Cartas de progreso en mano (PRIVADO; máx 4). Solo C&K. El conteo es público.
+  progressCards: ProgressCardType[];
   ports: PortType[];
   devCards: DevCardCounts; // PRIVADO en tipos; conteo total + caballeros jugados es público
   devCardsBoughtThisTurn: DevCardType[]; // no jugables el mismo turno
@@ -212,6 +267,9 @@ export interface GameState {
   // Pista del barco bárbaro (0..7). Avanza con la cara de barco del dado de
   // evento; al llegar a 7 los bárbaros atacan y vuelve a 0. Solo en C&K.
   barbarianStep: number;
+  // Nº de ataques bárbaros ocurridos. El primer ataque activa el ladrón
+  // (robberActive). La resolución detallada del combate llega en la Fase D.
+  barbarianAttacks: number;
   // El ladrón queda inmovilizado hasta el PRIMER ataque bárbaro: antes de eso
   // un 7 solo provoca descarte. false hasta el primer ataque. Solo en C&K; en
   // el modo base es true desde el inicio (el ladrón siempre se mueve).
@@ -233,6 +291,14 @@ export interface GameState {
   commodityBank: CommodityHand;
   // Dueño actual de cada metrópolis (playerId o null). Solo C&K.
   metropolisOwners: Record<Discipline, string | null>;
+  // Mazos de cartas de progreso barajados (servidor; ocultos). Solo C&K.
+  progressDecks: ProgressDecks;
+  // Último dado rojo (1-6) y dado de evento ingresados (para la UI y el calendario).
+  lastRedDie: number | null;
+  lastEventDie: EventDie | null;
+  // Jugadores que deben descartar cartas de progreso por exceder el límite de 4
+  // (al robar la 5ª). playerId → cuántas debe soltar (normalmente 1). Solo C&K.
+  pendingProgressDiscard: Record<string, number>;
   devDeck: DevCardType[]; // mazo barajado (servidor)
   diceStats: Record<number, number>;
   startedAt: number | null; // epoch ms al iniciar la partida (para persistir el Match)
@@ -270,6 +336,10 @@ export function commodityTotal(c: CommodityHand): number {
 
 export function emptyMetropolisOwners(): Record<Discipline, string | null> {
   return { trade: null, politics: null, science: null };
+}
+
+export function emptyProgressDecks(): ProgressDecks {
+  return { trade: [], politics: [], science: [] };
 }
 
 export function fullBank(extension56: boolean): Hand {

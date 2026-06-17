@@ -15,6 +15,10 @@ import {
   DISCIPLINE_COMMODITY,
   MAX_IMPROVEMENT_LEVEL,
   improvementUpgradeCost,
+  ProgressCardType,
+  ProgressDecks,
+  PROGRESS_DECK_COUNTS,
+  emptyProgressDecks,
   emptyHand,
   fullBank,
   handTotal,
@@ -76,6 +80,27 @@ export function buildDevDeck(extension56: boolean): DevCardType[] {
     for (let i = 0; i < n; i++) deck.push(type);
   });
   return shuffle(deck);
+}
+
+// === Mazos de cartas de progreso (Caballeros y Ciudades) ===
+export function buildProgressDecks(): ProgressDecks {
+  const decks = emptyProgressDecks();
+  (Object.keys(PROGRESS_DECK_COUNTS) as Discipline[]).forEach((disc) => {
+    const counts = PROGRESS_DECK_COUNTS[disc];
+    const deck: ProgressCardType[] = [];
+    (Object.entries(counts) as [ProgressCardType, number][]).forEach(([card, n]) => {
+      for (let i = 0; i < n; i++) deck.push(card);
+    });
+    decks[disc] = shuffle(deck);
+  });
+  return decks;
+}
+
+// ¿El jugador roba carta de la disciplina `disc` con este dado rojo? Regla del
+// calendario: roba si su nivel de mejora ≥ valor del dado rojo (1-6). Nivel 0
+// nunca roba; nivel 5 roba con rojo 1-5 (nunca con 6).
+export function drawsProgressCard(level: number, redDie: number): boolean {
+  return level >= 1 && redDie >= 1 && redDie <= level;
 }
 
 export function shuffle<T>(arr: T[]): T[] {

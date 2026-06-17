@@ -12,6 +12,9 @@ import {
   COMMODITIES,
   Discipline,
   DISCIPLINES,
+  EventDie,
+  ProgressCardType,
+  PROGRESS_HAND_LIMIT,
   emptyHand,
   fullBank,
   handTotal,
@@ -27,6 +30,7 @@ import {
   distributeForRoll,
   drainBank,
   drainCommodityBank,
+  drawsProgressCard,
   upgradeCityImprovement,
   executeTrade,
   findPlayer,
@@ -679,6 +683,150 @@ export function registerHandlers(io: Server, socket: Socket): void {
       }
       state.phase = 'main';
     }
+    broadcastState(io, state);
+  });
+
+  // === Tirada de Caballeros y Ciudades (3 dados) ===
+  // El encargado del banco ingresa: production (suma de los 2 dados de
+  // producción, 2-12), redDie (el dado rojo solo, 1-6, para el calendario) y
+  // eventDie (cara del dado de evento: 'barbarian' o una disciplina de color).
+  socket.on(
+    'turn:rollCK',
+    ({ production, redDie, eventDie }: { production: number; redDie: number; eventDie: EventDie }) => {
+      const state = getRoom(socket.data.code ?? '');
+      if (!state || state.status !== 'playing') return;
+      if (!state.citiesKnights) return; // este evento es exclusivo de C&K
+      if (!ensureBankManager(state, socket.data.playerId)) {
+        socket.emit('error', { message: 'Solo el encargado del banco puede ingresar los dados.' });
+        return;
+      }
+      if (state.phase !== 'roll') {
+        socket.emit('error', { message: 'Ya no es la fase Tirar.' });
+        return;
+      }
+      if (production < 2 || production > 12) return;
+      if (redDie < 1 || redDie > 6) return;
+      const yellow = production - redDie;
+      if (yellow < 1 || yellow > 6) {
+        socket.emit('error', { message: 'El dado rojo no es compatible con ese total. Revisa los valores.' });
+        return;
+      }
+      if (eventDie !== 'barbarian' && !DISCIPLINES.includes(eventDie)) return;
+
+      pushSnapshot(state);
+      state.diceStats[production] = (state.diceStats[production] ?? 0) + 1;
+      state.lastRolledNumber = production;
+      state.lastRedDie = redDie;
+      state.lastEventDie = eventDie;
+
+      // 1) Resolver el DADO DE EVENTO (independiente de la producción).
+      if (eventDie === 'barbarian') {
+        state.barbarianStep = Math.min(7, state.barbarianStep + 1);
+        if (state.barbarianStep >= 7) {
+          // Los bárbaros llegan a Catán. La RESOLUCIÓN del combate (fuerza de
+          // caballeros vs ciudades, pérdida de ciudad, Defensor de Catán) se
+          // implementa en la Fase D; aquí registramos el ataque, activamos el
+          // ladrón (primer ataque) y reiniciamos la pista. Mientras tanto, la
+          // mesa resuelve el combate físicamente.
+          state.barbarianAttacks += 1;
+          const first = state.barbarianAttacks === 1;
+          if (first) state.robberActive = true;
+          state.barbarianStep = 0;
+          logAction(state, '¡Los bárbaros llegaron a Catán y atacaron!');
+          io.to(state.code).emit('notice', {
+            level: 'warn',
+            text: first
+              ? '¡Los bárbaros atacaron! El ladrón entra en juego. Resuelvan el combate en la mesa (resolución automática en una próxima versión).'
+              : '¡Los bárbaros atacaron! Resuelvan el combate en la mesa.',
+          });
+        } else {
+          logAction(state, `El barco bárbaro avanza a ${state.barbarianStep}/7.`);
+        }
+      } else {
+        // Puerta de color → calendario de la ciudad: cada jugador roba 1 carta
+        // de esa disciplina si su nivel de mejora ≥ el dado rojo.
+        const drawers: string[] = [];
+        for (const p of state.players) {
+          if (!drawsProgressCard(p.improvements[eventDie], redDie)) continue;
+          const deck = state.progressDecks[eventDie];
+          if (deck.length === 0) continue;
+          const card = deck.pop()!;
+          p.progressCards.push(card);
+          if (p.progressCards.length > PROGRESS_HAND_LIMIT) {
+            state.pendingProgressDiscard[p.id] =
+              p.progressCards.length - PROGRESS_HAND_LIMIT;
+          }
+          drawers.push(p.name);
+        }
+        const discName = DISCIPLINE_NAMES[eventDie];
+        logAction(
+          state,
+          drawers.length
+            ? `Puerta de ${discName} (rojo ${redDie}): roban carta de progreso ${drawers.join(', ')}.`
+            : `Puerta de ${discName} (rojo ${redDie}): nadie alcanza el nivel para robar.`
+        );
+      }
+
+      // 2) Resolver la PRODUCCIÓN (igual que turn:rollNumber, con el ladrón
+      //    condicionado a que ya haya habido un ataque bárbaro).
+      if (production === 7) {
+        const pending = computePendingDiscards(state);
+        logAction(state, 'Salió un 7. Quienes tengan más de 7 cartas descartan la mitad.');
+        if (Object.keys(pending).length > 0) {
+          state.pendingDiscards = pending;
+          state.phase = 'discard';
+        } else if (state.robberActive) {
+          state.phase = 'robber';
+          state.pendingRobberMove = true;
+          logAction(state, 'Nadie descarta. Turno de mover el ladrón.');
+        } else {
+          state.phase = 'main';
+          logAction(state, 'El ladrón sigue inmovilizado (aún no hay ataque bárbaro).');
+        }
+      } else {
+        const result = distributeForRoll(state, production);
+        const lines: string[] = [];
+        const allIds = new Set([
+          ...Object.keys(result.perPlayer),
+          ...Object.keys(result.perPlayerCommodities),
+        ]);
+        for (const pid of allIds) {
+          const p = findPlayer(state, pid);
+          if (!p) continue;
+          const parts = (Object.entries(result.perPlayer[pid] ?? {}) as [Resource, number][]).map(
+            ([r, n]) => `${n} ${esResource(r)}`
+          );
+          const cparts = (
+            Object.entries(result.perPlayerCommodities[pid] ?? {}) as [Commodity, number][]
+          ).map(([c, n]) => `${n} ${esCommodity(c)}`);
+          lines.push(`${p.name} recibe ${[...parts, ...cparts].join(', ')}`);
+        }
+        logAction(state, `Salió ${production}. ${lines.join('; ') || 'Nadie recibió recursos.'}`);
+        state.phase = 'main';
+      }
+      broadcastState(io, state);
+    }
+  );
+
+  // Descarte de cartas de progreso por exceder el límite de 4 (al robar la 5ª).
+  socket.on('progress:discard', ({ card }: { card: ProgressCardType }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    const owed = state.pendingProgressDiscard[player.id] ?? 0;
+    if (owed <= 0) return;
+    const idx = player.progressCards.indexOf(card);
+    if (idx === -1) {
+      socket.emit('error', { message: 'No tienes esa carta de progreso.' });
+      return;
+    }
+    pushSnapshot(state);
+    player.progressCards.splice(idx, 1);
+    const remaining = owed - 1;
+    if (remaining > 0) state.pendingProgressDiscard[player.id] = remaining;
+    else delete state.pendingProgressDiscard[player.id];
+    logAction(state, `${player.name} descartó una carta de progreso (excedía el límite de 4).`, player.id);
     broadcastState(io, state);
   });
 

@@ -22,6 +22,7 @@ export interface PublicPlayer {
   commodityCount: number; // total de mercancías (público); el detalle es privado
   improvements: Player['improvements']; // niveles de mejora de ciudad (público)
   metropolises: Player['metropolises']; // disciplinas con metrópolis (público)
+  progressCardsCount: number; // total de cartas de progreso (público); detalle privado
   devCardsCount: number;
   knightsPlayed: number;
   ports: Player['ports'];
@@ -35,6 +36,7 @@ export interface PlayerView {
     color: Player['color'];
     hand: Player['hand'];
     commodities: Player['commodities'];
+    progressCards: Player['progressCards']; // mis cartas de progreso (privado)
     devCards: Player['devCards'];
     devCardsBoughtThisTurn: Player['devCardsBoughtThisTurn'];
     pendingSettlementRegistration: Player['pendingSettlementRegistration'];
@@ -50,8 +52,12 @@ export interface PlayerView {
     extension56: boolean;
     citiesKnights: boolean;
     barbarianStep: number;
+    barbarianAttacks: number;
     robberActive: boolean;
     metropolisOwners: GameState['metropolisOwners'];
+    lastRedDie: number | null;
+    lastEventDie: GameState['lastEventDie'];
+    pendingProgressDiscard: GameState['pendingProgressDiscard'];
     seedInitialResources: boolean;
     extraRules: GameState['extraRules'];
     players: PublicPlayer[];
@@ -86,6 +92,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
           color: me.color,
           hand: me.hand,
           commodities: me.commodities,
+          progressCards: me.progressCards,
           devCards: me.devCards,
           devCardsBoughtThisTurn: me.devCardsBoughtThisTurn,
           pendingSettlementRegistration: me.pendingSettlementRegistration,
@@ -101,8 +108,12 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
       extension56: state.extension56,
       citiesKnights: state.citiesKnights,
       barbarianStep: state.barbarianStep,
+      barbarianAttacks: state.barbarianAttacks,
       robberActive: state.robberActive,
       metropolisOwners: state.metropolisOwners,
+      lastRedDie: state.lastRedDie,
+      lastEventDie: state.lastEventDie,
+      pendingProgressDiscard: state.pendingProgressDiscard,
       seedInitialResources: state.seedInitialResources,
       extraRules: state.extraRules,
       players: state.players.map((p) => toPublic(p, state)),
@@ -143,6 +154,7 @@ function toPublic(p: Player, state: GameState): PublicPlayer {
     commodityCount: commodityTotal(p.commodities),
     improvements: { ...p.improvements },
     metropolises: [...p.metropolises],
+    progressCardsCount: p.progressCards.length,
     devCardsCount: devCardsTotal(p.devCards),
     knightsPlayed: p.knightsPlayed,
     ports: p.ports,

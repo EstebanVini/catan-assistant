@@ -42,6 +42,34 @@ export const DISCIPLINE_LEVEL3_ABILITY: Record<Discipline, string> = {
   science: 'Acueducto',
 };
 
+// Cartas de progreso (Caballeros y Ciudades). Espejo del server.
+export type ScienceCard =
+  | 'alchemist' | 'crane' | 'engineer' | 'inventor' | 'irrigation'
+  | 'mining' | 'medicine' | 'roadBuildingP' | 'smith' | 'printer';
+export type PoliticsCard =
+  | 'spy' | 'bishop' | 'constitution' | 'deserter' | 'diplomat'
+  | 'intrigue' | 'saboteur' | 'warlord' | 'wedding';
+export type TradeCard =
+  | 'merchant' | 'merchantFleet' | 'commercialHarbor' | 'masterMerchant'
+  | 'resourceMonopoly' | 'tradeMonopoly';
+export type ProgressCardType = ScienceCard | PoliticsCard | TradeCard;
+
+export const PROGRESS_CARD_DISCIPLINE: Record<ProgressCardType, Discipline> = {
+  alchemist: 'science', crane: 'science', engineer: 'science', inventor: 'science',
+  irrigation: 'science', mining: 'science', medicine: 'science', roadBuildingP: 'science',
+  smith: 'science', printer: 'science',
+  spy: 'politics', bishop: 'politics', constitution: 'politics', deserter: 'politics',
+  diplomat: 'politics', intrigue: 'politics', saboteur: 'politics', warlord: 'politics',
+  wedding: 'politics',
+  merchant: 'trade', merchantFleet: 'trade', commercialHarbor: 'trade',
+  masterMerchant: 'trade', resourceMonopoly: 'trade', tradeMonopoly: 'trade',
+};
+
+export const PROGRESS_HAND_LIMIT = 4;
+
+// Caras del dado de evento: barco bárbaro o una puerta de color (disciplina).
+export type EventDie = 'barbarian' | Discipline;
+
 export type DevCardType =
   | 'knight'
   | 'vp'
@@ -142,6 +170,7 @@ export interface PublicPlayer {
   commodityCount: number; // total de mercancías (público); el detalle es privado
   improvements: CityImprovements; // niveles de mejora de ciudad (público)
   metropolises: Discipline[]; // disciplinas con metrópolis (público)
+  progressCardsCount: number; // total de cartas de progreso (público); detalle privado
   devCardsCount: number;
   knightsPlayed: number;
   ports: PortType[];
@@ -245,6 +274,7 @@ export interface MeView {
   color: PlayerColor | null;
   hand: Hand;
   commodities: CommodityHand; // mercancías propias (privado; solo Caballeros y Ciudades)
+  progressCards: ProgressCardType[]; // mis cartas de progreso (privado; máx 4)
   devCards: DevCardCounts;
   devCardsBoughtThisTurn: DevCardType[];
   ports: PortType[];
@@ -265,8 +295,12 @@ export interface PublicGameState {
   extension56: boolean;
   citiesKnights: boolean;
   barbarianStep: number;
+  barbarianAttacks: number;
   robberActive: boolean;
   metropolisOwners: Record<Discipline, string | null>;
+  lastRedDie: number | null;
+  lastEventDie: EventDie | null;
+  pendingProgressDiscard: Record<string, number>;
   seedInitialResources: boolean;
   extraRules: ExtraRules;
   players: PublicPlayer[];

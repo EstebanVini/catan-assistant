@@ -9,6 +9,8 @@ import {
   bestBankRatio,
   upgradeCityImprovement,
   publicVictoryPoints,
+  buildProgressDecks,
+  drawsProgressCard,
 } from './rules';
 import {
   GameState,
@@ -211,6 +213,27 @@ describe('upgradeCityImprovement — mejoras de ciudad y metrópolis', () => {
     expect(s.metropolisOwners.trade).toBe('p1');
     expect(s.players[1].metropolises).toEqual([]);
     expect(p.metropolises).toEqual(['trade']);
+  });
+});
+
+describe('cartas de progreso (calendario)', () => {
+  it('drawsProgressCard: roba si nivel >= dado rojo (nivel 0 nunca)', () => {
+    expect(drawsProgressCard(0, 1)).toBe(false); // nivel 0 nunca roba
+    expect(drawsProgressCard(1, 1)).toBe(true);  // nivel 1, rojo 1 → roba
+    expect(drawsProgressCard(1, 2)).toBe(false); // nivel 1, rojo 2 → no
+    expect(drawsProgressCard(3, 3)).toBe(true);
+    expect(drawsProgressCard(5, 6)).toBe(false); // nivel 5 nunca roba con rojo 6
+    expect(drawsProgressCard(5, 5)).toBe(true);
+  });
+
+  it('buildProgressDecks: 18 cartas por disciplina (54 total) y barajadas', () => {
+    const decks = buildProgressDecks();
+    expect(decks.science).toHaveLength(18);
+    expect(decks.politics).toHaveLength(18);
+    expect(decks.trade).toHaveLength(18);
+    // El mazo de comercio tiene 6 Mercaderes y 4 Monopolio de recurso.
+    expect(decks.trade.filter((c) => c === 'merchant')).toHaveLength(6);
+    expect(decks.trade.filter((c) => c === 'resourceMonopoly')).toHaveLength(4);
   });
 });
 
