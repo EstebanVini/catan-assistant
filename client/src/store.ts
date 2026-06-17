@@ -3,6 +3,7 @@ import {
   Building,
   BuildType,
   Commodity,
+  CommodityHand,
   ConnectionStatus,
   DevCardType,
   Discipline,
@@ -161,7 +162,11 @@ interface StoreState {
   promoteKnight: (knightId: string) => void;
   knightAction: (knightId: string, kind: 'move' | 'displace' | 'chaseRobber') => void;
   downgradeCity: (buildingId: string) => void;
-  submitDiscard: (resourcesToDiscard: Partial<Hand>) => void;
+  buildWall: () => void;
+  submitDiscard: (
+    resourcesToDiscard: Partial<Hand>,
+    commoditiesToDiscard?: Partial<CommodityHand>
+  ) => void;
   forceRandomDiscard: (targetPlayerId: string) => void;
   moveRobber: (hexId: string) => void;
   stealFrom: (targetPlayerId: string) => void;
@@ -437,8 +442,9 @@ export const useStore = create<StoreState>((set, get) => ({
   promoteKnight: (knightId) => socket.emit('knight:promote', { knightId }),
   knightAction: (knightId, kind) => socket.emit('knight:action', { knightId, kind }),
   downgradeCity: (buildingId) => socket.emit('barbarian:downgradeCity', { buildingId }),
-  submitDiscard: (resourcesToDiscard) =>
-    socket.emit('discard:submit', { resourcesToDiscard }),
+  buildWall: () => socket.emit('city:buildWall'),
+  submitDiscard: (resourcesToDiscard, commoditiesToDiscard) =>
+    socket.emit('discard:submit', { resourcesToDiscard, commoditiesToDiscard }),
   forceRandomDiscard: (targetPlayerId) =>
     socket.emit('discard:forceRandom', { targetPlayerId }),
   moveRobber: (hexId) => socket.emit('robber:move', { hexId }),

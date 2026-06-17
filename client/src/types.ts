@@ -71,7 +71,7 @@ export const PROGRESS_HAND_LIMIT = 4;
 // "registro asistido": se juegan y se resuelven en la mesa). Espejo de la
 // lógica de progress:play en el servidor.
 export const PROGRESS_AUTOMATED: ProgressCardType[] = [
-  'printer', 'constitution', 'resourceMonopoly', 'tradeMonopoly', 'irrigation', 'mining',
+  'printer', 'constitution', 'resourceMonopoly', 'tradeMonopoly', 'irrigation', 'mining', 'engineer',
 ];
 // Cartas que requieren elegir un recurso / una mercancía al jugarse.
 export const PROGRESS_NEEDS_RESOURCE: ProgressCardType[] = ['resourceMonopoly'];
@@ -88,6 +88,13 @@ export interface Knight {
   active: boolean;
 }
 export const MAX_KNIGHTS = 6;
+export const MAX_WALLS = 3;
+
+// Límite de mano antes de descartar con un 7 (espejo del server). En C&K cada
+// muro suma +2 y el conteo incluye recursos + mercancías.
+export function handLimitForSeven(walls: number, citiesKnights: boolean): number {
+  return citiesKnights ? 7 + 2 * walls : 7;
+}
 export const KNIGHT_RANK_NAMES: Record<KnightRank, string> = {
   1: 'Básico',
   2: 'Fuerte',
@@ -201,6 +208,7 @@ export interface PublicPlayer {
   progressCardsCount: number; // total de cartas de progreso (público); detalle privado
   knights: Knight[]; // caballeros (rango + activo); público. Solo C&K.
   defenderCards: number; // cartas Defensor de Catán (+1 PV c/u); público
+  walls: number; // muros de ciudad (0..3); público
   devCardsCount: number;
   knightsPlayed: number;
   ports: PortType[];

@@ -31,7 +31,7 @@ function makeState(): GameState {
     id: 'p1', sessionToken: 't1', name: 'A', color: 'red' as const, connected: true,
     hand: { brick: 1, lumber: 1, wool: 0, grain: 0, ore: 0 }, commodities: emptyCommodities(),
     improvements: emptyImprovements(), metropolises: [], buildings: [], progressCards: [],
-    knights: [], defenderCards: 0,
+    knights: [], defenderCards: 0, walls: 0,
     ports: [], devCards: emptyDevCards(), devCardsBoughtThisTurn: [], knightsPlayed: 0,
     victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
   };
@@ -39,7 +39,7 @@ function makeState(): GameState {
     id: 'p2', sessionToken: 't2', name: 'B', color: 'blue' as const, connected: true,
     hand: emptyHand(), commodities: emptyCommodities(),
     improvements: emptyImprovements(), metropolises: [], buildings: [], progressCards: [],
-    knights: [], defenderCards: 0,
+    knights: [], defenderCards: 0, walls: 0,
     ports: [], devCards: emptyDevCards(), devCardsBoughtThisTurn: [], knightsPlayed: 0,
     victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
   };
@@ -299,6 +299,18 @@ describe('computePendingDiscards', () => {
     s.players[1].hand = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 7 }; // 7 cartas, no descarta
     const pending = computePendingDiscards(s);
     expect(pending).toEqual({ p1: 4 });
+  });
+
+  it('C&K: cuenta mercancías y el límite sube +2 por muro', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    // 6 recursos + 4 mercancías = 10 cartas. Sin muros, límite 7 → descarta 5.
+    s.players[0].hand = { brick: 2, lumber: 2, wool: 2, grain: 0, ore: 0 };
+    s.players[0].commodities = { coin: 2, paper: 1, cloth: 1 };
+    expect(computePendingDiscards(s)).toEqual({ p1: 5 });
+    // Con 2 muros el límite es 11 → 10 cartas no descarta.
+    s.players[0].walls = 2;
+    expect(computePendingDiscards(s)).toEqual({});
   });
 });
 

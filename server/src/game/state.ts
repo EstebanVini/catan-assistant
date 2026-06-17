@@ -124,6 +124,16 @@ export function knightDefenseStrength(knights: Knight[]): number {
   return knights.reduce((sum, k) => sum + (k.active ? k.rank : 0), 0);
 }
 
+// === Muros de ciudad ===
+export const MAX_WALLS = 3;
+export const WALL_COST: Partial<Hand> = { brick: 2 };
+
+// Límite de mano antes de descartar con un 7. Base 7; en C&K cada muro suma +2
+// (máx 13) y el conteo incluye recursos + mercancías.
+export function handLimitForSeven(walls: number, citiesKnights: boolean): number {
+  return citiesKnights ? 7 + 2 * walls : 7;
+}
+
 export type DevCardType = 'knight' | 'vp' | 'roadBuilding' | 'yearOfPlenty' | 'monopoly';
 
 export type PortType = '3:1' | Resource;
@@ -184,6 +194,8 @@ export interface Player {
   knights: Knight[];
   // Cartas "Defensor de Catán" acumuladas (+1 PV cada una). Público. Solo C&K.
   defenderCards: number;
+  // Muros de ciudad (0..3). Cada uno sube el límite de mano del 7 en +2. Público.
+  walls: number;
   ports: PortType[];
   devCards: DevCardCounts; // PRIVADO en tipos; conteo total + caballeros jugados es público
   devCardsBoughtThisTurn: DevCardType[]; // no jugables el mismo turno

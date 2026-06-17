@@ -25,6 +25,7 @@ export interface PublicPlayer {
   progressCardsCount: number; // total de cartas de progreso (público); detalle privado
   knights: Player['knights']; // caballeros (rango + activo); público. Solo C&K.
   defenderCards: number; // cartas Defensor de Catán (+1 PV c/u); público
+  walls: number; // muros de ciudad (0..3); público
   devCardsCount: number;
   knightsPlayed: number;
   ports: Player['ports'];
@@ -161,6 +162,7 @@ function toPublic(p: Player, state: GameState): PublicPlayer {
     progressCardsCount: p.progressCards.length,
     knights: p.knights.map((k) => ({ ...k })),
     defenderCards: p.defenderCards,
+    walls: p.walls,
     devCardsCount: devCardsTotal(p.devCards),
     knightsPlayed: p.knightsPlayed,
     ports: p.ports,

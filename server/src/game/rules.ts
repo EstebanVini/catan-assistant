@@ -20,6 +20,8 @@ import {
   PROGRESS_DECK_COUNTS,
   emptyProgressDecks,
   knightDefenseStrength,
+  handLimitForSeven,
+  commodityTotal,
   emptyHand,
   fullBank,
   handTotal,
@@ -169,11 +171,17 @@ export function distributeForRoll(state: GameState, number: number): Distributio
 }
 
 // === Cálculo de descartes tras 7 ===
+// Base: descarta si tienes >7 cartas (recursos). En Caballeros y Ciudades el
+// total incluye mercancías y el límite es 7 + 2·muros (los muros protegen tu
+// mano de los bárbaros del 7).
 export function computePendingDiscards(state: GameState): Record<string, number> {
   const out: Record<string, number> = {};
   for (const p of state.players) {
-    const total = handTotal(p.hand);
-    if (total > 7) out[p.id] = Math.floor(total / 2);
+    const total = state.citiesKnights
+      ? handTotal(p.hand) + commodityTotal(p.commodities)
+      : handTotal(p.hand);
+    const limit = handLimitForSeven(p.walls, state.citiesKnights);
+    if (total > limit) out[p.id] = Math.floor(total / 2);
   }
   return out;
 }

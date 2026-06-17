@@ -9,6 +9,7 @@ import {
   Resource,
   RESOURCES,
   Commodity,
+  CommodityHand,
   COMMODITIES,
   Discipline,
   DISCIPLINES,
@@ -19,6 +20,8 @@ import {
   KNIGHT_BUILD_COST,
   KNIGHT_ACTIVATE_COST,
   KNIGHT_PROMOTE_COST,
+  MAX_WALLS,
+  WALL_COST,
   emptyHand,
   fullBank,
   handTotal,
@@ -889,6 +892,16 @@ export function registerHandlers(io: Server, socket: Socket): void {
         player.commodities[commodity] += total;
         logAction(state, `${player.name} jugó Monopolio de Comercio (${esCommodity(commodity)}) y tomó ${total}.`, player.id);
         io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} jugó Monopolio de Comercio de ${esCommodity(commodity)} (tomó ${total}).` });
+      } else if (card === 'engineer') {
+        // Construye 1 muro de ciudad gratis (respeta el máximo).
+        if (player.walls >= MAX_WALLS) {
+          popSnapshot(state);
+          socket.emit('error', { message: `Ya tienes el máximo de ${MAX_WALLS} muros.` });
+          return;
+        }
+        player.walls += 1;
+        logAction(state, `${player.name} jugó Ingeniero: construyó un muro gratis (${player.walls}/${MAX_WALLS}).`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Ingeniero (muro gratis).` });
       } else if (card === 'irrigation' || card === 'mining') {
         // 2 recursos por cada ficha (spot) del recurso que toquen tus
         // construcciones. irrigation→trigo, mining→mineral.
@@ -919,35 +932,57 @@ export function registerHandlers(io: Server, socket: Socket): void {
   );
 
   // === Descarte ===
-  socket.on('discard:submit', ({ resourcesToDiscard }: { resourcesToDiscard: Partial<Hand> }) => {
-    const state = getRoom(socket.data.code ?? '');
-    if (!state) return;
-    const player = findPlayer(state, socket.data.playerId ?? '');
-    if (!player) return;
-    if (state.phase !== 'discard') return;
-    const required = state.pendingDiscards[player.id] ?? 0;
-    if (required === 0) return;
-    const total = Object.values(resourcesToDiscard).reduce((a, b) => a + (b ?? 0), 0);
-    if (total !== required) {
-      socket.emit('error', { message: `Debes descartar exactamente ${required} cartas.` });
-      return;
-    }
-    for (const [res, n] of Object.entries(resourcesToDiscard) as [Resource, number][]) {
-      if (player.hand[res] < n) {
-        socket.emit('error', { message: 'No tienes esas cartas en la mano.' });
+  // En Caballeros y Ciudades el descarte puede incluir mercancías (cuentan para
+  // el total). `commoditiesToDiscard` es opcional (vacío en el modo base).
+  socket.on(
+    'discard:submit',
+    ({
+      resourcesToDiscard,
+      commoditiesToDiscard,
+    }: {
+      resourcesToDiscard: Partial<Hand>;
+      commoditiesToDiscard?: Partial<CommodityHand>;
+    }) => {
+      const state = getRoom(socket.data.code ?? '');
+      if (!state) return;
+      const player = findPlayer(state, socket.data.playerId ?? '');
+      if (!player) return;
+      if (state.phase !== 'discard') return;
+      const required = state.pendingDiscards[player.id] ?? 0;
+      if (required === 0) return;
+      const resTotal = Object.values(resourcesToDiscard).reduce((a, b) => a + (b ?? 0), 0);
+      const commTotal = Object.values(commoditiesToDiscard ?? {}).reduce((a, b) => a + (b ?? 0), 0);
+      if (resTotal + commTotal !== required) {
+        socket.emit('error', { message: `Debes descartar exactamente ${required} cartas.` });
         return;
       }
+      for (const [res, n] of Object.entries(resourcesToDiscard) as [Resource, number][]) {
+        if (player.hand[res] < n) {
+          socket.emit('error', { message: 'No tienes esas cartas en la mano.' });
+          return;
+        }
+      }
+      for (const [c, n] of Object.entries(commoditiesToDiscard ?? {}) as [Commodity, number][]) {
+        if (player.commodities[c] < n) {
+          socket.emit('error', { message: 'No tienes esas mercancías en la mano.' });
+          return;
+        }
+      }
+      pushSnapshot(state);
+      for (const [res, n] of Object.entries(resourcesToDiscard) as [Resource, number][]) {
+        player.hand[res] -= n;
+        state.bank[res] += n;
+      }
+      for (const [c, n] of Object.entries(commoditiesToDiscard ?? {}) as [Commodity, number][]) {
+        player.commodities[c] -= n;
+        state.commodityBank[c] = Math.min(12, state.commodityBank[c] + n);
+      }
+      delete state.pendingDiscards[player.id];
+      logAction(state, `${player.name} descartó ${required} cartas.`, player.id);
+      checkAllDiscardsDone(state);
+      broadcastState(io, state);
     }
-    pushSnapshot(state);
-    for (const [res, n] of Object.entries(resourcesToDiscard) as [Resource, number][]) {
-      player.hand[res] -= n;
-      state.bank[res] += n;
-    }
-    delete state.pendingDiscards[player.id];
-    logAction(state, `${player.name} descartó ${required} cartas.`, player.id);
-    checkAllDiscardsDone(state);
-    broadcastState(io, state);
-  });
+  );
 
   // El bank manager puede descartar por un jugador desconectado (aleatorio)
   socket.on('discard:forceRandom', ({ targetPlayerId }: { targetPlayerId: string }) => {
@@ -1300,6 +1335,34 @@ export function registerHandlers(io: Server, socket: Socket): void {
       });
     }
     checkVictory(io, state, player);
+  });
+
+  // === Muro de ciudad (Caballeros y Ciudades) ===
+  socket.on('city:buildWall', () => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    const canActNow =
+      (ensureActive(state, player.id) && state.phase === 'main') ||
+      (state.phase === 'specialBuild' && state.specialBuildQueue[0] === player.id);
+    if (!canActNow) {
+      socket.emit('error', { message: 'Solo puedes construir muros en tu turno, después de tirar.' });
+      return;
+    }
+    if (player.walls >= MAX_WALLS) {
+      socket.emit('error', { message: `Máximo ${MAX_WALLS} muros.` });
+      return;
+    }
+    if (!canAfford(player.hand, WALL_COST)) {
+      socket.emit('error', { message: 'Necesitas 2 ladrillos para un muro.' });
+      return;
+    }
+    pushSnapshot(state);
+    payToBank(player.hand, state.bank, WALL_COST);
+    player.walls += 1;
+    logAction(state, `${player.name} construyó un muro de ciudad (${player.walls}/${MAX_WALLS}).`, player.id);
+    broadcastState(io, state);
   });
 
   // === Caballeros (Caballeros y Ciudades) ===
