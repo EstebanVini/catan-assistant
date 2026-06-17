@@ -1,6 +1,7 @@
 import {
   Commodity,
   DevCardType,
+  Discipline,
   GamePhase,
   PlayerColor,
   PortType,
@@ -62,6 +63,27 @@ export const COMMODITY_NAMES_LOWER: Record<Commodity, string> = {
   coin: 'moneda',
   paper: 'papel',
   cloth: 'tela',
+};
+
+// Disciplinas de mejora de ciudad (Caballeros y Ciudades). Solo se usan en
+// modo C&K. Nombre canónico en español (nunca "trade"/"politics"/"science" en
+// UI): Comercio / Política / Ciencia. Cada una tiene su color funcional y su
+// mercancía asociada (Comercio↔Tela, Política↔Moneda, Ciencia↔Papel).
+export const DISCIPLINE_NAMES: Record<Discipline, string> = {
+  trade: 'Comercio',
+  politics: 'Política',
+  science: 'Ciencia',
+};
+
+// Descripción breve de la habilidad que desbloquea el nivel 3 de cada
+// disciplina (caballeros-plan.md §2.4). Se muestra en el calendario de la
+// ciudad bajo el nombre de la habilidad (DISCIPLINE_LEVEL3_ABILITY).
+export const DISCIPLINE_LEVEL3_ABILITY_DESC: Record<Discipline, string> = {
+  trade:
+    'Cambia 2 mercancías o recursos iguales por 1 cualquiera con el banco.',
+  politics: 'Permite promover tus caballeros a poderosos (nivel 3).',
+  science:
+    'Si en tu turno no produces ningún recurso, toma 1 a elección del banco.',
 };
 
 export const PHASE_NAMES: Record<GamePhase, string> = {

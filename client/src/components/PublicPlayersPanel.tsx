@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../store';
-import { PublicPlayer } from '../types';
+import { Discipline, PublicPlayer } from '../types';
 import { ColorChip } from './ColorChip';
-import { portLabel } from '../lib/spanish';
+import { DISCIPLINE_NAMES, portLabel } from '../lib/spanish';
 import { playerHex } from '../lib/playerColors';
 import { BadgeChip, BadgeIcon } from './BadgeIcon';
 import { CollapsibleSection } from './CollapsibleSection';
@@ -296,6 +296,16 @@ export function PublicPlayersPanel(): JSX.Element | null {
                       ) : null}
                     </div>
                   ) : null}
+                  {/* Metrópolis (C&K): un marcador heráldico dorado por
+                      disciplina que el jugador posee, con su color funcional.
+                      Solo se renderiza en modo C&K y si tiene alguna. */}
+                  {state.citiesKnights && p.metropolises.length > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      {p.metropolises.map((d) => (
+                        <MetropolisChip key={d} discipline={d} />
+                      ))}
+                    </div>
+                  ) : null}
                   {p.ports.length > 0 ? (
                     <div className="mt-1 flex flex-wrap items-center gap-1">
                       {p.ports.map((port) => (
@@ -415,4 +425,40 @@ function Badge({
 
 function Sep(): JSX.Element {
   return <span className="text-neutral-700" aria-hidden>·</span>;
+}
+
+// Chip de metrópolis (C&K): aro dorado heráldico (las metrópolis son uno de los
+// usos legítimos del dorado, como las insignias) con un punto del color
+// funcional de la disciplina y su nombre. Clases por disciplina como cadenas
+// literales (el JIT de Tailwind no detecta `text-discipline-${d}`).
+const DISCIPLINE_CHIP_TEXT: Record<Discipline, string> = {
+  trade: 'text-discipline-trade',
+  politics: 'text-discipline-politics',
+  science: 'text-discipline-science',
+};
+const DISCIPLINE_CHIP_DOT: Record<Discipline, string> = {
+  trade: 'bg-discipline-trade',
+  politics: 'bg-discipline-politics',
+  science: 'bg-discipline-science',
+};
+
+function MetropolisChip({ discipline }: { discipline: Discipline }): JSX.Element {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/[0.10] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-gold-light"
+      aria-label={`Metrópolis de ${DISCIPLINE_NAMES[discipline]} (4 puntos)`}
+      title={`Metrópolis de ${DISCIPLINE_NAMES[discipline]} · 4 PV`}
+    >
+      <span
+        className={
+          'h-2 w-2 flex-shrink-0 rounded-full ring-1 ring-inset ring-black/30 ' +
+          DISCIPLINE_CHIP_DOT[discipline]
+        }
+        aria-hidden
+      />
+      <span className={DISCIPLINE_CHIP_TEXT[discipline]}>
+        Metrópolis · {DISCIPLINE_NAMES[discipline]}
+      </span>
+    </span>
+  );
 }

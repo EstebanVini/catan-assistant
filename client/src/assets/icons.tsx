@@ -1,4 +1,4 @@
-import { Commodity, DevCardType, Resource } from '../types';
+import { Commodity, DevCardType, Discipline, Resource } from '../types';
 import brickUrl from './icons/ladrillo.png';
 import lumberUrl from './icons/madera.png';
 import woolUrl from './icons/obeja.png';
@@ -241,6 +241,73 @@ export function CommodityGlyph({
           background: gold,
           border: `1px solid ${STROKE}`,
         }}
+      />
+    </span>
+  );
+}
+
+// ─── Disciplinas de mejora de ciudad (calendario C&K) ─────────────────────────
+//
+// Arte RECICLADO provisionalmente (missing-icons.md §4): comercio→obeja (lana),
+// politica→mineral (ore), ciencia→madera (lumber). Para que NO se confundan con
+// recursos y se lean como "disciplina", el `DisciplineGlyph` envuelve el
+// medallón en un anillo del color funcional de la disciplina (los tokens
+// --discipline-* del reskin C&K): Comercio amarillo, Política azul, Ciencia
+// verde. El color del anillo es el distintivo. Cuando llegue el arte definitivo
+// (comercio/politica/ciencia.png), basta cambiar `DISCIPLINE_ICON_URL`.
+
+export const DISCIPLINE_ICON_URL: Record<Discipline, string> = {
+  trade: woolUrl, // pastura/lana → Comercio
+  politics: oreUrl, // montañas/mineral → Política
+  science: lumberUrl, // bosque/madera → Ciencia
+};
+
+// Color del anillo por disciplina (espejo de --discipline-* / tailwind
+// `discipline.*`). Se usa aquí como hex literal porque el glifo dibuja con
+// estilos inline, igual que `CommodityGlyph`.
+const DISCIPLINE_RING: Record<Discipline, string> = {
+  trade: '#d9a93e', // amarillo/dorado
+  politics: '#5b86d6', // azul
+  science: '#52a866', // verde
+};
+
+export function DisciplineGlyph({
+  discipline,
+  size = 20,
+  className,
+}: GlyphProps & { discipline: Discipline }): JSX.Element {
+  // Medallón reciclado + anillo del color de la disciplina. El arte ocupa
+  // ~74% del área para dejar ver el aro completo (mismo lenguaje que
+  // `CommodityGlyph`, pero el color identifica la disciplina, no el dorado
+  // heráldico de mercancía).
+  const inner = Math.round(size * 0.74);
+  const ring = DISCIPLINE_RING[discipline];
+  return (
+    <span
+      aria-hidden
+      className={className}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: size,
+        height: size,
+        flexShrink: 0,
+        borderRadius: '9999px',
+        background: `radial-gradient(closest-side, ${ring}22, ${ring}0d 70%, transparent)`,
+        border: `1.5px solid ${ring}`,
+        boxShadow: `inset 0 0 0 1px ${STROKE}33, 0 0 0 1px ${STROKE}22`,
+      }}
+    >
+      <img
+        src={DISCIPLINE_ICON_URL[discipline]}
+        width={inner}
+        height={inner}
+        alt=""
+        aria-hidden
+        draggable={false}
+        style={{ display: 'block', objectFit: 'contain' }}
       />
     </span>
   );

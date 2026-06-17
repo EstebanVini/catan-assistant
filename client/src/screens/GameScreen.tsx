@@ -18,6 +18,7 @@ import { MonopolyPickerModal } from '../components/MonopolyPickerModal';
 import { YearOfPlentyPickerModal } from '../components/YearOfPlentyPickerModal';
 import { RoadBuildingConfirmModal } from '../components/RoadBuildingConfirmModal';
 import { DiceStats } from '../components/DiceStats';
+import { CityCalendarPanel } from '../components/CityCalendarPanel';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { DevCardType, totalVictoryPoints, victoryTarget } from '../types';
 import { DEV_CARD_NAMES, vpCardsCopy } from '../lib/spanish';
@@ -137,6 +138,19 @@ export function GameScreen(): JSX.Element | null {
         <div className="min-w-0 md:row-span-2 lg:row-span-1">
           <BankPanel />
           <ConstructionTable />
+          {/* Calendario de la ciudad (Caballeros y Ciudades): subir las tres
+              disciplinas, ver habilidades de nivel 3 y metrópolis. Solo C&K.
+              Colapsable y por defecto abierto: es una acción de turno
+              recurrente en C&K, junto a la construcción. */}
+          {state.citiesKnights ? (
+            <CollapsibleSection
+              id="cityCalendar"
+              title="Calendario de la ciudad"
+              defaultCollapsed={false}
+            >
+              <CityCalendarPanel />
+            </CollapsibleSection>
+          ) : null}
           <DevCardsPanel />
         </div>
         <div className="min-w-0">
