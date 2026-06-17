@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../store';
-import { Discipline, Knight, PublicPlayer, knightDefenseStrength, playerVictoryPoints } from '../types';
+import { Discipline, Knight, MAX_WALLS, PublicPlayer, knightDefenseStrength, playerVictoryPoints } from '../types';
 import { ColorChip } from './ColorChip';
 import { DISCIPLINE_NAMES, portLabel } from '../lib/spanish';
 import { playerHex } from '../lib/playerColors';
@@ -319,6 +319,15 @@ export function PublicPlayersPanel(): JSX.Element | null {
                   {state.citiesKnights ? (
                     <KnightsSummary knights={p.knights} />
                   ) : null}
+                  {/* Muros de ciudad (C&K): cada muro sube en +2 el límite de
+                      mano del 7 de su dueño. Indicador público (p.walls), solo
+                      cuando tiene alguno. El acero (--ck-steel) lo separa del
+                      lenguaje dorado de las insignias/metrópolis. */}
+                  {state.citiesKnights && p.walls > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      <WallsChip walls={p.walls} />
+                    </div>
+                  ) : null}
                   {/* Defensor de Catán (C&K): cada carta vale +1 PV. Se gana al
                       ser el jugador con más caballeros que repelen un ataque
                       bárbaro. Solo se muestra cuando el jugador tiene alguna. */}
@@ -551,6 +560,69 @@ function DefenderShieldGlyph({ size = 13 }: { size?: number }): JSX.Element {
         strokeLinecap="round"
         opacity="0.6"
       />
+    </svg>
+  );
+}
+
+// Muros de ciudad (C&K): chip de acero con el recuento de muros y el límite de
+// mano del 7 que aporta (cada muro +2). Solo informativo; se muestra cuando el
+// jugador tiene al menos un muro. El acero (--ck-steel) lo separa del lenguaje
+// dorado de las insignias/metrópolis, igual que el resumen de caballeros.
+function WallsChip({ walls }: { walls: number }): JSX.Element {
+  const label = `Muros de ciudad: ${walls} de ${MAX_WALLS}. Sube su límite de mano del 7 a ${7 + 2 * walls} cartas.`;
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="inline-flex items-center gap-1 rounded-full border border-ck-steel/40 bg-ck-steel/[0.12] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-ck-steel-light"
+    >
+      <WallGlyph size={13} />
+      <span>
+        Muros{' '}
+        <span className="nums text-neutral-100">{walls}</span>
+        <span className="text-ck-steel/70">/{MAX_WALLS}</span>
+      </span>
+    </span>
+  );
+}
+
+// Glifo de muralla (SVG inline) en acero. Decorativo: el `aria-label` del chip
+// que lo contiene lo describe. No hay arte propio de muro (missing-icons.md);
+// dibujamos una almena de piedra en el lenguaje del set (trazo nogal cálido).
+function WallGlyph({ size = 13 }: { size?: number }): JSX.Element {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden
+      className="flex-shrink-0"
+    >
+      <path
+        d="M3 8 H6 V6 H9 V8 H12 V6 H15 V8 H18 V6 H21 V8 H3 Z"
+        fill="#8b919b"
+        stroke="#1a130c"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
+      <rect
+        x="3"
+        y="8"
+        width="18"
+        height="11"
+        fill="#8b919b"
+        stroke="#1a130c"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
+      <g stroke="#6b7079" strokeWidth="0.9" strokeLinecap="round">
+        <path d="M3 12.5 H21" />
+        <path d="M3 15.5 H21" />
+        <path d="M8.5 8 V12.5 M15.5 8 V12.5" />
+        <path d="M5.5 12.5 V15.5 M12 12.5 V15.5 M18.5 12.5 V15.5" />
+        <path d="M8.5 15.5 V19 M15.5 15.5 V19" />
+      </g>
     </svg>
   );
 }

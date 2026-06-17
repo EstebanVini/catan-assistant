@@ -23,6 +23,7 @@ import { ProgressHand } from '../components/ProgressHand';
 import { BarbarianTrack } from '../components/BarbarianTrack';
 import { BarbarianLossModal } from '../components/BarbarianLossModal';
 import { KnightsPanel } from '../components/KnightsPanel';
+import { WallControl } from '../components/WallControl';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { DevCardType, playerVictoryPoints, victoryTarget } from '../types';
 import { DEV_CARD_NAMES, vpCardsCopy } from '../lib/spanish';
@@ -159,16 +160,19 @@ export function GameScreen(): JSX.Element | null {
               <CityCalendarPanel />
             </CollapsibleSection>
           ) : null}
-          {/* Caballeros (Caballeros y Ciudades): contratar / activar / promover
-              y registrar sus acciones, con rango, estado y fuerza de defensa.
+          {/* Defensa (Caballeros y Ciudades): agrupa Muros de ciudad (§2.9) y
+              Caballeros (§2.6). Los muros suben el límite de mano del 7; los
+              caballeros se contratan / activan / promueven y registran acciones.
               Solo C&K. Colapsable junto a la construcción; por defecto abierto:
-              es una acción de turno recurrente en C&K. */}
+              son acciones de turno recurrentes en C&K. */}
           {state.citiesKnights ? (
             <CollapsibleSection
-              id="knights"
-              title="Caballeros"
+              id="defense"
+              title="Defensa"
               defaultCollapsed={false}
             >
+              <WallControl />
+              <div className="border-t border-white/10" />
               <KnightsPanel />
             </CollapsibleSection>
           ) : null}
