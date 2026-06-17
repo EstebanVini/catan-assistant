@@ -223,6 +223,9 @@ export interface PublicGameState {
   bankManagerId: string;
   status: GameStatus;
   extension56: boolean;
+  citiesKnights: boolean;
+  barbarianStep: number;
+  robberActive: boolean;
   seedInitialResources: boolean;
   extraRules: ExtraRules;
   players: PublicPlayer[];
@@ -296,4 +299,10 @@ export function totalVictoryPoints(vp: VictoryPoints): number {
     (vp.largestArmy ? 2 : 0) +
     vp.vpCards
   );
+}
+
+// Puntos necesarios para ganar: 13 en Caballeros y Ciudades, 10 en el base.
+// Espejo de victoryTargetFor del servidor (server/src/game/state.ts).
+export function victoryTarget(state: Pick<PublicGameState, 'citiesKnights'>): number {
+  return state.citiesKnights ? 13 : 10;
 }

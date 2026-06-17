@@ -113,6 +113,7 @@ interface StoreState {
   setTurnOrder: (ids: string[]) => void;
   setBankManager: (playerId: string) => void;
   setExtension56: (enabled: boolean) => void;
+  setCitiesKnights: (enabled: boolean) => void;
   setSeedResources: (enabled: boolean) => void;
   setExtraRules: (rules: Partial<ExtraRules>) => void;
   kickPlayer: (playerId: string) => void;
@@ -379,6 +380,8 @@ export const useStore = create<StoreState>((set, get) => ({
     socket.emit('lobby:setBankManager', { playerId }),
   setExtension56: (enabled) =>
     socket.emit('lobby:setExtension56', { enabled }),
+  setCitiesKnights: (enabled) =>
+    socket.emit('lobby:setCitiesKnights', { enabled }),
   setSeedResources: (enabled) =>
     socket.emit('lobby:setSeedResources', { enabled }),
   setExtraRules: (rules) => socket.emit('lobby:setExtraRules', rules),

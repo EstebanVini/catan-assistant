@@ -77,6 +77,11 @@ export function createRoom(hostName: string, profile?: UserProfileInfo): { state
     bankManagerId: hostId,
     status: 'lobby',
     extension56: false,
+    citiesKnights: false,
+    barbarianStep: 0,
+    // En el base el ladrón siempre está activo; en C&K se desactiva al iniciar
+    // la partida (queda inmovilizado hasta el primer ataque bárbaro).
+    robberActive: true,
     seedInitialResources: true,
     extraRules: defaultExtraRules(),
     players: [host],

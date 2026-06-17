@@ -19,7 +19,7 @@ import { YearOfPlentyPickerModal } from '../components/YearOfPlentyPickerModal';
 import { RoadBuildingConfirmModal } from '../components/RoadBuildingConfirmModal';
 import { DiceStats } from '../components/DiceStats';
 import { CollapsibleSection } from '../components/CollapsibleSection';
-import { DevCardType, totalVictoryPoints } from '../types';
+import { DevCardType, totalVictoryPoints, victoryTarget } from '../types';
 import { DEV_CARD_NAMES, vpCardsCopy } from '../lib/spanish';
 import { DevCardGlyph } from '../assets/icons';
 import { DevCardPreview } from '../components/DevCardPreview';
@@ -75,7 +75,7 @@ export function GameScreen(): JSX.Element | null {
       state.turnOrder[state.currentTurnIndex] === me.id &&
       state.phase === 'main' &&
       state.status === 'playing' &&
-      myVP >= 10;
+      myVP >= victoryTarget(state);
     if (canDeclareNow && !wasDeclarableRef.current) {
       wasDeclarableRef.current = true;
       pushToast('success', 'Puedes declarar victoria.');

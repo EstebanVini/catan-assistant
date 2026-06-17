@@ -154,6 +154,18 @@ export interface GameState {
   bankManagerId: string;
   status: GameStatus;
   extension56: boolean;
+  // Modo "Caballeros y Ciudades" (Cities & Knights). Aditivo: cuando es false
+  // (default) el juego se comporta EXACTAMENTE como el base. Los campos C&K
+  // (barbarianStep, robberActive, y los nuevos del jugador) solo se usan
+  // cuando es true. Ver caballeros-plan.md.
+  citiesKnights: boolean;
+  // Pista del barco bárbaro (0..7). Avanza con la cara de barco del dado de
+  // evento; al llegar a 7 los bárbaros atacan y vuelve a 0. Solo en C&K.
+  barbarianStep: number;
+  // El ladrón queda inmovilizado hasta el PRIMER ataque bárbaro: antes de eso
+  // un 7 solo provoca descarte. false hasta el primer ataque. Solo en C&K; en
+  // el modo base es true desde el inicio (el ladrón siempre se mueve).
+  robberActive: boolean;
   // Si es true (default), al iniciar se reparten los recursos de las fichas
   // registradas. Si es false, el registro de fichas es opcional y nadie
   // recibe recursos de inicio.
@@ -202,4 +214,9 @@ export function handTotal(hand: Hand): number {
 
 export function devCardsTotal(d: DevCardCounts): number {
   return d.knight + d.vp + d.roadBuilding + d.yearOfPlenty + d.monopoly;
+}
+
+// Puntos necesarios para ganar: 13 en Caballeros y Ciudades, 10 en el base.
+export function victoryTargetFor(state: Pick<GameState, 'citiesKnights'>): number {
+  return state.citiesKnights ? 13 : 10;
 }

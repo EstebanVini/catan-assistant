@@ -36,6 +36,9 @@ export interface PlayerView {
     bankManagerId: string;
     status: GameState['status'];
     extension56: boolean;
+    citiesKnights: boolean;
+    barbarianStep: number;
+    robberActive: boolean;
     seedInitialResources: boolean;
     extraRules: GameState['extraRules'];
     players: PublicPlayer[];
@@ -82,6 +85,9 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
       bankManagerId: state.bankManagerId,
       status: state.status,
       extension56: state.extension56,
+      citiesKnights: state.citiesKnights,
+      barbarianStep: state.barbarianStep,
+      robberActive: state.robberActive,
       seedInitialResources: state.seedInitialResources,
       extraRules: state.extraRules,
       players: state.players.map((p) => toPublic(p, state)),

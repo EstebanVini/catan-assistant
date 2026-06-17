@@ -11,6 +11,7 @@ import {
   emptyHand,
   fullBank,
   handTotal,
+  victoryTargetFor,
 } from '../game/state';
 import {
   BUILD_COSTS,
@@ -347,6 +348,24 @@ export function registerHandlers(io: Server, socket: Socket): void {
     broadcastState(io, state);
   });
 
+  // Modo "Caballeros y Ciudades": toggle del anfitrión en el lobby. Aditivo:
+  // cambia el objetivo de victoria a 13 y habilita las mecánicas C&K (se
+  // implementan por fases; ver caballeros-plan.md). El juego base no se ve
+  // afectado cuando está apagado.
+  socket.on('lobby:setCitiesKnights', ({ enabled }: { enabled: boolean }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || state.status !== 'lobby') return;
+    if (!ensureHost(state, socket.data.playerId)) return;
+    state.citiesKnights = enabled;
+    logAction(
+      state,
+      enabled
+        ? 'Se activó la expansión Caballeros y Ciudades (victoria a 13 puntos).'
+        : 'Se desactivó la expansión Caballeros y Ciudades.'
+    );
+    broadcastState(io, state);
+  });
+
   socket.on('lobby:rollOrderByDice', () => {
     const state = getRoom(socket.data.code ?? '');
     if (!state || state.status !== 'lobby') return;
@@ -553,6 +572,12 @@ export function registerHandlers(io: Server, socket: Socket): void {
     state.phase = 'roll';
     state.currentTurnIndex = 0;
     state.startedAt = Date.now();
+    // En Caballeros y Ciudades el ladrón arranca INMOVILIZADO: queda fuera de
+    // juego hasta el primer ataque bárbaro (un 7 antes de eso solo descarta).
+    if (state.citiesKnights) {
+      state.robberActive = false;
+      state.barbarianStep = 0;
+    }
 
     // Derivar los hexes de producción y repartir los recursos de inicio:
     // 1 carta por cada ficha que tocan los poblados registrados (todos).
@@ -1311,8 +1336,9 @@ export function registerHandlers(io: Server, socket: Socket): void {
       socket.emit('error', { message: 'Solo puedes declarar victoria en tu turno.' });
       return;
     }
-    if (totalVictoryPoints(player) < 10) {
-      socket.emit('error', { message: 'Necesitas 10 puntos para declarar victoria.' });
+    const target = victoryTargetFor(state);
+    if (totalVictoryPoints(player) < target) {
+      socket.emit('error', { message: `Necesitas ${target} puntos para declarar victoria.` });
       return;
     }
     state.status = 'ended';
@@ -1514,7 +1540,7 @@ function esResource(r: Resource): string {
 
 function checkVictory(io: Server, state: GameState, player: Player): void {
   recomputeVictoryPoints(state);
-  if (totalVictoryPoints(player) >= 10 && state.status === 'playing') {
+  if (totalVictoryPoints(player) >= victoryTargetFor(state) && state.status === 'playing') {
     // No declarar automáticamente; pero notificar al jugador con un mensaje en el log silencioso
     // El jugador debe tocar "Declarar victoria".
   }

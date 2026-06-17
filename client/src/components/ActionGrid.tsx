@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
-import { BUILD_COSTS, Building, BuildType, Resource, totalVictoryPoints } from '../types';
+import { BUILD_COSTS, Building, BuildType, Resource, totalVictoryPoints, victoryTarget } from '../types';
 import { buildTypeLabel, RESOURCE_NAMES_LOWER, joinList } from '../lib/spanish';
 import { BuildCostBadge } from './BuildCostBadge';
 import { useCollapsePref } from './CollapsibleSection';
@@ -45,7 +45,7 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
       return false;
     const mp = s.players.find((p) => p.id === meId);
     if (!mp) return false;
-    return totalVictoryPoints(mp.victoryPoints) >= 10;
+    return totalVictoryPoints(mp.victoryPoints) >= victoryTarget(s);
   })();
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
     state.phase === 'specialBuild' && state.specialBuildQueue[0] === me.id;
   const myPublic = state.players.find((p) => p.id === me.id);
   const myVP = myPublic ? totalVictoryPoints(myPublic.victoryPoints) : 0;
-  const canDeclare = inMain && myVP >= 10;
+  const canDeclare = inMain && myVP >= victoryTarget(state);
 
   // Cambio A: poblados comprados este turno sin fichas registradas. El servidor
   // rechaza terminar el turno / pasar en construcción especial mientras esto no

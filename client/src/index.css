@@ -72,6 +72,86 @@
     --ring-focus: rgba(236, 195, 95, 0.9);
   }
 
+  /*
+   * ─── Reskin condicional "Caballeros y Ciudades" ─────────────────────────
+   * Se activa SOLO cuando la raíz lleva [data-mode="ck"] (lo aplica el
+   * ui-engineer en document.documentElement cuando la partida es C&K). Es un
+   * desplazamiento SUTIL de la paleta, NO un rediseño: fuera de este bloque el
+   * tema base queda EXACTAMENTE igual. Concepto de la caja de la expansión:
+   * "el mismo mar de Catán, pero al anochecer, con tormenta y fuego en el
+   * horizonte" — acero de caballero, estandartes carmesí y un borde ámbar
+   * incandescente arriba. El dorado reservado (marca/victoria/insignias) NO
+   * cambia; el carmesí entra como acento SECUNDARIO de peligro/heráldica.
+   *
+   * Espejo obligado: los tokens nuevos viven también como hex literales en
+   * `tailwind.config.js` (clave `ck`, `commodity`, `discipline`) para los
+   * modificadores de opacidad. El override de `--ocean-high` y
+   * `--ocean-gradient` se consume solo vía var() en CSS (fondo del océano), por
+   * lo que NO necesita espejo en Tailwind. `playerColors.ts`/`icons.tsx` no se
+   * tocan: no cambiamos colores de jugador ni fills de recursos.
+   */
+  [data-mode='ck'] {
+    /* Mar de anochecer: un punto más FRÍO (menos cian/verde, más acero) y más
+       OSCURO que el base #176087. Mejora además el contraste del título dorado
+       en el tope del degradado (gold-light pasa de 4.10:1 a 5.61:1). */
+    --ocean-high: #214a66;
+
+    /* Fuego del horizonte: ámbar quemado incandescente. Vive en el borde
+       superior del degradado del océano y como acento de "fuego/horizonte". */
+    --ck-horizon: #c25a2a;
+
+    /* Degradado del océano tormentoso. Mantiene el centro radial del base
+       (50% -10%) para que el ámbar puro quede casi fuera del viewport y deje un
+       RIM incandescente en el horizonte. Stops calculados:
+         0%  ck-horizon  → la línea de fuego (mayormente fuera de pantalla)
+         8%  #7a3a3a     → la brasa se apaga en bruma carmesí (tormenta)
+         24% ocean-high  → entra el mar de anochecer (frío/oscuro)
+         55% ocean-mid   → profundidad media
+         100% ocean-deep → fondo del mar
+       Sigue siendo SOLO fondo: ningún texto se apoya en esta capa (los títulos
+       del Login/Home caen en la zona 8–24%, verificada ≥5:1 con gold-light). */
+    --ocean-gradient: radial-gradient(
+      130% 95% at 50% -10%,
+      var(--ck-horizon) 0%,
+      #7a3a3a 8%,
+      var(--ocean-high) 24%,
+      var(--ocean-mid) 55%,
+      var(--ocean-deep) 100%
+    );
+
+    /* Carmesí heráldico (acento PRIMARIO del modo): estandarte/armadura. Tono
+       de bandera, ni naranja ni rosa. Calibrado para leer ≥3:1 como swatch/
+       borde sobre madera (3.56:1 en surface-1) y soportar texto claro encima
+       (blanco 4.92:1) — barra del bárbaro, borde de metrópolis, botón de
+       "resolver ataque". Como chip siempre se apoya en superficie, nunca en el
+       océano (misma regla que los colores de jugador del base). */
+    --ck-crimson: #bf4a40;
+    /* Sombra del carmesí: granate profundo para rellenos y anclas de degradado;
+       hospeda texto claro (blanco 12.60:1). No es para texto sobre madera. */
+    --ck-crimson-deep: #5e1d1a;
+
+    /* Hierro de caballero (acero gris frío). steel es apto para TEXTO/iconos
+       sobre madera (5.53:1 en surface-1); steel-light para realces y bordes
+       brillantes del metal. */
+    --ck-steel: #8b919b;
+    --ck-steel-light: #b9bec6;
+
+    /* Mercancías (segundo tipo de carta, solo lo producen las ciudades). Tonos
+       cálidos de pergamino para separarlas a simple vista de los recursos: */
+    --commodity-coin: var(--gold); /* moneda → dorado (hereda --gold) */
+    --commodity-cloth: #e8e0cf; /* tela → marfil cálido */
+    --commodity-paper: #cdbb95; /* papel → pergamino */
+
+    /* Disciplinas (colores funcionales de las mejoras de ciudad, como los
+       recursos). Comercio↔tela (amarillo), Política↔moneda (azul),
+       Ciencia↔papel (verde). El azul sube respecto a --player-blue (#3b6dd1,
+       3.59:1) a #5b86d6 (4.86:1) para que un chip de disciplina con label
+       pequeño lea AA sobre madera. */
+    --discipline-trade: #d9a93e; /* amarillo/dorado */
+    --discipline-politics: #5b86d6; /* azul */
+    --discipline-science: #52a866; /* verde */
+  }
+
   html,
   body,
   #root {

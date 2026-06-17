@@ -34,6 +34,23 @@ export function App(): JSX.Element {
   const dismissInvite = useStore((s) => s.dismissInvite);
   const joinGame = useStore((s) => s.joinGame);
 
+  // Fase A (Caballeros y Ciudades) — Hook de paleta condicional. Cuando la
+  // partida activa está en modo C&K, marcamos `data-mode="ck"` en <html> para
+  // que el visual-designer pueda aplicar la paleta desplazada. Se limpia al
+  // salir del modo, al terminar la partida o al desmontar.
+  const citiesKnights = view?.state.citiesKnights ?? false;
+  useEffect(() => {
+    const root = document.documentElement;
+    if (citiesKnights) {
+      root.setAttribute('data-mode', 'ck');
+    } else {
+      root.removeAttribute('data-mode');
+    }
+    return () => {
+      root.removeAttribute('data-mode');
+    };
+  }, [citiesKnights]);
+
   // Reconexión silenciosa al cargar: si hay sesión guardada y aún no se intentó.
   useEffect(() => {
     if (!session) return;

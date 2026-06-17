@@ -100,6 +100,33 @@ export default {
           3: '#2f2419', // tarjeta nivel 3 (inputs, chips, botones secundarios)
           4: '#3a2c1e', // tarjeta nivel 4 (chips destacados, estados fuertes)
         },
+        // ─── Reskin "Caballeros y Ciudades" (modo [data-mode="ck"]) ─────────
+        // Espejo de los tokens C&K de `index.css` `[data-mode="ck"]`. Como en
+        // el resto del tema, van como hex literales para que funcionen los
+        // modificadores de opacidad (bg-ck-crimson/20, text-ck-steel/80, …).
+        // Estas clases son inertes hasta que la raíz lleva data-mode="ck": el
+        // tema base no las usa. El shift del océano (--ocean-high y
+        // --ocean-gradient) vive solo en CSS via var(), por eso no se espeja.
+        ck: {
+          horizon: '#c25a2a', // ámbar quemado del horizonte tormentoso
+          crimson: '#bf4a40', // estandarte/armadura carmesí (acento primario)
+          'crimson-deep': '#5e1d1a', // sombra del carmesí (rellenos/anclas)
+          steel: '#8b919b', // hierro de caballero (apto para texto/iconos)
+          'steel-light': '#b9bec6', // realce brillante del acero
+        },
+        // Mercancías C&K (solo las producen las ciudades). Pergaminos cálidos
+        // para distinguirlas de los recursos a simple vista.
+        commodity: {
+          coin: '#d9a93e', // moneda → dorado (= --gold)
+          cloth: '#e8e0cf', // tela → marfil cálido
+          paper: '#cdbb95', // papel → pergamino
+        },
+        // Disciplinas de mejora de ciudad (colores funcionales del juego).
+        discipline: {
+          trade: '#d9a93e', // Comercio ↔ tela (amarillo/dorado)
+          politics: '#5b86d6', // Política ↔ moneda (azul, AA sobre madera)
+          science: '#52a866', // Ciencia ↔ papel (verde)
+        },
       },
       fontFamily: {
         sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
