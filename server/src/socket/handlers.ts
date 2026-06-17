@@ -8,6 +8,8 @@ import {
   PortType,
   Resource,
   RESOURCES,
+  Commodity,
+  COMMODITIES,
   emptyHand,
   fullBank,
   handTotal,
@@ -22,6 +24,7 @@ import {
   computePendingDiscards,
   distributeForRoll,
   drainBank,
+  drainCommodityBank,
   executeTrade,
   findPlayer,
   payToBank,
@@ -647,11 +650,20 @@ export function registerHandlers(io: Server, socket: Socket): void {
     } else {
       const result = distributeForRoll(state, number);
       const lines: string[] = [];
-      for (const [pid, hand] of Object.entries(result.perPlayer)) {
+      const allIds = new Set([
+        ...Object.keys(result.perPlayer),
+        ...Object.keys(result.perPlayerCommodities),
+      ]);
+      for (const pid of allIds) {
         const p = findPlayer(state, pid);
         if (!p) continue;
-        const parts = (Object.entries(hand) as [Resource, number][]).map(([r, n]) => `${n} ${esResource(r)}`);
-        lines.push(`${p.name} recibe ${parts.join(', ')}`);
+        const parts = (Object.entries(result.perPlayer[pid] ?? {}) as [Resource, number][]).map(
+          ([r, n]) => `${n} ${esResource(r)}`
+        );
+        const cparts = (
+          Object.entries(result.perPlayerCommodities[pid] ?? {}) as [Commodity, number][]
+        ).map(([c, n]) => `${n} ${esCommodity(c)}`);
+        lines.push(`${p.name} recibe ${[...parts, ...cparts].join(', ')}`);
       }
       logAction(state, `Salió ${number}. ${lines.join('; ') || 'Nadie recibió recursos.'}`);
       for (const partial of result.partials) {
@@ -1374,12 +1386,14 @@ export function registerHandlers(io: Server, socket: Socket): void {
       targetPlayerId,
       kind,
       resource,
+      commodity,
       devCard,
       force,
     }: {
       targetPlayerId: string;
-      kind: 'resource' | 'dev';
+      kind: 'resource' | 'commodity' | 'dev';
       resource?: Resource;
+      commodity?: Commodity;
       devCard?: DevCardType;
       force?: boolean;
     }) => {
@@ -1402,6 +1416,17 @@ export function registerHandlers(io: Server, socket: Socket): void {
         drainBank(state.bank, resource, 1);
         target.hand[resource] += 1;
         const text = `⚠️ El banco entregó 1 ${esResource(resource)} a ${target.name}`;
+        logAction(state, `${text} (entrega manual de ${giver?.name ?? 'banco'}).`, target.id);
+        io.to(state.code).emit('notice', { level: 'warn', text });
+      } else if (kind === 'commodity') {
+        if (!commodity || !COMMODITIES.includes(commodity)) {
+          socket.emit('error', { message: 'Elige una mercancía válida.' });
+          return;
+        }
+        pushSnapshot(state);
+        drainCommodityBank(state.commodityBank, commodity, 1);
+        target.commodities[commodity] += 1;
+        const text = `⚠️ El banco entregó 1 ${esCommodity(commodity)} a ${target.name}`;
         logAction(state, `${text} (entrega manual de ${giver?.name ?? 'banco'}).`, target.id);
         io.to(state.code).emit('notice', { level: 'warn', text });
       } else {
@@ -1536,6 +1561,10 @@ function esResource(r: Resource): string {
     grain: 'trigo',
     ore: 'mineral',
   }[r];
+}
+
+function esCommodity(c: Commodity): string {
+  return { coin: 'moneda', paper: 'papel', cloth: 'tela' }[c];
 }
 
 function checkVictory(io: Server, state: GameState, player: Player): void {

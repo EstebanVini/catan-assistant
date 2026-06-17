@@ -1,4 +1,4 @@
-import { DevCardType, Resource } from '../types';
+import { Commodity, DevCardType, Resource } from '../types';
 import brickUrl from './icons/ladrillo.png';
 import lumberUrl from './icons/madera.png';
 import woolUrl from './icons/obeja.png';
@@ -47,6 +47,17 @@ export const DEV_CARD_EMOJI: Record<DevCardType, string> = {
   monopoly: '💰',
   yearOfPlenty: '🎁',
   roadBuilding: '🛤️',
+};
+
+// Mercancías de Caballeros y Ciudades (commodities). Solo se muestran cuando
+// el modo C&K está activo. Reciclan temporalmente arte de recursos (ver
+// missing-icons.md §1) PERO el componente las distingue con un marco/anillo
+// dorado heráldico para que NUNCA se confundan con un recurso: una mercancía
+// no es un recurso.
+export const COMMODITY_EMOJI: Record<Commodity, string> = {
+  coin: '🪙',
+  paper: '📜',
+  cloth: '🧶',
 };
 
 export const ROBBER_EMOJI = '🥷';
@@ -139,6 +150,100 @@ export function ResourceGlyph({
     );
   }
   return <ImgGlyph src={RESOURCE_ICON_URL[resource]} size={size} className={className} />;
+}
+
+// ─── Mercancías (commodities) ─────────────────────────────────────────────────
+//
+// Arte RECICLADO provisionalmente (missing-icons.md §1): coin→mineral,
+// paper→madera, cloth→obeja. Para que se distingan de los recursos a simple
+// vista, el `CommodityGlyph` NO dibuja el medallón a secas: lo envuelve en un
+// anillo dorado heráldico (heraldic gold ring) con un punto de sello arriba.
+// El distintivo es CONSISTENTE entre las tres mercancías y se resuelve aquí, en
+// el componente, sin arte nuevo. Cuando llegue el arte definitivo de Esteban,
+// basta cambiar `COMMODITY_ICON_URL` (y opcionalmente retirar el anillo).
+
+export const COMMODITY_ICON_URL: Record<Commodity, string> = {
+  coin: oreUrl, // montañas/mineral → moneda
+  paper: lumberUrl, // bosque/madera → papel
+  cloth: woolUrl, // pastura/lana → tela
+};
+
+// Tono del medallón interior por mercancía (tinte cálido sutil, sin tapar el
+// arte): coordina con los tokens --commodity-* del reskin C&K.
+const COMMODITY_TINT: Record<Commodity, string> = {
+  coin: '#d9a93e',
+  cloth: '#e8e0cf',
+  paper: '#cdbb95',
+};
+
+export function CommodityGlyph({
+  commodity,
+  size = 20,
+  className,
+  fallback = false,
+}: GlyphProps & { commodity: Commodity }): JSX.Element {
+  if (fallback) {
+    return (
+      <EmojiGlyph
+        emoji={COMMODITY_EMOJI[commodity]}
+        size={size}
+        className={className}
+      />
+    );
+  }
+  // Medallón reciclado + anillo dorado heráldico. El anillo (borde dorado con
+  // sombra interior cálida) es el distintivo "mercancía" que la separa del
+  // recurso. El arte ocupa ~74% del área para dejar ver el aro completo.
+  const inner = Math.round(size * 0.74);
+  const gold = COMMODITY_TINT[commodity];
+  return (
+    <span
+      aria-hidden
+      className={className}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: size,
+        height: size,
+        flexShrink: 0,
+        borderRadius: '9999px',
+        // Anillo dorado heráldico: doble borde (dorado vivo + nogal) con un
+        // halo cálido interior para que el medallón "flote" sobre el aro.
+        background:
+          'radial-gradient(closest-side, rgba(217,169,62,0.18), rgba(217,169,62,0.05) 70%, transparent)',
+        border: `1.5px solid ${gold}`,
+        boxShadow: `inset 0 0 0 1px ${STROKE}33, 0 0 0 1px ${STROKE}22`,
+      }}
+    >
+      <img
+        src={COMMODITY_ICON_URL[commodity]}
+        width={inner}
+        height={inner}
+        alt=""
+        aria-hidden
+        draggable={false}
+        style={{ display: 'block', objectFit: 'contain' }}
+      />
+      {/* Sello heráldico: punto dorado arriba que remata el aro y refuerza el
+          lenguaje "carta de mercancía" (no recurso). */}
+      <span
+        aria-hidden
+        style={{
+          position: 'absolute',
+          top: -Math.max(1, Math.round(size * 0.06)),
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: Math.max(3, Math.round(size * 0.2)),
+          height: Math.max(3, Math.round(size * 0.2)),
+          borderRadius: '9999px',
+          background: gold,
+          border: `1px solid ${STROKE}`,
+        }}
+      />
+    </span>
+  );
 }
 
 // ─── Construcciones y tablero ────────────────────────────────────────────────

@@ -3,6 +3,24 @@ export const RESOURCES: Resource[] = ['brick', 'lumber', 'wool', 'grain', 'ore']
 
 export type Hand = Record<Resource, number>;
 
+// === Mercancías (Caballeros y Ciudades) ===
+// Segundo tipo de carta, SOLO lo producen las ciudades. Cada mercancía está
+// ligada a un terreno y a una disciplina de mejora de ciudad:
+//   coin  ← montañas (ore)    → Política
+//   paper ← bosque   (lumber) → Ciencia
+//   cloth ← pastura  (wool)   → Comercio
+export type Commodity = 'coin' | 'paper' | 'cloth';
+export const COMMODITIES: Commodity[] = ['coin', 'paper', 'cloth'];
+export type CommodityHand = Record<Commodity, number>;
+
+// Recurso → mercancía que produce una CIUDAD sobre ese terreno (las ciudades
+// sobre grain/brick no producen mercancía: dan 2 recursos como en el base).
+export const RESOURCE_COMMODITY: Partial<Record<Resource, Commodity>> = {
+  ore: 'coin',
+  lumber: 'paper',
+  wool: 'cloth',
+};
+
 export type DevCardType = 'knight' | 'vp' | 'roadBuilding' | 'yearOfPlenty' | 'monopoly';
 
 export type PortType = '3:1' | Resource;
@@ -51,6 +69,7 @@ export interface Player {
   connected: boolean;
   buildings: Building[]; // tabla de construcción del jugador (ver game/setup.ts)
   hand: Hand; // PRIVADO
+  commodities: CommodityHand; // PRIVADO; solo se usa en Caballeros y Ciudades
   ports: PortType[];
   devCards: DevCardCounts; // PRIVADO en tipos; conteo total + caballeros jugados es público
   devCardsBoughtThisTurn: DevCardType[]; // no jugables el mismo turno
@@ -178,6 +197,9 @@ export interface GameState {
   specialBuildQueue: string[]; // ids pendientes (solo extensión)
   hexes: Hex[];
   bank: Hand;
+  // Banco de mercancías (solo Caballeros y Ciudades). Siempre presente para no
+  // ramificar tipos; en el modo base queda en 0 y nadie lo toca.
+  commodityBank: CommodityHand;
   devDeck: DevCardType[]; // mazo barajado (servidor)
   diceStats: Record<number, number>;
   startedAt: number | null; // epoch ms al iniciar la partida (para persistir el Match)
@@ -197,6 +219,20 @@ export interface GameState {
 
 export function emptyHand(): Hand {
   return { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 0 };
+}
+
+export function emptyCommodities(): CommodityHand {
+  return { coin: 0, paper: 0, cloth: 0 };
+}
+
+// Banco de mercancías: 12 de cada una (decisión de mesa: ilimitado informativo,
+// igual que el banco de recursos del base).
+export function fullCommodityBank(): CommodityHand {
+  return { coin: 12, paper: 12, cloth: 12 };
+}
+
+export function commodityTotal(c: CommodityHand): number {
+  return c.coin + c.paper + c.cloth;
 }
 
 export function fullBank(extension56: boolean): Hand {

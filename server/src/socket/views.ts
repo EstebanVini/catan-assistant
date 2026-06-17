@@ -1,4 +1,12 @@
-import { GameState, Player, emptyHand, emptyDevCards, handTotal, devCardsTotal } from '../game/state';
+import {
+  GameState,
+  Player,
+  emptyHand,
+  emptyDevCards,
+  handTotal,
+  devCardsTotal,
+  commodityTotal,
+} from '../game/state';
 import { playerSetupComplete } from '../game/setup';
 
 // Vista personalizada: oculta manos y devCards ajenas; muestra solo conteos.
@@ -11,6 +19,7 @@ export interface PublicPlayer {
   connected: boolean;
   setupComplete: boolean; // registro de construcciones iniciales válido (lobby)
   cardCount: number;
+  commodityCount: number; // total de mercancías (público); el detalle es privado
   devCardsCount: number;
   knightsPlayed: number;
   ports: Player['ports'];
@@ -23,6 +32,7 @@ export interface PlayerView {
     name: string;
     color: Player['color'];
     hand: Player['hand'];
+    commodities: Player['commodities'];
     devCards: Player['devCards'];
     devCardsBoughtThisTurn: Player['devCardsBoughtThisTurn'];
     pendingSettlementRegistration: Player['pendingSettlementRegistration'];
@@ -72,6 +82,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
           name: me.name,
           color: me.color,
           hand: me.hand,
+          commodities: me.commodities,
           devCards: me.devCards,
           devCardsBoughtThisTurn: me.devCardsBoughtThisTurn,
           pendingSettlementRegistration: me.pendingSettlementRegistration,
@@ -125,6 +136,7 @@ function toPublic(p: Player, state: GameState): PublicPlayer {
     // como listos para no bloquear el inicio.
     setupComplete: !state.seedInitialResources || playerSetupComplete(p),
     cardCount: handTotal(p.hand),
+    commodityCount: commodityTotal(p.commodities),
     devCardsCount: devCardsTotal(p.devCards),
     knightsPlayed: p.knightsPlayed,
     ports: p.ports,

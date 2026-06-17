@@ -8,6 +8,9 @@ import {
   PortType,
   RESOURCES,
   Resource,
+  Commodity,
+  CommodityHand,
+  RESOURCE_COMMODITY,
   emptyHand,
   fullBank,
   handTotal,
@@ -54,6 +57,11 @@ export function drainBank(bank: Hand, res: Resource, n: number): void {
   bank[res] = Math.max(0, bank[res] - n);
 }
 
+// Banco de mercancías: mismo criterio que el de recursos (ilimitado, piso 0).
+export function drainCommodityBank(bank: CommodityHand, c: Commodity, n: number): void {
+  bank[c] = Math.max(0, bank[c] - n);
+}
+
 // === Mazo de cartas de desarrollo ===
 export function buildDevDeck(extension56: boolean): DevCardType[] {
   const counts: Record<DevCardType, number> = extension56
@@ -82,30 +90,52 @@ export function shuffle<T>(arr: T[]): T[] {
 // romper a los consumidores.
 export interface DistributionResult {
   perPlayer: Record<string, Partial<Hand>>;
+  // Mercancías recibidas por jugador (solo Caballeros y Ciudades; vacío en base).
+  perPlayerCommodities: Record<string, Partial<CommodityHand>>;
   shortages: Resource[];
   partials: Array<{ playerId: string; resource: Resource; given: number; wanted: number }>;
 }
 
 export function distributeForRoll(state: GameState, number: number): DistributionResult {
   const perPlayer: Record<string, Partial<Hand>> = {};
+  const perPlayerCommodities: Record<string, Partial<CommodityHand>> = {};
 
   for (const hex of state.hexes) {
     if (hex.number !== number) continue;
     if (hex.robber) continue;
     if (!hex.resource) continue;
+    const resource = hex.resource;
+    // En Caballeros y Ciudades una CIUDAD sobre bosque/pastura/montaña produce
+    // 1 recurso + 1 mercancía (en vez de 2 recursos); sobre trigo/ladrillo
+    // produce 2 recursos (no hay mercancía asociada). Los poblados y todo el
+    // modo base se comportan igual que siempre.
+    const commodity = state.citiesKnights ? RESOURCE_COMMODITY[resource] : undefined;
     for (const owner of hex.owners) {
-      const n = owner.type === 'city' ? 2 : 1;
       const player = state.players.find((p) => p.id === owner.playerId);
       if (!player) continue;
-      player.hand[hex.resource] += n;
-      drainBank(state.bank, hex.resource, n);
-      perPlayer[owner.playerId] = perPlayer[owner.playerId] ?? {};
-      perPlayer[owner.playerId][hex.resource] =
-        (perPlayer[owner.playerId][hex.resource] ?? 0) + n;
+      if (owner.type === 'city' && commodity) {
+        // Ciudad sobre montaña/bosque/pastura en C&K: 1 recurso + 1 mercancía.
+        player.hand[resource] += 1;
+        drainBank(state.bank, resource, 1);
+        perPlayer[owner.playerId] = perPlayer[owner.playerId] ?? {};
+        perPlayer[owner.playerId][resource] = (perPlayer[owner.playerId][resource] ?? 0) + 1;
+        player.commodities[commodity] += 1;
+        drainCommodityBank(state.commodityBank, commodity, 1);
+        perPlayerCommodities[owner.playerId] = perPlayerCommodities[owner.playerId] ?? {};
+        perPlayerCommodities[owner.playerId][commodity] =
+          (perPlayerCommodities[owner.playerId][commodity] ?? 0) + 1;
+      } else {
+        // Poblado (1) o ciudad sobre trigo/ladrillo o cualquier ciudad del base (2).
+        const n = owner.type === 'city' ? 2 : 1;
+        player.hand[resource] += n;
+        drainBank(state.bank, resource, n);
+        perPlayer[owner.playerId] = perPlayer[owner.playerId] ?? {};
+        perPlayer[owner.playerId][resource] = (perPlayer[owner.playerId][resource] ?? 0) + n;
+      }
     }
   }
 
-  return { perPlayer, shortages: [], partials: [] };
+  return { perPlayer, perPlayerCommodities, shortages: [], partials: [] };
 }
 
 // === Cálculo de descartes tras 7 ===

@@ -6,6 +6,19 @@ export const RESOURCES: Resource[] = ['brick', 'lumber', 'wool', 'grain', 'ore']
 
 export type Hand = Record<Resource, number>;
 
+// Mercancías (Caballeros y Ciudades). Espejo de server/src/game/state.ts.
+export type Commodity = 'coin' | 'paper' | 'cloth';
+export const COMMODITIES: Commodity[] = ['coin', 'paper', 'cloth'];
+export type CommodityHand = Record<Commodity, number>;
+
+export function emptyCommodities(): CommodityHand {
+  return { coin: 0, paper: 0, cloth: 0 };
+}
+
+export function commodityTotal(c: CommodityHand): number {
+  return c.coin + c.paper + c.cloth;
+}
+
 export type DevCardType =
   | 'knight'
   | 'vp'
@@ -103,6 +116,7 @@ export interface PublicPlayer {
   color: PlayerColor | null;
   connected: boolean;
   cardCount: number;
+  commodityCount: number; // total de mercancías (público); el detalle es privado
   devCardsCount: number;
   knightsPlayed: number;
   ports: PortType[];
@@ -205,6 +219,7 @@ export interface MeView {
   name: string;
   color: PlayerColor | null;
   hand: Hand;
+  commodities: CommodityHand; // mercancías propias (privado; solo Caballeros y Ciudades)
   devCards: DevCardCounts;
   devCardsBoughtThisTurn: DevCardType[];
   ports: PortType[];

@@ -1,4 +1,5 @@
 import {
+  Commodity,
   DevCardType,
   GamePhase,
   PlayerColor,
@@ -45,6 +46,22 @@ export const RESOURCE_NAMES_LOWER: Record<Resource, string> = {
   wool: 'lana',
   grain: 'trigo',
   ore: 'mineral',
+};
+
+// Mercancías de Caballeros y Ciudades. Solo se usan en modo C&K. El nombre
+// canónico en español (nunca "coin"/"paper"/"cloth" en UI): Moneda / Papel /
+// Tela. Una mercancía NO es un recurso (se produce solo en ciudades).
+export const COMMODITY_NAMES: Record<Commodity, string> = {
+  coin: 'Moneda',
+  paper: 'Papel',
+  cloth: 'Tela',
+};
+
+// Forma en minúsculas para frases compuestas ("entregar 1 moneda a …").
+export const COMMODITY_NAMES_LOWER: Record<Commodity, string> = {
+  coin: 'moneda',
+  paper: 'papel',
+  cloth: 'tela',
 };
 
 export const PHASE_NAMES: Record<GamePhase, string> = {

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   Building,
   BuildType,
+  Commodity,
   ConnectionStatus,
   DevCardType,
   ExtraRules,
@@ -127,8 +128,9 @@ interface StoreState {
   // Banco (Fase 3): entrega manual de cartas, en cualquier momento.
   giveCard: (payload: {
     targetPlayerId: string;
-    kind: 'resource' | 'dev';
+    kind: 'resource' | 'commodity' | 'dev';
     resource?: Resource;
+    commodity?: Commodity;
     devCard?: DevCardType;
     force?: boolean;
   }) => void;

@@ -8,24 +8,32 @@ import {
   tradeWithBank,
   bestBankRatio,
 } from './rules';
-import { GameState, emptyHand, fullBank, emptyDevCards } from './state';
+import {
+  GameState,
+  emptyHand,
+  fullBank,
+  emptyDevCards,
+  emptyCommodities,
+  fullCommodityBank,
+} from './state';
 
 function makeState(): GameState {
   const p1 = {
     id: 'p1', sessionToken: 't1', name: 'A', color: 'red' as const, connected: true,
-    hand: { brick: 1, lumber: 1, wool: 0, grain: 0, ore: 0 },
+    hand: { brick: 1, lumber: 1, wool: 0, grain: 0, ore: 0 }, commodities: emptyCommodities(),
     ports: [], devCards: emptyDevCards(), devCardsBoughtThisTurn: [], knightsPlayed: 0,
     victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
   };
   const p2 = {
     id: 'p2', sessionToken: 't2', name: 'B', color: 'blue' as const, connected: true,
-    hand: emptyHand(), ports: [], devCards: emptyDevCards(), devCardsBoughtThisTurn: [], knightsPlayed: 0,
+    hand: emptyHand(), commodities: emptyCommodities(), ports: [], devCards: emptyDevCards(), devCardsBoughtThisTurn: [], knightsPlayed: 0,
     victoryPoints: { settlements: 0, cities: 0, longestRoad: false, largestArmy: false, vpCards: 0 },
   };
   return {
     code: 'TEST', hostId: 'p1', bankManagerId: 'p1', status: 'playing', extension56: false,
+    citiesKnights: false, barbarianStep: 0, robberActive: true,
     players: [p1, p2], turnOrder: ['p1', 'p2'], currentTurnIndex: 0, phase: 'roll',
-    specialBuildQueue: [], hexes: [], bank: fullBank(false),
+    specialBuildQueue: [], hexes: [], bank: fullBank(false), commodityBank: fullCommodityBank(),
     devDeck: [], diceStats: {2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0},
     log: [], pendingDiscards: {}, pendingRobberMove: false, pendingRobberSteal: false,
   };
@@ -77,6 +85,54 @@ describe('distributeForRoll', () => {
     expect(r.partials).toEqual([]);
     // El contador informativo nunca baja de 0.
     expect(s.bank.wool).toBe(0);
+  });
+});
+
+describe('distributeForRoll — mercancías (Caballeros y Ciudades)', () => {
+  it('una ciudad sobre montaña produce 1 mineral + 1 moneda', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    s.hexes = [
+      { id: 'h1', number: 8, resource: 'ore', robber: false, owners: [{ playerId: 'p1', type: 'city' }] },
+    ];
+    const r = distributeForRoll(s, 8);
+    expect(s.players[0].hand.ore).toBe(1);
+    expect(s.players[0].commodities.coin).toBe(1);
+    expect(r.perPlayerCommodities['p1']).toEqual({ coin: 1 });
+  });
+
+  it('un poblado sobre bosque produce 1 madera y NINGUNA mercancía', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    // p2 arranca con la mano vacía (p1 ya trae 1 madera en makeState).
+    s.hexes = [
+      { id: 'h1', number: 6, resource: 'lumber', robber: false, owners: [{ playerId: 'p2', type: 'settlement' }] },
+    ];
+    distributeForRoll(s, 6);
+    expect(s.players[1].hand.lumber).toBe(1);
+    expect(s.players[1].commodities.paper).toBe(0);
+  });
+
+  it('una ciudad sobre trigo produce 2 trigo y ninguna mercancía (no hay mercancía de grain)', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    s.hexes = [
+      { id: 'h1', number: 9, resource: 'grain', robber: false, owners: [{ playerId: 'p1', type: 'city' }] },
+    ];
+    distributeForRoll(s, 9);
+    expect(s.players[0].hand.grain).toBe(2);
+    expect(s.players[0].commodities).toEqual(emptyCommodities());
+  });
+
+  it('en el modo base una ciudad sobre pastura da 2 lana (sin mercancías)', () => {
+    const s = makeState(); // citiesKnights = false
+    s.hexes = [
+      { id: 'h1', number: 4, resource: 'wool', robber: false, owners: [{ playerId: 'p2', type: 'city' }] },
+    ];
+    const r = distributeForRoll(s, 4);
+    expect(s.players[1].hand.wool).toBe(2);
+    expect(s.players[1].commodities.cloth).toBe(0);
+    expect(r.perPlayerCommodities).toEqual({});
   });
 });
 

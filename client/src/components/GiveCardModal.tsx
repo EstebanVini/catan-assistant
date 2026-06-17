@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
-import { RESOURCES, Resource } from '../types';
-import { RESOURCE_NAMES, RESOURCE_NAMES_LOWER } from '../lib/spanish';
+import { COMMODITIES, Commodity, RESOURCES, Resource } from '../types';
+import {
+  COMMODITY_NAMES,
+  COMMODITY_NAMES_LOWER,
+  RESOURCE_NAMES,
+  RESOURCE_NAMES_LOWER,
+} from '../lib/spanish';
 import { ResourceIcon } from './ResourceIcon';
+import { CommodityGlyph } from '../assets/icons';
 import { ColorChip } from './ColorChip';
 import { useModalA11y } from '../lib/useModalA11y';
 
@@ -21,7 +27,10 @@ import { useModalA11y } from '../lib/useModalA11y';
 //    color del Lobby). Si el server sugiere forzar, se muestra el flujo de
 //    forzado en lugar del estado `ready`.
 
-type CardSelection = { kind: 'resource'; resource: Resource } | { kind: 'dev' };
+type CardSelection =
+  | { kind: 'resource'; resource: Resource }
+  | { kind: 'commodity'; commodity: Commodity }
+  | { kind: 'dev' };
 
 type Mode = 'idle' | 'submitting' | 'forcing' | 'success';
 
@@ -84,6 +93,7 @@ export function GiveCardModal({ onClose }: { onClose: () => void }): JSX.Element
     : null;
 
   const stockOf = (r: Resource): number => state.bank[r];
+  const cities = state.citiesKnights;
 
   const ready = target !== null && selection !== null;
 
@@ -96,6 +106,9 @@ export function GiveCardModal({ onClose }: { onClose: () => void }): JSX.Element
     if (selection.kind === 'dev') {
       return `Entregar 1 carta de desarrollo a ${target.name}`;
     }
+    if (selection.kind === 'commodity') {
+      return `Entregar 1 ${COMMODITY_NAMES_LOWER[selection.commodity]} a ${target.name}`;
+    }
     return `Entregar 1 ${RESOURCE_NAMES_LOWER[selection.resource]} a ${target.name}`;
   }
 
@@ -107,6 +120,8 @@ export function GiveCardModal({ onClose }: { onClose: () => void }): JSX.Element
       targetPlayerId: target.id,
       kind: selection.kind,
       resource: selection.kind === 'resource' ? selection.resource : undefined,
+      commodity:
+        selection.kind === 'commodity' ? selection.commodity : undefined,
       force: force || undefined,
     });
     // Sin ack del servidor: éxito optimista si no llega 'error' en 900 ms.
@@ -223,6 +238,46 @@ export function GiveCardModal({ onClose }: { onClose: () => void }): JSX.Element
             );
           })}
         </div>
+        {cities ? (
+          // Mercancías (C&K): banco ilimitado, igual que los recursos. Sección
+          // visualmente distinta (borde dorado + glifo con anillo) para no
+          // confundirlas con recursos.
+          <>
+            <p className="mt-3 text-[10px] text-neutral-500">
+              Mercancías (banco ilimitado)
+            </p>
+            <div className="mt-1 grid grid-cols-3 gap-1.5">
+              {COMMODITIES.map((c) => {
+                const selected =
+                  selection?.kind === 'commodity' && selection.commodity === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-pressed={selected}
+                    aria-label={COMMODITY_NAMES[c]}
+                    onClick={() => {
+                      setSelection({ kind: 'commodity', commodity: c });
+                      setForceMessage(null);
+                      if (mode === 'forcing' || mode === 'success') setMode('idle');
+                    }}
+                    className={
+                      'flex h-16 w-full flex-col items-center justify-center gap-1 rounded-lg border transition-all active:scale-[0.97] ' +
+                      (selected
+                        ? 'border-emerald-400 bg-emerald-500/15 text-emerald-50'
+                        : 'border-commodity-coin/30 bg-surface-2 text-neutral-100')
+                    }
+                  >
+                    <CommodityGlyph commodity={c} size={26} />
+                    <span className="text-[10px] font-medium leading-none">
+                      {COMMODITY_NAMES[c]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
         <button
           type="button"
           aria-pressed={selection?.kind === 'dev'}

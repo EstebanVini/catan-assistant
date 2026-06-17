@@ -204,6 +204,19 @@ export function PublicPlayersPanel(): JSX.Element | null {
                       </span>
                     </span>
                     <Sep />
+                    {/* Conteo público de mercancías (C&K): igual que la mano,
+                        solo el total — el detalle por tipo es privado. */}
+                    {state.citiesKnights ? (
+                      <>
+                        <span className="text-commodity-coin">
+                          Mercancías:{' '}
+                          <span className="nums font-semibold text-commodity-coin">
+                            {p.commodityCount}
+                          </span>
+                        </span>
+                        <Sep />
+                      </>
+                    ) : null}
                     {/* Recuento público de la Tabla de construcción de cada
                         jugador (las fichas concretas solo las ve su dueño). */}
                     <span>
