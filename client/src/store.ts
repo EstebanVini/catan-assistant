@@ -160,6 +160,7 @@ interface StoreState {
   activateKnight: (knightId: string) => void;
   promoteKnight: (knightId: string) => void;
   knightAction: (knightId: string, kind: 'move' | 'displace' | 'chaseRobber') => void;
+  downgradeCity: (buildingId: string) => void;
   submitDiscard: (resourcesToDiscard: Partial<Hand>) => void;
   forceRandomDiscard: (targetPlayerId: string) => void;
   moveRobber: (hexId: string) => void;
@@ -435,6 +436,7 @@ export const useStore = create<StoreState>((set, get) => ({
   activateKnight: (knightId) => socket.emit('knight:activate', { knightId }),
   promoteKnight: (knightId) => socket.emit('knight:promote', { knightId }),
   knightAction: (knightId, kind) => socket.emit('knight:action', { knightId, kind }),
+  downgradeCity: (buildingId) => socket.emit('barbarian:downgradeCity', { buildingId }),
   submitDiscard: (resourcesToDiscard) =>
     socket.emit('discard:submit', { resourcesToDiscard }),
   forceRandomDiscard: (targetPlayerId) =>

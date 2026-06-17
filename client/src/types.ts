@@ -200,6 +200,7 @@ export interface PublicPlayer {
   metropolises: Discipline[]; // disciplinas con metrópolis (público)
   progressCardsCount: number; // total de cartas de progreso (público); detalle privado
   knights: Knight[]; // caballeros (rango + activo); público. Solo C&K.
+  defenderCards: number; // cartas Defensor de Catán (+1 PV c/u); público
   devCardsCount: number;
   knightsPlayed: number;
   ports: PortType[];
@@ -330,6 +331,7 @@ export interface PublicGameState {
   lastRedDie: number | null;
   lastEventDie: EventDie | null;
   pendingProgressDiscard: Record<string, number>;
+  pendingBarbarianLoss: string[]; // jugadores que deben degradar una ciudad
   seedInitialResources: boolean;
   extraRules: ExtraRules;
   players: PublicPlayer[];
@@ -409,4 +411,18 @@ export function totalVictoryPoints(vp: VictoryPoints): number {
 // Espejo de victoryTargetFor del servidor (server/src/game/state.ts).
 export function victoryTarget(state: Pick<PublicGameState, 'citiesKnights'>): number {
   return state.citiesKnights ? 13 : 10;
+}
+
+// PV TOTALES de un jugador público, incluyendo lo de Caballeros y Ciudades
+// (metrópolis +2 c/u, Defensor de Catán +1 c/u). Espejo de publicVictoryPoints
+// del servidor. Usar SIEMPRE este en vez de totalVictoryPoints(vp) cuando se
+// dispone del PublicPlayer, para no subcontar en C&K.
+export function playerVictoryPoints(
+  p: Pick<PublicPlayer, 'victoryPoints' | 'metropolises' | 'defenderCards'>
+): number {
+  return (
+    totalVictoryPoints(p.victoryPoints) +
+    2 * (p.metropolises?.length ?? 0) +
+    (p.defenderCards ?? 0)
+  );
 }

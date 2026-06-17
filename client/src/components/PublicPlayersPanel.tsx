@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../store';
-import { Discipline, Knight, PublicPlayer, knightDefenseStrength } from '../types';
+import { Discipline, Knight, PublicPlayer, knightDefenseStrength, playerVictoryPoints } from '../types';
 import { ColorChip } from './ColorChip';
 import { DISCIPLINE_NAMES, portLabel } from '../lib/spanish';
 import { playerHex } from '../lib/playerColors';
@@ -142,13 +142,9 @@ export function PublicPlayersPanel(): JSX.Element | null {
           {ordered.map((p) => {
             const isActive = p.id === activeId;
             // Marcador 100% público: vpCards son cartas de Punto de victoria
-            // ya usadas; las que siguen en mano no cuentan para nadie.
-            const vpVisible =
-              p.victoryPoints.settlements +
-              p.victoryPoints.cities * 2 +
-              (p.victoryPoints.longestRoad ? 2 : 0) +
-              (p.victoryPoints.largestArmy ? 2 : 0) +
-              p.victoryPoints.vpCards;
+            // ya usadas; las que siguen en mano no cuentan para nadie. En C&K
+            // incluye metrópolis (+2) y Defensor de Catán (+1) vía el helper.
+            const vpVisible = playerVictoryPoints(p);
             // El tick > 0 indica que hubo al menos un cambio: aplicamos la
             // clase de pulso. El `key` con tick fuerza re-mount cada cambio
             // para que la animación CSS se reinicie. La animación corre
@@ -323,6 +319,14 @@ export function PublicPlayersPanel(): JSX.Element | null {
                   {state.citiesKnights ? (
                     <KnightsSummary knights={p.knights} />
                   ) : null}
+                  {/* Defensor de Catán (C&K): cada carta vale +1 PV. Se gana al
+                      ser el jugador con más caballeros que repelen un ataque
+                      bárbaro. Solo se muestra cuando el jugador tiene alguna. */}
+                  {state.citiesKnights && p.defenderCards > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      <DefenderChip count={p.defenderCards} />
+                    </div>
+                  ) : null}
                   {p.ports.length > 0 ? (
                     <div className="mt-1 flex flex-wrap items-center gap-1">
                       {p.ports.map((port) => (
@@ -489,6 +493,65 @@ function KnightsSummary({ knights }: { knights: Knight[] }): JSX.Element | null 
         <span className="nums text-neutral-300">{inactive}</span> inact
       </span>
     </div>
+  );
+}
+
+// Defensor de Catán (C&K): escudo dorado con la cuenta de cartas. El dorado es
+// legítimo aquí (cada carta es un título/+1 PV, como las insignias). El glifo
+// de escudo lo distingue de las medallas de Ejército/Camino. Estos PV ya van
+// incluidos en `playerVictoryPoints`; el chip es informativo.
+function DefenderChip({ count }: { count: number }): JSX.Element {
+  const label =
+    count === 1
+      ? 'Defensor de Catán (+1 PV)'
+      : `Defensor de Catán ×${count} (+${count} PV)`;
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/[0.10] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-gold-light shadow-medal"
+    >
+      <DefenderShieldGlyph size={13} />
+      <span>
+        Defensor
+        {count > 1 ? (
+          <>
+            {' '}
+            <span className="nums text-gold-light">×{count}</span>
+          </>
+        ) : null}
+      </span>
+    </span>
+  );
+}
+
+// Glifo de escudo (Defensor de Catán) en dorado heráldico. Decorativo: el
+// `aria-label` del chip que lo contiene lo describe.
+function DefenderShieldGlyph({ size = 13 }: { size?: number }): JSX.Element {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden
+      className="flex-shrink-0"
+    >
+      <path
+        d="M12 3 L19 5.5 V11 C 19 16, 15.5 19.5, 12 21 C 8.5 19.5, 5 16, 5 11 V5.5 Z"
+        fill="#caa24a"
+        stroke="#1a130c"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 6.5 V17.5 M7.8 8 H16.2"
+        stroke="#1a130c"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+        opacity="0.6"
+      />
+    </svg>
   );
 }
 

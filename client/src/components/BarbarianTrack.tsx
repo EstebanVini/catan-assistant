@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import { knightDefenseStrength } from '../types';
 
 // ─── Pista del barco bárbaro (Caballeros y Ciudades, §2.2 / §2.7) ─────────────
 //
@@ -27,6 +28,22 @@ export function BarbarianTrack(): JSX.Element | null {
   const step = Math.max(0, Math.min(TOTAL_STEPS, state.barbarianStep));
   const attacks = state.barbarianAttacks;
   const atGates = step >= TOTAL_STEPS;
+
+  // Fuerzas que se enfrentarían en el PRÓXIMO ataque (informativo/anticipatorio).
+  //  - Defensa de la isla = Σ fuerza de defensa (caballeros ACTIVOS) de todos.
+  //  - Ataque bárbaro     = Σ ciudades+metrópolis (`victoryPoints.cities`) de todos.
+  // El servidor resuelve el combate de verdad al llegar al paso 7; aquí solo
+  // anticipamos el desenlace para que el equipo decida si conviene activar más
+  // caballeros antes de que el barco toque puerto.
+  const defense = state.players.reduce(
+    (sum, p) => sum + knightDefenseStrength(p.knights),
+    0
+  );
+  const attack = state.players.reduce(
+    (sum, p) => sum + p.victoryPoints.cities,
+    0
+  );
+  const defended = defense >= attack;
 
   return (
     <section
@@ -90,6 +107,63 @@ export function BarbarianTrack(): JSX.Element | null {
         </span>
       </div>
 
+      {/* Fuerzas enfrentadas (informativo): defensa de la isla vs ataque
+          bárbaro. Verde si la defensa actual bastaría; carmesí si la isla
+          quedaría en riesgo cuando el barco llegue a puerto. */}
+      <div
+        className={
+          'mt-3 rounded-lg border p-2.5 ' +
+          (defended
+            ? 'border-emerald-500/35 bg-emerald-500/[0.08]'
+            : 'border-ck-crimson/40 bg-ck-crimson/[0.08]')
+        }
+        role="group"
+        aria-label={
+          defended
+            ? `Isla defendida: defensa ${defense}, ataque ${attack}.`
+            : `Isla en riesgo: defensa ${defense}, ataque ${attack}.`
+        }
+      >
+        <div className="flex items-center justify-between gap-2">
+          <StrengthStat
+            label="Defensa"
+            value={defense}
+            tone="steel"
+            hint="Caballeros activos de toda la isla"
+          />
+          <span aria-hidden className="text-neutral-600">
+            vs
+          </span>
+          <StrengthStat
+            label="Ataque"
+            value={attack}
+            tone="crimson"
+            hint="Ciudades y metrópolis de toda la isla"
+            alignEnd
+          />
+        </div>
+        <p
+          className={
+            'mt-2 flex items-center gap-1.5 text-[11px] font-semibold ' +
+            (defended ? 'text-emerald-300' : 'text-ck-crimson')
+          }
+        >
+          <span
+            aria-hidden
+            className={
+              'h-1.5 w-1.5 flex-shrink-0 rounded-full ' +
+              (defended ? 'bg-emerald-400' : 'bg-ck-crimson')
+            }
+          />
+          {defended ? 'Defendida' : 'En riesgo'}
+          <span className="font-normal text-neutral-400">
+            {defended
+              ? ' — la defensa actual bastaría.'
+              : ' — falta defensa para el próximo ataque.'}
+          </span>
+        </p>
+      </div>
+
       {attacks > 0 ? (
         <p className="mt-2 text-[11px] leading-snug text-neutral-400">
           <span className="nums font-semibold text-ck-crimson">{attacks}</span>{' '}
@@ -98,6 +172,45 @@ export function BarbarianTrack(): JSX.Element | null {
         </p>
       ) : null}
     </section>
+  );
+}
+
+// Una cifra de fuerza (defensa o ataque) con su etiqueta y una pista breve.
+// `tone` fija el color del número; el resto queda neutro para no competir con
+// el veredicto (Defendida / En riesgo) de abajo.
+function StrengthStat({
+  label,
+  value,
+  tone,
+  hint,
+  alignEnd = false,
+}: {
+  label: string;
+  value: number;
+  tone: 'steel' | 'crimson';
+  hint: string;
+  alignEnd?: boolean;
+}): JSX.Element {
+  const numColor = tone === 'steel' ? 'text-ck-steel-light' : 'text-ck-crimson';
+  return (
+    <div className={'min-w-0 flex-1 ' + (alignEnd ? 'text-right' : '')}>
+      <div
+        className={
+          'flex items-baseline gap-1.5 ' +
+          (alignEnd ? 'justify-end' : '')
+        }
+      >
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-400">
+          {label}
+        </span>
+        <span className={'nums text-lg font-bold leading-none ' + numColor}>
+          {value}
+        </span>
+      </div>
+      <p className="mt-0.5 truncate text-[9px] leading-tight text-neutral-500">
+        {hint}
+      </p>
+    </div>
   );
 }
 

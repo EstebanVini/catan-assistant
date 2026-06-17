@@ -21,9 +21,10 @@ import { DiceStats } from '../components/DiceStats';
 import { CityCalendarPanel } from '../components/CityCalendarPanel';
 import { ProgressHand } from '../components/ProgressHand';
 import { BarbarianTrack } from '../components/BarbarianTrack';
+import { BarbarianLossModal } from '../components/BarbarianLossModal';
 import { KnightsPanel } from '../components/KnightsPanel';
 import { CollapsibleSection } from '../components/CollapsibleSection';
-import { DevCardType, totalVictoryPoints, victoryTarget } from '../types';
+import { DevCardType, playerVictoryPoints, victoryTarget } from '../types';
 import { DEV_CARD_NAMES, vpCardsCopy } from '../lib/spanish';
 import { DevCardGlyph } from '../assets/icons';
 import { DevCardPreview } from '../components/DevCardPreview';
@@ -74,7 +75,7 @@ export function GameScreen(): JSX.Element | null {
     }
     const { state, me } = view;
     const myPublic = state.players.find((p) => p.id === me.id);
-    const myVP = myPublic ? totalVictoryPoints(myPublic.victoryPoints) : 0;
+    const myVP = myPublic ? playerVictoryPoints(myPublic) : 0;
     const canDeclareNow =
       state.turnOrder[state.currentTurnIndex] === me.id &&
       state.phase === 'main' &&
@@ -202,6 +203,7 @@ export function GameScreen(): JSX.Element | null {
         </div>
       </div>
       <DiscardModal />
+      <BarbarianLossModal />
       <RobberFlow />
       <PortIncomingModal />
       <PortFeeConfirmModal />
