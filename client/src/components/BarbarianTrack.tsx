@@ -57,7 +57,7 @@ export function BarbarianTrack(): JSX.Element | null {
         </h2>
         <span className="text-[11px] text-neutral-400">
           {atGates ? (
-            <span className="font-semibold text-ck-crimson">¡A las puertas!</span>
+            <span className="font-semibold text-red-300">¡A las puertas!</span>
           ) : (
             <>
               Paso{' '}
@@ -145,7 +145,7 @@ export function BarbarianTrack(): JSX.Element | null {
         <p
           className={
             'mt-2 flex items-center gap-1.5 text-[11px] font-semibold ' +
-            (defended ? 'text-emerald-300' : 'text-ck-crimson')
+            (defended ? 'text-emerald-300' : 'text-red-300')
           }
         >
           <span
@@ -166,7 +166,7 @@ export function BarbarianTrack(): JSX.Element | null {
 
       {attacks > 0 ? (
         <p className="mt-2 text-[11px] leading-snug text-neutral-400">
-          <span className="nums font-semibold text-ck-crimson">{attacks}</span>{' '}
+          <span className="nums font-semibold text-red-300">{attacks}</span>{' '}
           {attacks === 1 ? 'ataque ocurrido' : 'ataques ocurridos'} en esta
           partida.
         </p>
@@ -191,7 +191,7 @@ function StrengthStat({
   hint: string;
   alignEnd?: boolean;
 }): JSX.Element {
-  const numColor = tone === 'steel' ? 'text-ck-steel-light' : 'text-ck-crimson';
+  const numColor = tone === 'steel' ? 'text-ck-steel-light' : 'text-red-300';
   return (
     <div className={'min-w-0 flex-1 ' + (alignEnd ? 'text-right' : '')}>
       <div

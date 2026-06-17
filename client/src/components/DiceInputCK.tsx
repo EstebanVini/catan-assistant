@@ -259,7 +259,7 @@ export function DiceInputCK(): JSX.Element {
       ) : null}
 
       <p className="text-[11px] leading-snug text-neutral-400">
-        El <span className="font-semibold text-ck-crimson">dado rojo</span>{' '}
+        El <span className="font-semibold text-red-300">dado rojo</span>{' '}
         decide quién roba cartas de progreso: con una puerta de color, cada
         jugador roba si el dado rojo es menor o igual a su nivel en esa
         disciplina (calendario de la ciudad).

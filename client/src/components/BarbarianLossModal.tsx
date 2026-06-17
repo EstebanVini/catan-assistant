@@ -54,7 +54,7 @@ export function BarbarianLossModal(): JSX.Element | null {
           <SackGlyph size={22} />
           <h2
             id="barbarian-loss-title"
-            className="text-lg font-bold tracking-tight text-ck-crimson"
+            className="text-lg font-bold tracking-tight text-red-200"
           >
             Saqueo bárbaro
           </h2>
@@ -148,7 +148,7 @@ export function BarbarianLossModal(): JSX.Element | null {
                 <button
                   type="button"
                   onClick={() => downgradeCity(city.id)}
-                  className="mt-2.5 inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg border border-ck-crimson/50 bg-ck-crimson/15 px-3 py-2 text-sm font-bold text-ck-crimson transition-colors active:bg-ck-crimson/25"
+                  className="mt-2.5 inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg border border-ck-crimson/50 bg-ck-crimson/15 px-3 py-2 text-sm font-bold text-red-200 transition-colors active:bg-ck-crimson/25"
                 >
                   Degradar esta ciudad
                 </button>

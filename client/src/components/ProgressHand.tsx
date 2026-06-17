@@ -149,7 +149,7 @@ export function ProgressHand(): JSX.Element | null {
         <span
           className={
             'nums flex-shrink-0 text-sm font-bold tabular-nums ' +
-            (overLimit ? 'text-ck-crimson' : 'text-neutral-100')
+            (overLimit ? 'text-red-300' : 'text-neutral-100')
           }
           aria-label={`${count} de ${PROGRESS_HAND_LIMIT} cartas de progreso`}
         >
@@ -167,7 +167,7 @@ export function ProgressHand(): JSX.Element | null {
           role="alert"
           className="mb-2.5 rounded-lg border border-ck-crimson/50 bg-ck-crimson/[0.12] px-3 py-2"
         >
-          <p className="text-[12px] font-semibold tracking-tight text-ck-crimson">
+          <p className="text-[12px] font-semibold tracking-tight text-red-300">
             Tienes más de {PROGRESS_HAND_LIMIT} cartas de progreso
           </p>
           <p className="mt-0.5 text-[11px] leading-snug text-neutral-300">
@@ -300,7 +300,7 @@ function ProgressCardRow({
           type="button"
           onClick={onDiscard}
           aria-label={`Descartar ${PROGRESS_CARD_NAMES[card]}`}
-          className="min-h-[44px] flex-shrink-0 rounded-lg border border-ck-crimson/50 bg-ck-crimson/15 px-3 py-2 text-xs font-semibold text-ck-crimson transition-all active:scale-[0.97] active:bg-ck-crimson/25"
+          className="min-h-[44px] flex-shrink-0 rounded-lg border border-ck-crimson/50 bg-ck-crimson/15 px-3 py-2 text-xs font-semibold text-red-200 transition-all active:scale-[0.97] active:bg-ck-crimson/25"
         >
           Descartar
         </button>
