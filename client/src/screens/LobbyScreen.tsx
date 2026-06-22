@@ -317,6 +317,7 @@ export function LobbyScreen(): JSX.Element | null {
                     name={p.name}
                     avatarUrl={p.avatarUrl}
                     size={24}
+                    streak={p.winStreak}
                   />
                 ) : null}
                 <div className="flex-1">

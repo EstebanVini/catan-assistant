@@ -6,7 +6,7 @@ import { ColorChip } from './ColorChip';
 import { DISCIPLINE_NAMES, portLabel } from '../lib/spanish';
 import { playerHex } from '../lib/playerColors';
 import { BadgeChip, BadgeIcon } from './BadgeIcon';
-import { KnightGlyph } from '../assets/icons';
+import { FireGlyph, KnightGlyph } from '../assets/icons';
 import { CollapsibleSection } from './CollapsibleSection';
 
 // Estado público por jugador. Manos ajenas nunca se muestran (privacidad).
@@ -183,6 +183,21 @@ export function PublicPlayersPanel(): JSX.Element | null {
                     <span className="truncate text-sm font-semibold text-neutral-100">
                       {p.name}
                     </span>
+                    {p.winStreak >= 1 ? (
+                      // Racha de victorias activa: indicador inline compacto
+                      // (llama + número). Mismo lenguaje dorado/terracota del
+                      // glifo; el número en `nums` sobre dorado claro (contraste
+                      // AA sobre el fondo oscuro del card).
+                      <span
+                        role="img"
+                        aria-label={`Racha de ${p.winStreak} victorias`}
+                        title={`Racha de ${p.winStreak} victorias`}
+                        className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-full border border-gold/50 bg-gold/[0.10] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-gold-light"
+                      >
+                        <FireGlyph size={14} />
+                        <span className="nums">{p.winStreak}</span>
+                      </span>
+                    ) : null}
                     {p.id === state.hostId ? (
                       <Badge>Anfitrión</Badge>
                     ) : null}

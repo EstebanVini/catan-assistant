@@ -31,6 +31,7 @@ import { DevCardGlyph } from '../assets/icons';
 import { DevCardPreview } from '../components/DevCardPreview';
 import { DevCardsPanel } from '../components/DevCardsPanel';
 import { EndGameButton } from '../components/EndGameButton';
+import { LeaveGameButton } from '../components/LeaveGameButton';
 import { safeVibrate } from '../lib/motion';
 import { useModalA11y } from '../lib/useModalA11y';
 
@@ -205,6 +206,7 @@ export function GameScreen(): JSX.Element | null {
             lastNumber={state.lastRolledNumber}
           />
           <Log />
+          <LeaveGameButton />
           <EndGameButton />
         </div>
       </div>

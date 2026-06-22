@@ -6,6 +6,7 @@ import { Avatar } from '../components/Avatar';
 import { BadgeChip } from '../components/BadgeIcon';
 import { ColorChip } from '../components/ColorChip';
 import { FriendsPanel } from '../components/FriendsPanel';
+import { AchievementsPanel } from '../components/AchievementsPanel';
 import {
   COLOR_NAMES,
   DISPLAY_NAME_HELP,
@@ -183,7 +184,13 @@ export function ProfileScreen(): JSX.Element {
             hasActiveSession={session !== null}
             onSave={saveField}
           />
-          <StatsCard user={authUser} />
+          <div>
+            <StatsCard user={authUser} />
+            <AchievementsPanel
+              xp={authUser.stats.xp ?? 0}
+              achievements={authUser.stats.achievements ?? []}
+            />
+          </div>
         </div>
       )}
     </main>

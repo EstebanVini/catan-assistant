@@ -727,6 +727,11 @@ function RobberHexList({
           ? 'Elige la ficha a donde se mueve el ladrón.'
           : 'El jugador en turno está moviendo el ladrón.'}
       </p>
+      {canMove ? (
+        <p className="mt-1 text-[10px] leading-snug text-red-200/70">
+          Mover el ladrón a una ficha vacía no le roba a nadie.
+        </p>
+      ) : null}
       <ul className="mt-2 space-y-1.5">
         {hexes.map((h) => {
           const isHot = h.number === 6 || h.number === 8;
@@ -734,7 +739,7 @@ function RobberHexList({
           const suffix = suffixes.get(h.id) ?? null;
           const baseName = h.resource
             ? RESOURCE_NAMES_LOWER[h.resource]
-            : 'desierto';
+            : 'ficha vacía (desierto)';
           const ariaName =
             (h.number !== null ? `${h.number} ` : '') +
             baseName +
