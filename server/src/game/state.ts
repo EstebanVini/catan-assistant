@@ -196,10 +196,6 @@ export interface Player {
   defenderCards: number;
   // Muros de ciudad (0..3). Cada uno sube el límite de mano del 7 en +2. Público.
   walls: number;
-  // Caballeros y Ciudades: cada jugador empieza con 1 poblado + 1 ciudad. Como
-  // el registro inicial son 2 poblados, se concede UNA mejora gratuita de
-  // poblado→ciudad (la "ciudad inicial"). true una vez usada. Solo C&K.
-  freeCityUsed: boolean;
   ports: PortType[];
   devCards: DevCardCounts; // PRIVADO en tipos; conteo total + caballeros jugados es público
   devCardsBoughtThisTurn: DevCardType[]; // no jugables el mismo turno

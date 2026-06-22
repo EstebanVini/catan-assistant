@@ -701,3 +701,26 @@
     animation: fade-in 120ms ease-out both !important;
   }
 }
+
+/*
+ * Calendario de la ciudad (Caballeros y Ciudades).
+ * El panel vive en una columna estrecha (~400px) del layout de escritorio, así
+ * que los breakpoints de VIEWPORT no sirven: `md:grid-cols-3` metía las 3
+ * tarjetas de disciplina en ese ancho y todo salía amontonado/truncado.
+ * Con CONTAINER QUERIES el grid responde al ancho REAL de su contenedor: las
+ * tarjetas se apilan por defecto (legibles a todo el ancho de la columna) y
+ * solo pasan a 3 columnas cuando el contenedor de verdad es ancho.
+ */
+.ck-calendar {
+  container-type: inline-size;
+}
+.ck-calendar-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+@container (min-width: 640px) {
+  .ck-calendar-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

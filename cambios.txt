@@ -1,5 +1,16 @@
-Cambios:
+Cambios caballeros:
 
-No es posible activar los toggles de "El ladrón no roba en la primera ronda" ni de "Recurso por ladrón en ficha vacía", por alguna razón les doy click pero no me permite activarlos
+En los cambios que hiciste, no se supone que al iniciar, cada jugador empieza con 1 poblado y 1 ciudad?? 
 
-Por alguna razón, cuando intento utilizar el puerto de alguien más 2 la primera vez funciona perfectamente pero la segunda vez al dueño del puerto le llega bien la notificación pero los botones de "Aprobar y cobrar comisión" o "Dejar usar el puerto gratis" e incluso el de "No prestar" se desactivan y en toda la partida no vuelve a funcionar este feature con ninguno de los demás jugadores ¿Por qué está pasando esto? resuelve ese bug 
+
+
+También en la vista web de escritorio queda muy mal la sección de calendario de la ciudad, se ve todo amontonado. /home/esteban/Pictures/Screenshots/Screenshot From 2026-06-17 17-40-29.png
+
+Cambios 2: 
+
+En esta edición ya no es posible comprar cartas de desarrollo, se asignan automáticamente cuando sale un número en el dado rojo que coincida con el nivel en alguno de los ámbitos (Comerio, política, Ciencia), no importa si no es el turno del jugador, aún así recibe cartas de desarrollo
+
+Si un jugador ya llegó al nivel 5 de algún ámbito (Comerio, política, Ciencia) y ya tiene una metrópolis, ningún jugador se la puede quitar, en cambio si un jugador tiene nivel 4 y ya tiene una metrópolis y otro jugador también alcanza el nivel 4, el segundo jugador en llegar a nivel 4 le quita la metrópolis al primer jugador.
+
+Cada jugador puede tener en el tablero hasta 2 caballeros de cada nivel al mismo tiempo
+

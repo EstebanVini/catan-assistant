@@ -102,23 +102,29 @@ export function CityCalendarPanel(): JSX.Element | null {
   // Solo el jugador activo en su ventana de construcción puede mejorar.
   const canAct = inMain || inSpecial;
 
+  // `ck-calendar` define el contexto de container query (ver index.css): el
+  // grid interno se apila por defecto y solo pasa a 3 columnas cuando ESTE
+  // contenedor —no el viewport— es lo bastante ancho. Evita el amontonamiento
+  // en la columna estrecha del layout de escritorio.
   return (
-    <div className="grid grid-cols-1 gap-2 p-3 md:grid-cols-3">
-      {DISCIPLINES.map((discipline) => (
-        <DisciplineCard
-          key={discipline}
-          discipline={discipline}
-          level={myPublic?.improvements[discipline] ?? 0}
-          ownsMetropolis={!!myPublic?.metropolises.includes(discipline)}
-          metropolisOwnerId={state.metropolisOwners[discipline]}
-          ownerName={ownerName(state.players, state.metropolisOwners[discipline])}
-          myId={me.id}
-          commodityHave={me.commodities[DISCIPLINE_COMMODITY[discipline]]}
-          canAct={canAct}
-          onUpgrade={() => upgradeCity(discipline)}
-          onBlocked={(reason) => pushToast('info', reason)}
-        />
-      ))}
+    <div className="ck-calendar p-3">
+      <div className="ck-calendar-grid">
+        {DISCIPLINES.map((discipline) => (
+          <DisciplineCard
+            key={discipline}
+            discipline={discipline}
+            level={myPublic?.improvements[discipline] ?? 0}
+            ownsMetropolis={!!myPublic?.metropolises.includes(discipline)}
+            metropolisOwnerId={state.metropolisOwners[discipline]}
+            ownerName={ownerName(state.players, state.metropolisOwners[discipline])}
+            myId={me.id}
+            commodityHave={me.commodities[DISCIPLINE_COMMODITY[discipline]]}
+            canAct={canAct}
+            onUpgrade={() => upgradeCity(discipline)}
+            onBlocked={(reason) => pushToast('info', reason)}
+          />
+        ))}
+      </div>
     </div>
   );
 }

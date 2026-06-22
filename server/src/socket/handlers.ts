@@ -595,6 +595,16 @@ export function registerHandlers(io: Server, socket: Socket): void {
     if (state.citiesKnights) {
       state.robberActive = false;
       state.barbarianStep = 0;
+      // Cada jugador empieza con 1 poblado + 1 ciudad: en el juego oficial la
+      // 2ª colocación inicial es una ciudad. Subimos su SEGUNDO poblado
+      // registrado a ciudad, gratis, al iniciar (antes de derivar los hexes,
+      // para que la ciudad produzca desde el primer turno).
+      for (const player of state.players) {
+        const second = player.buildings[1];
+        if (second && second.type === 'settlement') {
+          second.type = 'city';
+        }
+      }
     }
 
     // Derivar los hexes de producción y repartir los recursos de inicio:
@@ -1126,11 +1136,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
         socket.emit('error', { message: 'Elige qué poblado se convierte en ciudad.' });
         return;
       }
-      // Caballeros y Ciudades: la PRIMERA ciudad de cada jugador es gratis
-      // (representa la "ciudad inicial" que en el juego oficial se coloca en el
-      // reparto). Las siguientes cuestan lo normal (2 trigo + 3 mineral).
-      const isFreeCity = type === 'city' && state.citiesKnights && !player.freeCityUsed;
-      const cost = isFreeCity ? {} : BUILD_COSTS[type];
+      const cost = BUILD_COSTS[type];
       if (!canAfford(player.hand, cost)) {
         const lack = shortfall(player.hand, cost);
         const parts = (Object.entries(lack) as [Resource, number][]).map(([r, n]) => `${n} ${esResource(r)}`);
@@ -1164,19 +1170,10 @@ export function registerHandlers(io: Server, socket: Socket): void {
         io.to(state.code).emit('build:notify', { text: `${player.name} construyó un Poblado.` });
       } else if (type === 'city') {
         targetSettlement!.type = 'city';
-        if (isFreeCity) player.freeCityUsed = true;
         state.hexes = rebuildHexes(state.players, state.hexes);
         recomputeVictoryPoints(state);
-        logAction(
-          state,
-          isFreeCity
-            ? `${player.name} estableció su Ciudad inicial gratis (subió un poblado).`
-            : `${player.name} construyó una Ciudad (subió un poblado).`,
-          player.id
-        );
-        io.to(state.code).emit('build:notify', {
-          text: isFreeCity ? `${player.name} estableció su Ciudad inicial.` : `${player.name} construyó una Ciudad.`,
-        });
+        logAction(state, `${player.name} construyó una Ciudad (subió un poblado).`, player.id);
+        io.to(state.code).emit('build:notify', { text: `${player.name} construyó una Ciudad.` });
       } else {
         logAction(state, `${player.name} construyó un Camino.`, player.id);
         io.to(state.code).emit('build:notify', { text: `${player.name} construyó un Camino.` });
