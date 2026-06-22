@@ -52,6 +52,10 @@ export function PortIncomingModal(): JSX.Element | null {
     if (!pendingForMe) {
       respondedRef.current = false;
       setResponded(false);
+      // El modal vive montado de forma permanente: limpiamos la comisión al
+      // cerrarse para que la PRÓXIMA solicitud abra sus contadores en cero
+      // (antes conservaba los valores de la solicitud anterior).
+      setCommission({});
     }
   }, [pendingForMe]);
   // Modal principal: forzado, no se cierra con ESC ni con tap fuera.

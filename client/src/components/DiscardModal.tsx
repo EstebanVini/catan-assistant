@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { COMMODITIES, Commodity, RESOURCES, Resource } from '../types';
 import { COMMODITY_NAMES, RESOURCE_NAMES } from '../lib/spanish';
@@ -27,6 +27,22 @@ export function DiscardModal(): JSX.Element | null {
   useModalA11y(dialogRef, () => {
     /* no-op: descarte obligatorio */
   });
+
+  // El componente vive montado de forma permanente en GameScreen: su estado
+  // (picks) sobrevive entre apariciones. Reseteamos los contadores SIEMPRE que
+  // el modal pasa de oculto a visible, para que cada descarte empiece en cero.
+  const isShowing =
+    !!view?.me &&
+    view.state.phase === 'discard' &&
+    (view.state.pendingDiscards[view.me.id] ?? 0) > 0;
+  const wasShowingRef = useRef(false);
+  useEffect(() => {
+    if (isShowing && !wasShowingRef.current) {
+      setPicks({});
+      setCommodityPicks({});
+    }
+    wasShowingRef.current = isShowing;
+  }, [isShowing]);
 
   if (!view || !view.me) return null;
   const { state, me } = view;
