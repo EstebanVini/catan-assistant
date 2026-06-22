@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   ACHIEVEMENTS,
   AchievementContext,
+  midGameSatisfied,
   newlyUnlocked,
   satisfiedAchievements,
   xpForGame,
@@ -89,6 +90,36 @@ describe('satisfiedAchievements', () => {
     expect(satisfiedAchievements(gs({ peakPorts: 4 }), ctx())).toContain('sea_trader');
     expect(satisfiedAchievements(gs(), ctx({ finalVP: 3 }))).toContain('loser');
     expect(satisfiedAchievements(gs(), ctx({ finalVP: 4 }))).not.toContain('loser');
+  });
+});
+
+describe('midGameSatisfied (logros en vivo)', () => {
+  const noBadges = { hasLongestRoad: false, hasLargestArmy: false, stealsThisGame: 0 };
+
+  it('detecta logros monótonos en vivo', () => {
+    expect(midGameSatisfied(gs({ roadsBuilt: 15 }), noBadges)).toContain('walker');
+    expect(midGameSatisfied(gs({ maxVpGainInTurn: 6 }), noBadges)).toEqual(
+      expect.arrayContaining(['halfway', 'crack'])
+    );
+    expect(midGameSatisfied(gs({ peakResource: { ...emptyGameStats().peakResource, ore: 15 } }), noBadges)).toContain('stone_addict');
+    expect(midGameSatisfied(gs({ peakPorts: 4 }), noBadges)).toContain('sea_trader');
+    expect(midGameSatisfied(gs({ maxDevBoughtInTurn: 5 }), noBadges)).toContain('developed');
+    expect(midGameSatisfied(gs({ hadDryRound: true }), noBadges)).toContain('bad_luck');
+    expect(midGameSatisfied(gs(), { ...noBadges, stealsThisGame: 10 })).toContain('you_know_it');
+    expect(midGameSatisfied(gs(), { hasLongestRoad: true, hasLargestArmy: true, stealsThisGame: 0 })).toContain('decorated');
+  });
+
+  it('NUNCA dispara logros de fin de partida en vivo (pacifista/perdedor/carrera/racha/ganar)', () => {
+    // Aunque steals=0 (pacifista) y finalVP=0 (perdedor) "se cumplan", no entran
+    // al conjunto en vivo. Tampoco los de carrera/racha/condicionados a ganar.
+    const live = midGameSatisfied(gs(), noBadges);
+    expect(live).not.toContain('pacifist');
+    expect(live).not.toContain('loser');
+    expect(live).not.toContain('amateur');
+    expect(live).not.toContain('streaker');
+    expect(live).not.toContain('villager');
+    expect(live).not.toContain('demolisher');
+    expect(live).not.toContain('bellyflop');
   });
 });
 

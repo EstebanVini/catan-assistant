@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import {
+  AchievementUnlock,
   Building,
   BuildType,
   Commodity,
@@ -591,5 +592,21 @@ export function wireSocket(): void {
   socket.on('friends:invited', (inv: GameInvite) => {
     if (!inv || typeof inv.code !== 'string') return;
     store.getState().pushInvite({ code: inv.code, fromName: inv.fromName });
+  });
+
+  // Logro desbloqueado en vivo (mitad de partida). Al dueño le llega una
+  // notificación PROMINENTE (banner/notice); a los oponentes, una SILENCIOSA
+  // (toast). El log de la partida ya registra el desbloqueo para todos.
+  socket.on('achievement:unlocked', (a: AchievementUnlock) => {
+    if (!a || typeof a.name !== 'string') return;
+    const st = store.getState();
+    if (a.mine) {
+      st.pushNotice({
+        level: 'info',
+        text: `¡Logro desbloqueado! «${a.name}» · +${a.xp} XP`,
+      });
+    } else {
+      st.pushToast('info', `${a.playerName} desbloqueó «${a.name}».`);
+    }
   });
 }

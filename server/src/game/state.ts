@@ -217,6 +217,12 @@ export interface Player {
   winStreak: number;
   // Acumulador por partida para logros (no se envía a la vista).
   gameStats?: GameStats;
+  // Logros YA desbloqueados por el usuario (cargados al unirse desde su cuenta).
+  // Baseline para no notificar de nuevo lo que ya tenía. Solo registrados.
+  unlockedAchievements: string[];
+  // Logros desbloqueados EN VIVO durante ESTA partida (ya notificados). Evita
+  // re-notificar y, al terminar, se persisten. Se reinicia en game:start.
+  newAchievementsThisGame: string[];
   buildings: Building[]; // tabla de construcción del jugador (ver game/setup.ts)
   hand: Hand; // PRIVADO
   commodities: CommodityHand; // PRIVADO; solo se usa en Caballeros y Ciudades

@@ -70,6 +70,7 @@ import {
 import { Building, DevCardType } from '../game/state';
 import { applyInitialSetup, playerSetupComplete, rebuildHexes, validateBuildings } from '../game/setup';
 import { buildViewWithOwnHidden } from './views';
+import { ACHIEVEMENTS_BY_ID, midGameSatisfied } from '../game/achievements';
 import { isDbConnected } from '../db/connection';
 import { User } from '../db/models/User';
 import { acceptedFriendIds } from '../auth/friends';
@@ -94,6 +95,7 @@ async function loadProfile(socket: Socket): Promise<(UserProfileInfo & { display
       avatarUrl: user.avatarUrl ?? undefined,
       preferredColor: user.color ?? undefined,
       currentWinStreak: user.stats?.currentWinStreak ?? 0,
+      achievements: Array.isArray(user.stats?.achievements) ? (user.stats!.achievements as string[]) : [],
       displayName: user.displayName,
     };
   } catch {
@@ -133,9 +135,51 @@ function recordReceipts(state: GameState, perPlayer: Record<string, Partial<Hand
   }
 }
 
+// Detecta logros desbloqueados EN VIVO (mitad de partida) y notifica: al
+// jugador que lo logró, una notificación PROMINENTE (notice/banner); a sus
+// oponentes, una SILENCIOSA (toast). Solo jugadores registrados (con cuenta);
+// los ya desbloqueados (en su cuenta o antes en esta partida) no se re-notifican.
+// Se persisten al terminar la partida (persistMatch los recalcula desde gameStats).
+function checkMidGameAchievements(io: Server, state: GameState): void {
+  if (state.status !== 'playing') return;
+  for (const p of state.players) {
+    if (!p.userId || !p.gameStats) continue; // solo cuentas registradas
+    const satisfied = midGameSatisfied(p.gameStats, {
+      hasLongestRoad: p.victoryPoints.longestRoad,
+      hasLargestArmy: p.victoryPoints.largestArmy,
+      stealsThisGame: state.stealsByPlayer[p.id] ?? 0,
+    });
+    for (const id of satisfied) {
+      if (p.unlockedAchievements.includes(id)) continue;
+      if (p.newAchievementsThisGame.includes(id)) continue;
+      p.newAchievementsThisGame.push(id);
+      const def = ACHIEVEMENTS_BY_ID[id];
+      if (!def) continue;
+      logAction(state, `${p.name} desbloqueó el logro «${def.name}».`, p.id);
+      // Notificar a cada socket de la sala: mine=true al dueño (prominente),
+      // mine=false a los oponentes (silencioso).
+      const sockets = io.sockets.adapter.rooms.get(state.code);
+      if (!sockets) continue;
+      for (const sid of sockets) {
+        const s = io.sockets.sockets.get(sid);
+        if (!s) continue;
+        const mine = (s.data as SocketData).playerId === p.id;
+        s.emit('achievement:unlocked', {
+          id: def.id,
+          name: def.name,
+          xp: def.xp,
+          playerName: p.name,
+          mine,
+        });
+      }
+    }
+  }
+}
+
 // Broadcast vista personalizada a cada socket de una sala
 function broadcastState(io: Server, state: GameState): void {
   trackPeaks(state);
+  checkMidGameAchievements(io, state);
   const sockets = io.sockets.adapter.rooms.get(state.code);
   if (!sockets) return;
   for (const sid of sockets) {
@@ -683,7 +727,10 @@ export function registerHandlers(io: Server, socket: Socket): void {
     recomputeVictoryPoints(state);
     // Reiniciar el acumulador de logros por partida y fijar el baseline de PV
     // del primer jugador (incluye la ciudad gratuita de C&K si aplica).
-    for (const player of state.players) player.gameStats = emptyGameStats();
+    for (const player of state.players) {
+      player.gameStats = emptyGameStats();
+      player.newAchievementsThisGame = [];
+    }
     const firstActive = activePlayer(state);
     if (firstActive?.gameStats) firstActive.gameStats.turnStartVP = totalVictoryPoints(firstActive);
     logAction(state, `Empieza la partida. Turno de ${activePlayer(state)?.name}.`);

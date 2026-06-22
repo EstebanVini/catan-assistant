@@ -40,6 +40,27 @@ export const ACHIEVEMENT_XP: Record<string, number> = Object.fromEntries(
   ACHIEVEMENTS.map((a) => [a.id, a.xp])
 );
 
+export const ACHIEVEMENTS_BY_ID: Record<string, AchievementDef> = Object.fromEntries(
+  ACHIEVEMENTS.map((a) => [a.id, a])
+);
+
+// Logros que se pueden desbloquear EN VIVO (mitad de partida), porque su
+// condición es monótona/positiva durante el juego. El resto (PV finales bajos,
+// pacifista, PV de carrera, racha, y los condicionados a ganar) solo se resuelve
+// al terminar la partida.
+export const MIDGAME_ACHIEVEMENT_IDS = new Set<string>([
+  'hay_overload',
+  'halfway',
+  'crack',
+  'walker',
+  'you_know_it',
+  'stone_addict',
+  'sea_trader',
+  'developed',
+  'decorated',
+  'bad_luck',
+]);
+
 // Contexto de fin de partida para evaluar los logros de un jugador.
 export interface AchievementContext {
   won: boolean;
@@ -80,6 +101,31 @@ export function satisfiedAchievements(gs: GameStats, ctx: AchievementContext): s
   ok('streaker', ctx.winStreakAfter >= 5);
   ok('villager', ctx.won && ctx.citiesAtEnd === 0);
   return out;
+}
+
+// Logros desbloqueables EN VIVO que el jugador ya cumple ahora mismo. Reusa
+// `satisfiedAchievements` (única fuente de verdad) con un contexto de mitad de
+// partida e intersecta con el conjunto permitido en vivo: así los logros de
+// fin de partida (loser/pacifist/carrera/racha/condicionados a ganar) nunca se
+// disparan antes de tiempo, aunque su condición parezca cumplirse.
+export interface MidGameContext {
+  hasLongestRoad: boolean;
+  hasLargestArmy: boolean;
+  stealsThisGame: number;
+}
+export function midGameSatisfied(gs: GameStats, ctx: MidGameContext): string[] {
+  const full: AchievementContext = {
+    won: false,
+    finalVP: 0,
+    opponentsVP: [],
+    hasLongestRoad: ctx.hasLongestRoad,
+    hasLargestArmy: ctx.hasLargestArmy,
+    citiesAtEnd: 0,
+    stealsThisGame: ctx.stealsThisGame,
+    careerTotalVP: 0,
+    winStreakAfter: 0,
+  };
+  return satisfiedAchievements(gs, full).filter((id) => MIDGAME_ACHIEVEMENT_IDS.has(id));
 }
 
 // Logros recién desbloqueados (los que cumple y no tenía antes).

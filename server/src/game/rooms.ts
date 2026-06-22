@@ -38,6 +38,7 @@ export interface UserProfileInfo {
   avatarUrl?: string;
   preferredColor?: string;
   currentWinStreak?: number; // racha activa del usuario (para el ícono 🔥)
+  achievements?: string[]; // logros ya desbloqueados (baseline para notificar)
 }
 
 function newPlayer(id: string, sessionToken: string, name: string, profile?: UserProfileInfo): Player {
@@ -50,6 +51,8 @@ function newPlayer(id: string, sessionToken: string, name: string, profile?: Use
     color: null,
     connected: true,
     winStreak: profile?.currentWinStreak ?? 0,
+    unlockedAchievements: profile?.achievements ?? [],
+    newAchievementsThisGame: [],
     buildings: [],
     hand: emptyHand(),
     commodities: emptyCommodities(),

@@ -313,6 +313,16 @@ export interface GameInvite {
   fromName: string;
 }
 
+// Logro desbloqueado en vivo (socket `achievement:unlocked`). `mine` indica si
+// es del jugador local (notificación prominente) o de un oponente (silenciosa).
+export interface AchievementUnlock {
+  id: string;
+  name: string;
+  xp: number;
+  playerName: string;
+  mine: boolean;
+}
+
 export interface MeView {
   id: string;
   name: string;
