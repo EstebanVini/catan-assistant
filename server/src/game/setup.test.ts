@@ -233,6 +233,35 @@ describe('rebuildHexes', () => {
     expect(desert.robber).toBe(true);
     expect(next.filter((h) => h.robber)).toHaveLength(1);
   });
+
+  it('base: exactamente 1 desierto; extensión 5–6: exactamente 2 desiertos', () => {
+    const players = [{ id: 'p1', buildings: [building([[6, 'ore']]), building([[4, 'grain']])] }];
+    const base = rebuildHexes(players, []);
+    expect(base.filter((h) => h.number === null && h.resource === null)).toHaveLength(1);
+
+    const ext = rebuildHexes(players, [], 2);
+    const deserts = ext.filter((h) => h.number === null && h.resource === null);
+    expect(deserts).toHaveLength(2);
+    // Un solo ladrón, en un desierto, al derivar de cero.
+    expect(ext.filter((h) => h.robber)).toHaveLength(1);
+    expect(deserts.some((d) => d.robber)).toBe(true);
+  });
+
+  it('extensión 5–6: preserva los ids de ambos desiertos y la posición del ladrón en el 2º', () => {
+    const players = [{ id: 'p1', buildings: [building([[6, 'ore']])] }];
+    const first = rebuildHexes(players, [], 2);
+    const deserts = first.filter((h) => h.number === null && h.resource === null);
+    expect(deserts).toHaveLength(2);
+    // Mover el ladrón al 2º desierto.
+    for (const h of first) h.robber = false;
+    deserts[1].robber = true;
+
+    const next = rebuildHexes(players, first, 2);
+    const nextDeserts = next.filter((h) => h.number === null && h.resource === null);
+    expect(nextDeserts.map((d) => d.id)).toEqual(deserts.map((d) => d.id));
+    expect(next.filter((h) => h.robber)).toHaveLength(1);
+    expect(next.find((h) => h.id === deserts[1].id)!.robber).toBe(true);
+  });
 });
 
 describe('recomputeVictoryPoints', () => {

@@ -68,11 +68,14 @@ function spotKey(spot: BuildingSpot): string {
 // los jugadores. Agrupa fichas por su identidad física (`hexId`, o
 // número+recurso si falta), conserva los ids previos (identidad estable para
 // la UI) y preserva la posición del ladrón por id; si su ficha desapareció (o
-// nunca se colocó), queda en el desierto. Siempre existe exactamente un hex
-// desierto para que el ladrón tenga a dónde volver.
+// nunca se colocó), queda en el primer desierto. `desertCount` controla cuántos
+// hexes desierto existen (1 en el base, 2 en la extensión 5–6, como el tablero
+// físico): el ladrón siempre tiene a dónde volver y hay fichas vacías para
+// estacionarlo sin robar.
 export function rebuildHexes(
   players: Array<Pick<Player, 'id' | 'buildings'>>,
-  prevHexes: Hex[]
+  prevHexes: Hex[],
+  desertCount = 1
 ): Hex[] {
   // Reusar el id previo de una ficha "legacy" (sin hexId) por número+recurso
   // para que el ladrón colocado sobre ella sobreviva a un rebuild.
@@ -83,19 +86,24 @@ export function rebuildHexes(
       if (!prevByLegacyKey.has(k)) prevByLegacyKey.set(k, h.id);
     }
   }
-  const prevDesert = prevHexes.find((h) => h.number === null && h.resource === null);
+  // Conservar los ids de los desiertos previos por posición (identidad estable
+  // para la UI y para que el ladrón sobreviva al rebuild).
+  const prevDesertIds = prevHexes
+    .filter((h) => h.number === null && h.resource === null)
+    .map((h) => h.id);
   const prevRobberId = prevHexes.find((h) => h.robber)?.id ?? null;
 
   const hexes: Hex[] = [];
   const byKey = new Map<string, Hex>();
 
-  const desert: Hex = {
-    id: prevDesert?.id ?? nanoid(8),
+  const count = Math.max(1, desertCount);
+  const deserts: Hex[] = Array.from({ length: count }, (_, i) => ({
+    id: prevDesertIds[i] ?? nanoid(8),
     number: null,
     resource: null,
     robber: false,
     owners: [],
-  };
+  }));
 
   const hexForSpot = (spot: BuildingSpot): Hex => {
     const key = spotKey(spot);
@@ -126,11 +134,11 @@ export function rebuildHexes(
     }
   }
 
-  // Ordenar por número para que la tabla salga legible; el desierto al final.
+  // Ordenar por número para que la tabla salga legible; los desiertos al final.
   hexes.sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
-  hexes.push(desert);
+  hexes.push(...deserts);
 
-  const robberHex = hexes.find((h) => h.id === prevRobberId) ?? desert;
+  const robberHex = hexes.find((h) => h.id === prevRobberId) ?? deserts[0];
   robberHex.robber = true;
   return hexes;
 }
@@ -154,9 +162,10 @@ export interface SetupResult {
 export function applyInitialSetup(
   players: Array<Pick<Player, 'id' | 'buildings'>>,
   bank: Hand,
-  seedResources = true
+  seedResources = true,
+  desertCount = 1
 ): SetupResult {
-  const hexes = rebuildHexes(players, []);
+  const hexes = rebuildHexes(players, [], desertCount);
 
   const grants: Record<string, Hand> = {};
 

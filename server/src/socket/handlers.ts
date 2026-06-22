@@ -530,10 +530,10 @@ export function registerHandlers(io: Server, socket: Socket): void {
     // Derivar los hexes también en el lobby: así el selector de fichas puede
     // ofrecer "agrupar con una ficha ya registrada en la mesa".
     if (!playing) {
-      state.hexes = rebuildHexes(state.players, state.hexes);
+      state.hexes = rebuildHexes(state.players, state.hexes, state.extension56 ? 2 : 1);
     }
     if (playing) {
-      state.hexes = rebuildHexes(state.players, state.hexes);
+      state.hexes = rebuildHexes(state.players, state.hexes, state.extension56 ? 2 : 1);
       recomputeVictoryPoints(state);
       const after = {
         settlements: player.buildings.filter((b) => b.type === 'settlement').length,
@@ -610,7 +610,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
     // Derivar los hexes de producción y repartir los recursos de inicio:
     // 1 carta por cada ficha que tocan los poblados registrados (todos).
     // En el modo "sin fichas" no se reparte nada.
-    const setup = applyInitialSetup(state.players, state.bank, state.seedInitialResources);
+    const setup = applyInitialSetup(state.players, state.bank, state.seedInitialResources, state.extension56 ? 2 : 1);
     state.hexes = setup.hexes;
     for (const player of state.players) {
       const grant = setup.grants[player.id];
@@ -1173,13 +1173,13 @@ export function registerHandlers(io: Server, socket: Socket): void {
         // Queda pendiente registrar las fichas que toca: no podrá terminar el
         // turno hasta hacerlo (ver turn:end / specialBuild:done).
         player.pendingSettlementRegistration.push(newSettlement.id);
-        state.hexes = rebuildHexes(state.players, state.hexes);
+        state.hexes = rebuildHexes(state.players, state.hexes, state.extension56 ? 2 : 1);
         recomputeVictoryPoints(state);
         logAction(state, `${player.name} construyó un Poblado. Le falta registrar sus fichas.`, player.id);
         io.to(state.code).emit('build:notify', { text: `${player.name} construyó un Poblado.` });
       } else if (type === 'city') {
         targetSettlement!.type = 'city';
-        state.hexes = rebuildHexes(state.players, state.hexes);
+        state.hexes = rebuildHexes(state.players, state.hexes, state.extension56 ? 2 : 1);
         recomputeVictoryPoints(state);
         logAction(state, `${player.name} construyó una Ciudad (subió un poblado).`, player.id);
         io.to(state.code).emit('build:notify', { text: `${player.name} construyó una Ciudad.` });
@@ -1540,7 +1540,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
     }
     pushSnapshot(state);
     building.type = 'settlement';
-    state.hexes = rebuildHexes(state.players, state.hexes);
+    state.hexes = rebuildHexes(state.players, state.hexes, state.extension56 ? 2 : 1);
     recomputeVictoryPoints(state);
     state.pendingBarbarianLoss = state.pendingBarbarianLoss.filter((id) => id !== player.id);
     logAction(state, `${player.name} degradó una ciudad a poblado por el saqueo bárbaro.`, player.id);
