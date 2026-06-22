@@ -12,6 +12,39 @@ Aplicación web **mobile-first** que funciona como **asistente digital para part
 - Soporta la **edición base (3–4 jugadores)**, la **extensión 5–6 jugadores** (toggle en el lobby) y la **expansión Caballeros y Ciudades** (toggle `citiesKnights`, victoria a 13; ver §5b y `caballeros-plan.md`).
 - **UI 100% en español**; **identificadores de código en inglés**.
 
+## 1b. Funcionalidades (catálogo completo)
+
+Todo lo siguiente está **implementado y funcionando** salvo lo marcado como futuro (§8 `pending-phase3.md`).
+
+**Cuentas e identidad**
+- Registro / inicio de sesión con **JWT + bcrypt**; **modo invitado** (juega sin acumular stats). Sincronización de sesión entre pestañas (`storage`).
+- **Perfil** (`ProfileScreen`): editar `displayName`, color preferido y `avatarUrl`; **avatar generado** determinístico (iniciales + color por hash) con fallback si la imagen falla.
+- **Estadísticas** del usuario: partidas, ganadas/perdidas, % de victorias, PV totales, insignias (camino más largo / ejército más grande), **racha actual y máxima**, **XP + nivel** y **logros** (ver §5c).
+- **Amigos** (`FriendsPanel`): buscar usuarios, enviar/aceptar/rechazar/cancelar solicitudes, eliminar amigos, ver quién está **en línea**, **invitar a la sala** en tiempo real, y **ver el perfil completo de un amigo** (`FriendProfileModal`: stats + XP + logros).
+
+**Sala / lobby**
+- Crear sala (código de 5 caracteres) y unirse por código; **reconexión** automática con `sessionToken`.
+- El anfitrión configura: **colores** por jugador, **orden de turnos** (manual o sorteo con dados), **encargado del banco**, toggle **extensión 5–6**, toggle **Caballeros y Ciudades**, toggle **iniciar sin recursos**, y las **reglas extra** (ver §4). Puede **expulsar** jugadores y **cancelar** la sala.
+- Registro de los **2 poblados de salida** de cada jugador (fichas que tocan); gating para iniciar (salvo modo "sin fichas").
+
+**Partida (motor de juego)**
+- **Tirada**: el encargado del banco ingresa el número (base) o los 3 dados (C&K); reparte producción a poblados/ciudades y lleva **estadísticas de dados**.
+- **Secuencia del 7**: descarte forzado (>7 cartas) → mover ladrón (incl. **ficha vacía/desierto**) → robo aleatorio. Reglas extra del ladrón (no roba 1ª ronda: solo omite descarte; ficha vacía da recurso del banco).
+- **Construir**: caminos, poblados, ciudades, cartas de desarrollo; **Tabla de construcción** editable que deriva los hexes de producción; registro de fichas pendientes tras comprar un poblado.
+- **Cartas de desarrollo**: Caballero (+ Ejército más grande), Año de la abundancia, Monopolio, Construcción de caminos, Punto de victoria (privadas hasta usarse). No se juegan el turno en que se compran.
+- **Intercambios**: con el banco/puertos (proporciones 4:1/3:1/2:1), **entre jugadores** (ofertas dirigidas o abiertas, rechazo individual), y **uso de puerto ajeno** con comisión opcional (regla `sharedPorts`, flujo de 3 pasos).
+- **Insignias y victoria**: Camino más largo (manual, banco/anfitrión), Ejército más grande (automático), declarar victoria (10 base / 13 C&K) → persiste la partida y stats.
+- **Banco**: entrega manual de cartas (anti-trampas: siempre notifica), **deshacer** (undo) la última acción.
+- **Fase de Construcción Especial** (extensión 5–6).
+- **Salir de la partida** en curso (devuelve cartas al banco/mazos y libera el lugar) y **finalizar partida** sin ganador (anfitrión).
+- **Expansión Caballeros y Ciudades** completa (ver §5b).
+
+**Tiempo real, privacidad y feedback**
+- Estado compartido vía Socket.IO con **vista personalizada** (las manos/cartas ajenas nunca se envían; solo conteos públicos).
+- **Notices** públicos prominentes (anti-trampas), **toasts**, **log** de la partida, banner de desconexión/reconexión, **invitaciones** de amigos.
+- **PWA instalable** (offline shell; nunca cachea `/socket.io/` ni `/api/`).
+- Tema Catán, **accesibilidad** (WCAG AA, focus trap en modales, `prefers-reduced-motion`), animaciones y micro-interacciones.
+
 ## 2. Stack y arquitectura
 
 - **Backend:** Node.js + Express + **Socket.IO** (TypeScript). El **estado en vivo de cada partida vive en memoria** (`Map<code, GameState>` en `server/src/game/rooms.ts`). **MongoDB (Mongoose)** persiste solo lo que sobrevive entre sesiones: usuarios, historial de partidas, estadísticas y amistades.
@@ -39,8 +72,8 @@ catan-assistant/
       index.ts            # Express + Socket.IO; sirve client/dist
       db/
         connection.ts     # conexión Mongoose (tolerante a fallos: el juego corre sin mongo)
-        persistMatch.ts   # al ganar: crea Match y actualiza stats con update atómico
-        models/User.ts    # usuario + stats
+        persistMatch.ts   # al ganar: crea Match y actualiza stats (racha, XP, logros)
+        models/User.ts    # usuario + stats (incl. xp, achievements, rachas)
         models/Match.ts    # historial de partidas terminadas
         models/Friendship.ts
       auth/
@@ -48,13 +81,14 @@ catan-assistant/
         middleware.ts     # guard REST (Bearer) + handshake Socket.IO (auth.token)
         friends.ts        # endpoints de amistades
       game/
-        state.ts          # TIPOS del dominio + GameState + helpers (emptyHand, fullBank, ...)
-        rules.ts          # lógica PURA de Catán (costos, distribución, 7, robo, VP) — testeada
-        setup.ts          # sembrado de hexes + reparto de recursos de inicio — testeada
-        rooms.ts          # salas en memoria; createPlayer / createRoom
-        rules.test.ts, setup.test.ts  # vitest
+        state.ts          # TIPOS del dominio + GameState + Player.gameStats + helpers
+        rules.ts          # lógica PURA de Catán (costos, distribución, 7, robo, VP, C&K) — testeada
+        setup.ts          # sembrado de hexes (1–2 desiertos) + reparto inicial — testeada
+        achievements.ts   # catálogo de 19 logros + reglas de XP + nivel — testeada
+        rooms.ts          # salas en memoria; createRoom / joinRoom (carga racha del usuario)
+        rules.test.ts, setup.test.ts, achievements.test.ts  # vitest
       socket/
-        handlers.ts       # TODOS los eventos Socket.IO (el corazón de la lógica de turno)
+        handlers.ts       # TODOS los eventos Socket.IO (turno + tracking de logros)
         views.ts          # vista personalizada por jugador (oculta manos ajenas)
   client/
     src/
@@ -64,17 +98,17 @@ catan-assistant/
       api.ts              # llamadas REST de auth/perfil/amigos
       types.ts            # tipos compartidos del cliente (espejo de las vistas del server)
       screens/            # LoginScreen, HomeScreen, LobbyScreen, GameScreen, ProfileScreen
-      components/         # ~40 componentes (ver §6)
-      assets/icons.tsx    # mapeo recurso/carta → asset (PNG temáticos), con fallback emoji
+      components/         # ~45 componentes (ver §6)
+      assets/icons.tsx    # mapeo recurso/carta → asset (PNG temáticos) + glifos SVG (FireGlyph, ...)
       assets/icons/       # PNGs de recursos y cartas
-      lib/                # motion.ts, persistence.ts, playerColors.ts, spanish.ts, useModalA11y.ts
+      lib/                # motion.ts, persistence.ts, playerColors.ts, spanish.ts, useModalA11y.ts, achievements.ts (espejo del catálogo)
 ```
 
 ## 4. Modelo de dominio (server/src/game/state.ts)
 
 - `Resource = 'brick' | 'lumber' | 'wool' | 'grain' | 'ore'`; `Hand = Record<Resource, number>`.
 - `Building { id, type: 'settlement'|'city', spots: BuildingSpot[], port? }`. Cada **spot** es una ficha que toca la construcción: `{ number, resource, hexId? }`. Un poblado toca 0–3 fichas (0–2 si tiene puerto). Los `hexes` de producción se **derivan** de los `buildings` de todos (`rebuildHexes`).
-- `Player`: `id, userId?, sessionToken, name, avatarUrl?, color, connected, buildings[], hand (privado), ports[], devCards (privado), devCardsBoughtThisTurn[], knightsPlayed, victoryPoints {settlements, cities, longestRoad, largestArmy, vpCards}`.
+- `Player`: `id, userId?, sessionToken, name, avatarUrl?, color, connected, winStreak (racha activa cargada al unirse, pública), buildings[], hand (privado), ports[], devCards (privado), devCardsBoughtThisTurn[], knightsPlayed, victoryPoints {settlements, cities, longestRoad, largestArmy, vpCards}`, campos C&K (`commodities`, `improvements`, `metropolises`, `progressCards`, `knights`, `defenderCards`, `walls`), y `gameStats?` (acumulador por partida para logros: picos de recursos/puertos, PV por turno, caminos, compras dev/turno, ronda seca — **no se envía a la vista**).
 - `Hex { id, number, resource, robber, owners[] }`. El robo y la producción dependen de esto.
 - `GameState`: `code, hostId, bankManagerId, status ('lobby'|'playing'|'ended'), extension56, seedInitialResources, extraRules, players[], turnOrder[], currentTurnIndex, phase ('roll'|'discard'|'robber'|'main'|'specialBuild'), specialBuildQueue[], hexes[], bank, devDeck[], diceStats, log[], pendingDiscards, pendingRobberMove/Steal, activeTrade?, activePortUse?, winnerId?, ...`.
 - **ExtraRules** (toggles del host en el lobby): `unequalTrades, sharedPorts, noSpecialBuild, robberNoStealFirstRound, robberEmptyGivesResource`.
@@ -101,18 +135,32 @@ Aditiva: con el toggle apagado el juego se comporta EXACTAMENTE como el base. Co
 - **Inicio C&K:** cada jugador empieza con 1 poblado + 1 ciudad (se sube su 2º poblado registrado). Victoria a **13** (`victoryTargetFor`).
 - Eventos socket nuevos: `lobby:setCitiesKnights`, `turn:rollCK`, `progress:discard/play`, `city:upgrade/buildWall`, `knight:build/activate/promote/action`, `barbarian:downgradeCity`.
 
+## 5c. Estadísticas, racha, logros y XP
+
+- **Stats persistidas** (`User.stats`): `gamesPlayed, wins, losses, longestRoadBadges, largestArmyBadges, totalVictoryPoints, currentWinStreak, longestWinStreak, xp, achievements[]`. Se actualizan al terminar la partida en `persistMatch.ts` (lectura-modificación-escritura por usuario; los invitados no acumulan).
+- **Racha** (`currentWinStreak`): se carga al unirse a una sala y se expone como `winStreak` en la vista pública para mostrar el ícono de fuego 🔥 con el número en los avatares (lobby + marcador).
+- **XP** (regla en `achievements.ts xpForGame`): victoria +10 · cada insignia +5 · 1 XP por PV · +10 por cada victoria que suma a la racha (desde la 2ª consecutiva) · + XP de los logros recién desbloqueados. **Nivel** derivado de la XP (`levelForXp`, curva cuadrática; espejado en `client/src/lib/achievements.ts`).
+- **Logros** (`server/src/game/achievements.ts`, 19 en total, con tests): catálogo `{id, name, description, xp, kind}`. El servidor **trackea por partida** en `Player.gameStats` (picos de recursos/puertos, Δ PV por turno, caminos, compras dev por turno, ronda sin recibir recursos) vía hooks en `handlers.ts` (`trackPeaks` en `broadcastState`, frontera de ronda en `nextTurn`, `build`, distribución). `evaluateAchievements`/`newlyUnlocked` deciden los desbloqueados al terminar. El cliente espeja el catálogo en `lib/achievements.ts` y los muestra en `AchievementsPanel` (perfil propio y de amigos).
+
 ## 6. Frontend — pantallas y componentes clave
 
-- **Pantallas:** `LoginScreen` (registro/login/invitado), `HomeScreen` (crear/unirse/reconectar), `LobbyScreen` (código, colores, orden de turnos, bank manager, registro de construcciones iniciales, toggles de reglas), `GameScreen` (la principal), `ProfileScreen` (avatar, displayName, color, **stats**).
-- **Componentes notables:** `HandView`, `ConstructionTable` (incluye el selector de mover ladrón `RobberHexList`), `ActionGrid`, `BankPanel` (+ `NumericKeypad`, `GiveCardModal`), `DiceStats`, `Log`, `InitialBuildSetup`, `RobberFlow`, `DiscardModal`, `TradeModal`/`TradeIncomingModal`, `DevCardsPanel` (+ pickers Monopoly/YearOfPlenty/RoadBuilding), `PortFeeConfirmModal`/`PortIncomingModal`, `SpecialBuildBanner`, `PublicPlayersPanel`, `NoticeBanner`, `WinnerScreen`, `CollapsibleSection`, `Avatar`, `BadgeIcon`, `EndGameButton`, `FriendsPanel`.
+- **Pantallas:** `LoginScreen` (registro/login/invitado), `HomeScreen` (crear/unirse/reconectar), `LobbyScreen` (código, colores, orden de turnos, bank manager, registro de construcciones iniciales, toggles de reglas), `GameScreen` (la principal), `ProfileScreen` (avatar, displayName, color, **stats + XP/logros**).
+- **Componentes notables:** `HandView`, `ConstructionTable` (incluye el selector de mover ladrón `RobberHexList`, con "ficha vacía"), `ActionGrid`, `BankPanel` (+ `NumericKeypad`, `GiveCardModal`), `DiceStats`, `Log`, `InitialBuildSetup`, `RobberFlow`, `DiscardModal`, `TradeModal`/`TradeIncomingModal`, `DevCardsPanel` (+ pickers Monopoly/YearOfPlenty/RoadBuilding), `PortFeeConfirmModal`/`PortIncomingModal`, `SpecialBuildBanner`, `PublicPlayersPanel` (marcador + racha 🔥), `NoticeBanner`, `WinnerScreen`, `CollapsibleSection`, `Avatar` (con badge de racha opcional), `BadgeIcon`, `EndGameButton`, `LeaveGameButton` (salir de partida), `FriendsPanel`, `FriendProfileModal` (perfil de amigo), `AchievementsPanel` (logros + XP, reutilizable).
 - **Componentes Caballeros y Ciudades:** `DiceInputCK` (3 dados), `KnightsPanel`, `BarbarianTrack`, `BarbarianLossModal`, `CityCalendarPanel`, `WallControl`, `ProgressHand`, `DevCardPreview`, `CommodityMonopolyPickerModal`, `ResourceMonopolyPickerModal`, `RoadBuildingConfirmModal`, `ContextBanner`, `TopBar`. Íconos C&K (mercancías, caballeros, disciplinas) en `assets/icons.tsx`, varios reciclados (ver `missing-icons.md`). Hay un `FireGlyph` ya disponible en `icons.tsx`.
 - **Estado:** Zustand en `store.ts`; el socket actualiza la vista; `types.ts` espeja `views.ts`.
 - **Tema visual:** fondo océano + superficies pergamino/madera (contraste WCAG AA); íconos centralizados en `assets/icons.tsx` con fallback emoji. Respeta `prefers-reduced-motion` (`lib/motion.ts`).
 
 ## 7. Contrato Socket.IO (resumen)
 
-- **Cliente→Servidor (handlers.ts):** `game:create/join/reconnect`, `lobby:setColor/setTurnOrder/setBankManager/setExtension56`, `player:setBuildings`, `player:setPorts`, `game:start`, `hex:*`, `turn:rollNumber`, `discard:submit`, `robber:move/steal`, `build {type, settlementId?}`, `dev:play`, `trade:bank/offer/respond`, `turn:end`, `specialBuild:done/skip`, `vp:setLongestRoad`, `admin:giveCard`, `action:undo`, `game:declareWin`, `game:end`.
-- **Servidor→Cliente:** `state:update` (vista personalizada), `error`, `toast`, `notice` (público prominente, anti-trampas), `build:notify`.
+- **Cliente→Servidor (handlers.ts):**
+  - *Sesión/lobby:* `game:create/join/reconnect`, `lobby:setColor/setTurnOrder/setBankManager/setExtension56/setCitiesKnights/setSeedResources/setExtraRules`, `lobby:rollOrderByDice`, `lobby:kick`, `lobby:leave`, `game:start`.
+  - *Construcción/turno:* `player:setBuildings`, `player:setPorts`, `building:ackNoResources`, `turn:rollNumber`, `turn:rollCK` (C&K), `discard:submit`, `discard:forceRandom`, `robber:move/steal`, `build {type, settlementId?}`, `dev:play`, `turn:end`, `specialBuild:done/skip`.
+  - *Comercio:* `trade:bank/offer/respond/cancel`, `port:request/respond/confirm/cancel` (regla `sharedPorts`).
+  - *Caballeros y Ciudades:* `progress:discard/play`, `city:upgrade/buildWall`, `knight:build/activate/promote/action`, `barbarian:downgradeCity`.
+  - *Banco/victoria/salida:* `vp:setLongestRoad`, `admin:giveCard`, `action:undo`, `game:declareWin`, `game:end`, `game:leave` (salir de partida en curso → devuelve cartas).
+  - *Amigos:* `friends:onlineIds`, `friends:invite`.
+- **Servidor→Cliente:** `state:update` (vista personalizada), `error`, `toast`, `notice` (público prominente, anti-trampas), `build:notify`, `lobby:cancelled`, `lobby:kicked`, `friends:invited`.
+- **REST (api.ts):** `/api/auth/register|login`, `/api/users/me` (GET/PATCH), `/api/users/search`, `/api/friends` (+ `request`, `:id/accept`, `:id` DELETE).
 - **Undo:** `pushSnapshot(state)` antes de cada acción mutadora; `action:undo` revierte.
 
 ## 8. Documentación de apoyo (docs/)
@@ -142,6 +190,8 @@ Aditiva: con el toggle apagado el juego se comporta EXACTAMENTE como el base. Co
 
 ## 11. Estado actual
 
-La app es jugable de extremo a extremo: auth, lobby, MVP completo, cartas de desarrollo, insignias, victoria, persistencia, extensión 5–6, dice stats, tema visual, amigos, **expansión Caballeros y Ciudades** (ver §5b). Las stats persistidas incluyen racha de victorias (`currentWinStreak`/`longestWinStreak`). El trabajo nuevo se rastrea en `cambios.txt` y se planifica en `plan.md` y `docs/logrosandxp.md`.
+La app es jugable de extremo a extremo: auth, lobby, MVP completo, cartas de desarrollo, insignias, victoria, persistencia, extensión 5–6, dice stats, tema visual, amigos y **expansión Caballeros y Ciudades** (ver §5b). Catálogo completo de funcionalidades en §1b.
 
-**En curso (cambios.txt, plan en `docs/logrosandxp.md`):** bugs (2 desiertos en 5–6; semántica de `robberNoStealFirstRound`; reset de contadores en modales de descarte/puerto), features (salir de partida devolviendo cartas al banco, ícono de racha 🔥 en avatares, ver perfil de amigos, mover ladrón a ficha vacía) y el sistema de **logros + XP** (XP por victoria/insignias/PV/racha + 19 logros con su XP; lista con desbloqueados arriba y toggle para ocultar los pendientes).
+**Entregado de `cambios.txt`** (plan en `docs/logrosandxp.md`): bugs corregidos (2 desiertos en 5–6; semántica de `robberNoStealFirstRound` = solo omite descarte, sí roba; reset de contadores en modales de descarte/puerto) y features (salir de partida devolviendo cartas al banco; ícono de racha 🔥 en avatares; ver perfil completo de amigos; mover ladrón a ficha vacía; **sistema de logros + XP** con 19 logros, nivel y `AchievementsPanel`). Detalle en §5c. Verificado: 63 tests de servidor en verde + build de cliente; auditado por `qa-auditor`.
+
+**Pendiente / futuro:** celebración de logros y XP en `WinnerScreen` al terminar la partida (hoy se ven en el perfil); y los ganchos de `docs/pending-phase3.md` (foto del tablero, paired players, subida de avatar).
