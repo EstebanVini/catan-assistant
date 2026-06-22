@@ -128,7 +128,7 @@ function AchievementRow({
           {description}
         </p>
         {!unlocked ? (
-          <p className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-600">
+          <p className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-400">
             <LockGlyph size={11} /> Bloqueado
           </p>
         ) : null}
