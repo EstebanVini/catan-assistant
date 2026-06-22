@@ -125,6 +125,8 @@ catan-assistant/
 
 ## 5b. Caballeros y Ciudades (expansión `citiesKnights`)
 
+> **Acceso restringido (en desarrollo):** solo las cuentas en la allowlist (`esteban`, `yoyo`) pueden **activar** C&K en el lobby. El servidor es la verja autoritativa (`lobby:setCitiesKnights` rechaza `enabled=true` si el `username` del anfitrión no está en `CK_ALLOWED_USERNAMES` de `handlers.ts`); el lobby deshabilita el toggle y muestra "en desarrollo y todavía no está disponible" (espejo en `client/src/lib/featureFlags.ts`). Desactivarla siempre se permite.
+
 Aditiva: con el toggle apagado el juego se comporta EXACTAMENTE como el base. Con él encendido (decisiones en `caballeros-plan.md`; reporte QA en `docs/qa-caballeros.md`):
 - **Mercancías** (`coin`/`paper`/`cloth`): segundo tipo de carta; SOLO las producen las ciudades sobre montaña/bosque/pastura (1 recurso + 1 mercancía en vez de 2 recursos). Banco de mercancías informativo (12 c/u).
 - **Mejoras de ciudad** en 3 disciplinas (`trade`/`politics`/`science`), niveles 0–5, se pagan con la mercancía de la disciplina. Nivel 3 desbloquea habilidad (Casa de comercio / Fortaleza / Acueducto); nivel 4 reclama **metrópolis** (+2 PV), nivel 5 la blinda.
