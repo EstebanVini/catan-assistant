@@ -176,6 +176,34 @@ export interface Building {
   port?: PortType | null;
 }
 
+// Acumulador POR PARTIDA para evaluar logros al terminar (in-memory; no entra a
+// la vista). Se reinicia en game:start. Ver server/src/game/achievements.ts.
+export interface GameStats {
+  roadsBuilt: number; // caminos construidos en la partida
+  devBoughtThisTurn: number; // cartas de desarrollo compradas en el turno actual
+  maxDevBoughtInTurn: number; // máximo de compras dev en un solo turno
+  peakResource: Hand; // máximo de cada recurso sostenido en mano a la vez
+  peakPorts: number; // máximo de puertos poseídos a la vez
+  turnStartVP: number; // PV al iniciar el turno actual de este jugador
+  maxVpGainInTurn: number; // máximo Δ PV logrado dentro de un solo turno
+  resourcesReceivedThisRound: number; // recursos recibidos en la ronda en curso
+  hadDryRound: boolean; // completó una ronda entera sin recibir recursos
+}
+
+export function emptyGameStats(): GameStats {
+  return {
+    roadsBuilt: 0,
+    devBoughtThisTurn: 0,
+    maxDevBoughtInTurn: 0,
+    peakResource: emptyHand(),
+    peakPorts: 0,
+    turnStartVP: 0,
+    maxVpGainInTurn: 0,
+    resourcesReceivedThisRound: 0,
+    hadDryRound: false,
+  };
+}
+
 export interface Player {
   id: string;
   userId?: string; // _id del User en MongoDB; ausente si juega como invitado
@@ -184,6 +212,11 @@ export interface Player {
   avatarUrl?: string; // foto de perfil (pública en la partida) si está registrado
   color: PlayerColor | null;
   connected: boolean;
+  // Racha de victorias ACTIVA del usuario (cargada al unirse desde sus stats).
+  // Pública: alimenta el ícono de fuego 🔥 en la foto de perfil. 0 = sin racha.
+  winStreak: number;
+  // Acumulador por partida para logros (no se envía a la vista).
+  gameStats?: GameStats;
   buildings: Building[]; // tabla de construcción del jugador (ver game/setup.ts)
   hand: Hand; // PRIVADO
   commodities: CommodityHand; // PRIVADO; solo se usa en Caballeros y Ciudades

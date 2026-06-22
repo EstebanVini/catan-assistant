@@ -17,6 +17,7 @@ export interface PublicPlayer {
   isRegistered: boolean; // tiene cuenta (userId); los invitados no acumulan stats
   color: Player['color'];
   connected: boolean;
+  winStreak: number; // racha de victorias activa (para el ícono 🔥); 0 si no hay
   setupComplete: boolean; // registro de construcciones iniciales válido (lobby)
   cardCount: number;
   commodityCount: number; // total de mercancías (público); el detalle es privado
@@ -152,6 +153,7 @@ function toPublic(p: Player, state: GameState): PublicPlayer {
     isRegistered: !!p.userId,
     color: p.color,
     connected: p.connected,
+    winStreak: p.winStreak ?? 0,
     // En el modo "sin fichas" el registro de salida es opcional: todos cuentan
     // como listos para no bloquear el inicio.
     setupComplete: !state.seedInitialResources || playerSetupComplete(p),

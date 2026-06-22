@@ -203,6 +203,7 @@ export interface PublicPlayer {
   name: string;
   color: PlayerColor | null;
   connected: boolean;
+  winStreak: number; // racha de victorias activa (ícono 🔥); 0 si no hay
   cardCount: number;
   commodityCount: number; // total de mercancías (público); el detalle es privado
   improvements: CityImprovements; // niveles de mejora de ciudad (público)
@@ -260,6 +261,10 @@ export interface UserStats {
   // cliente trata `undefined` como 0 por robustez hasta que todo esté migrado.
   currentWinStreak?: number;
   longestWinStreak?: number;
+  // Experiencia acumulada y logros desbloqueados (ids del catálogo). El nivel
+  // se deriva de xp en el cliente (lib/achievements.ts).
+  xp?: number;
+  achievements?: string[];
 }
 
 export interface User {

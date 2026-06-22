@@ -37,6 +37,7 @@ export interface UserProfileInfo {
   userId?: string;
   avatarUrl?: string;
   preferredColor?: string;
+  currentWinStreak?: number; // racha activa del usuario (para el ícono 🔥)
 }
 
 function newPlayer(id: string, sessionToken: string, name: string, profile?: UserProfileInfo): Player {
@@ -48,6 +49,7 @@ function newPlayer(id: string, sessionToken: string, name: string, profile?: Use
     avatarUrl: profile?.avatarUrl,
     color: null,
     connected: true,
+    winStreak: profile?.currentWinStreak ?? 0,
     buildings: [],
     hand: emptyHand(),
     commodities: emptyCommodities(),

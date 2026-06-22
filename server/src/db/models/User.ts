@@ -19,6 +19,10 @@ const userSchema = new Schema(
       // y la racha más larga histórica.
       currentWinStreak: { type: Number, default: 0 },
       longestWinStreak: { type: Number, default: 0 },
+      // Experiencia acumulada y logros desbloqueados (cambios.txt). El nivel se
+      // deriva de xp en el cliente (no se persiste aparte).
+      xp: { type: Number, default: 0 },
+      achievements: { type: [String], default: [] },
     },
   },
   { timestamps: true }

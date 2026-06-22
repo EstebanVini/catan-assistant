@@ -23,6 +23,7 @@ import {
   MAX_WALLS,
   WALL_COST,
   emptyHand,
+  emptyGameStats,
   fullBank,
   handTotal,
   victoryTargetFor,
@@ -90,6 +91,7 @@ async function loadProfile(socket: Socket): Promise<(UserProfileInfo & { display
       userId,
       avatarUrl: user.avatarUrl ?? undefined,
       preferredColor: user.color ?? undefined,
+      currentWinStreak: user.stats?.currentWinStreak ?? 0,
       displayName: user.displayName,
     };
   } catch {
@@ -97,8 +99,41 @@ async function loadProfile(socket: Socket): Promise<(UserProfileInfo & { display
   }
 }
 
+// Actualiza los picos por partida (logros) en cada cambio de estado: máximo de
+// cada recurso sostenido en mano, máximo de puertos, y el máximo Δ PV logrado
+// dentro del turno del jugador activo. Barato: una pasada por jugador.
+function trackPeaks(state: GameState): void {
+  for (const p of state.players) {
+    const gs = p.gameStats;
+    if (!gs) continue;
+    for (const r of RESOURCES) {
+      if (p.hand[r] > gs.peakResource[r]) gs.peakResource[r] = p.hand[r];
+    }
+    if (p.ports.length > gs.peakPorts) gs.peakPorts = p.ports.length;
+  }
+  if (state.status === 'playing') {
+    const active = activePlayer(state);
+    if (active?.gameStats) {
+      const gain = totalVictoryPoints(active) - active.gameStats.turnStartVP;
+      if (gain > active.gameStats.maxVpGainInTurn) active.gameStats.maxVpGainInTurn = gain;
+    }
+  }
+}
+
+// Suma a cada jugador los recursos recibidos en una tirada (para el logro
+// "Mala suerte": una ronda completa sin recibir ningún recurso).
+function recordReceipts(state: GameState, perPlayer: Record<string, Partial<Hand>>): void {
+  for (const [pid, gained] of Object.entries(perPlayer)) {
+    const p = findPlayer(state, pid);
+    if (!p?.gameStats) continue;
+    const total = Object.values(gained).reduce((a, b) => a + (b ?? 0), 0);
+    p.gameStats.resourcesReceivedThisRound += total;
+  }
+}
+
 // Broadcast vista personalizada a cada socket de una sala
 function broadcastState(io: Server, state: GameState): void {
+  trackPeaks(state);
   const sockets = io.sockets.adapter.rooms.get(state.code);
   if (!sockets) return;
   for (const sid of sockets) {
@@ -167,8 +202,24 @@ function nextTurn(state: GameState): void {
   // Cerrar negociaciones del turno anterior que quedaran abiertas.
   state.activeTrade = undefined;
   state.activePortUse = undefined;
+  // Frontera de ronda (logros): al volver el índice a 0 terminó una ronda
+  // completa. Quien no recibió ningún recurso en ella desbloquea "Mala suerte".
+  if (state.currentTurnIndex === 0) {
+    for (const p of state.players) {
+      if (!p.gameStats) continue;
+      if (p.gameStats.resourcesReceivedThisRound === 0) p.gameStats.hadDryRound = true;
+      p.gameStats.resourcesReceivedThisRound = 0;
+    }
+  }
   const next = activePlayer(state);
-  if (next) logAction(state, `Turno de ${next.name}.`, next.id);
+  if (next) {
+    logAction(state, `Turno de ${next.name}.`, next.id);
+    // Baseline de PV y contador de compras dev para el turno que inicia.
+    if (next.gameStats) {
+      next.gameStats.turnStartVP = totalVictoryPoints(next);
+      next.gameStats.devBoughtThisTurn = 0;
+    }
+  }
 }
 
 function checkAllDiscardsDone(state: GameState): void {
@@ -628,6 +679,11 @@ export function registerHandlers(io: Server, socket: Socket): void {
       logAction(state, `El banco no tenía ${esResource(s.resource)} para los recursos de inicio de ${p?.name ?? 'jugador'}.`);
     }
     recomputeVictoryPoints(state);
+    // Reiniciar el acumulador de logros por partida y fijar el baseline de PV
+    // del primer jugador (incluye la ciudad gratuita de C&K si aplica).
+    for (const player of state.players) player.gameStats = emptyGameStats();
+    const firstActive = activePlayer(state);
+    if (firstActive?.gameStats) firstActive.gameStats.turnStartVP = totalVictoryPoints(firstActive);
     logAction(state, `Empieza la partida. Turno de ${activePlayer(state)?.name}.`);
     broadcastState(io, state);
   });
@@ -683,6 +739,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
       }
     } else {
       const result = distributeForRoll(state, number);
+      recordReceipts(state, result.perPlayer);
       const lines: string[] = [];
       const allIds = new Set([
         ...Object.keys(result.perPlayer),
@@ -808,6 +865,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
         }
       } else {
         const result = distributeForRoll(state, production);
+        recordReceipts(state, result.perPlayer);
         const lines: string[] = [];
         const allIds = new Set([
           ...Object.keys(result.perPlayer),
@@ -1175,6 +1233,13 @@ export function registerHandlers(io: Server, socket: Socket): void {
           return;
         }
         player.devCards[card] += 1;
+        // Logro "Desarrollado": compras dev en un solo turno (solo fase main).
+        if (player.gameStats && state.phase === 'main') {
+          player.gameStats.devBoughtThisTurn += 1;
+          if (player.gameStats.devBoughtThisTurn > player.gameStats.maxDevBoughtInTurn) {
+            player.gameStats.maxDevBoughtInTurn = player.gameStats.devBoughtThisTurn;
+          }
+        }
         // Las cartas de Punto de victoria NO suman al marcador al comprarse:
         // cuentan cuando el dueño las usa (dev:play). Por eso tampoco entran a
         // devCardsBoughtThisTurn (pueden usarse el mismo turno).
@@ -1198,6 +1263,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
         logAction(state, `${player.name} construyó una Ciudad (subió un poblado).`, player.id);
         io.to(state.code).emit('build:notify', { text: `${player.name} construyó una Ciudad.` });
       } else {
+        if (player.gameStats) player.gameStats.roadsBuilt += 1; // logro "El caminante"
         logAction(state, `${player.name} construyó un Camino.`, player.id);
         io.to(state.code).emit('build:notify', { text: `${player.name} construyó un Camino.` });
       }
