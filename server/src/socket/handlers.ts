@@ -662,15 +662,24 @@ export function registerHandlers(io: Server, socket: Socket): void {
     state.diceStats[number] = (state.diceStats[number] ?? 0) + 1;
     state.lastRolledNumber = number;
     if (number === 7) {
-      const pending = computePendingDiscards(state);
-      logAction(state, 'Salió un 7. Quienes tengan más de 7 cartas descartan la mitad.');
+      // Regla extra robberNoStealFirstRound: en la PRIMERA ronda NADIE descarta
+      // por el 7 (el ladrón aún se mueve y roba normal en robber:move).
+      const firstRound = state.turnsPlayed < state.turnOrder.length;
+      const skipDiscard = state.extraRules.robberNoStealFirstRound && firstRound;
+      const pending = skipDiscard ? {} : computePendingDiscards(state);
+      logAction(
+        state,
+        skipDiscard
+          ? 'Salió un 7. Primera ronda: con la regla activa nadie descarta.'
+          : 'Salió un 7. Quienes tengan más de 7 cartas descartan la mitad.'
+      );
       if (Object.keys(pending).length > 0) {
         state.pendingDiscards = pending;
         state.phase = 'discard';
       } else {
         state.phase = 'robber';
         state.pendingRobberMove = true;
-        logAction(state, 'Nadie descarta. Turno de mover el ladrón.');
+        logAction(state, 'Turno de mover el ladrón.');
       }
     } else {
       const result = distributeForRoll(state, number);
@@ -777,8 +786,15 @@ export function registerHandlers(io: Server, socket: Socket): void {
       // 2) Resolver la PRODUCCIÓN (igual que turn:rollNumber, con el ladrón
       //    condicionado a que ya haya habido un ataque bárbaro).
       if (production === 7) {
-        const pending = computePendingDiscards(state);
-        logAction(state, 'Salió un 7. Quienes tengan más de 7 cartas descartan la mitad.');
+        const firstRound = state.turnsPlayed < state.turnOrder.length;
+        const skipDiscard = state.extraRules.robberNoStealFirstRound && firstRound;
+        const pending = skipDiscard ? {} : computePendingDiscards(state);
+        logAction(
+          state,
+          skipDiscard
+            ? 'Salió un 7. Primera ronda: con la regla activa nadie descarta.'
+            : 'Salió un 7. Quienes tengan más de 7 cartas descartan la mitad.'
+        );
         if (Object.keys(pending).length > 0) {
           state.pendingDiscards = pending;
           state.phase = 'discard';
@@ -1059,12 +1075,10 @@ export function registerHandlers(io: Server, socket: Socket): void {
       io.to(state.code).emit('notice', { level: 'info', text: `${active.name} recibió 1 recurso del banco (ladrón en ficha vacía).` });
     }
 
-    // Regla extra: el ladrón no roba durante la primera ronda de turnos.
-    const firstRound = state.turnsPlayed < state.turnOrder.length;
-    if (state.extraRules.robberNoStealFirstRound && firstRound) {
-      logAction(state, 'En la primera ronda el ladrón no roba recursos.');
-      state.phase = 'main';
-    } else if (candidates.length === 0) {
+    // Nota: la regla robberNoStealFirstRound NO impide robar: en la primera
+    // ronda solo se omite el DESCARTE del 7 (ver turn:rollNumber/turn:rollCK).
+    // El robo procede normal aquí, robándole 1 carta al dueño elegido.
+    if (candidates.length === 0) {
       logAction(state, 'No hay a quién robarle en esa ficha.');
       state.phase = 'main';
     } else {
