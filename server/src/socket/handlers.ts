@@ -15,6 +15,7 @@ import {
   DISCIPLINES,
   EventDie,
   ProgressCardType,
+  PROGRESS_CARD_DISCIPLINE,
   PROGRESS_HAND_LIMIT,
   MAX_KNIGHTS_PER_RANK,
   KNIGHT_BUILD_COST,
@@ -35,6 +36,7 @@ import {
   buildDevDeck,
   canAfford,
   computePendingDiscards,
+  shuffle,
   distributeForRoll,
   drainBank,
   drainCommodityBank,
@@ -2095,6 +2097,108 @@ export function registerHandlers(io: Server, socket: Socket): void {
     }
     socket.data.code = undefined;
     socket.data.playerId = undefined;
+  });
+
+  // === Salir de una partida en curso ===
+  // El jugador abandona definitivamente: sus cartas vuelven al banco/mazos y se
+  // le quita del orden de turnos. La mesa sigue jugando. El cliente confirma
+  // antes (ver F2 en docs/logrosandxp.md). No persiste stats (no terminó).
+  socket.on('game:leave', () => {
+    const code = socket.data.code ?? '';
+    const playerId = socket.data.playerId ?? '';
+    const state = getRoom(code);
+    if (!state || state.status !== 'playing') return;
+    const player = findPlayer(state, playerId);
+    if (!player) return;
+
+    pushSnapshot(state);
+
+    // 1) Devolver todas las cartas del jugador al banco / mazos.
+    for (const r of RESOURCES) {
+      state.bank[r] += player.hand[r];
+      player.hand[r] = 0;
+    }
+    for (const c of COMMODITIES) {
+      state.commodityBank[c] = Math.min(12, state.commodityBank[c] + player.commodities[c]);
+      player.commodities[c] = 0;
+    }
+    for (const [card, n] of Object.entries(player.devCards) as [DevCardType, number][]) {
+      for (let i = 0; i < n; i++) state.devDeck.push(card);
+    }
+    player.devCards = { knight: 0, vp: 0, roadBuilding: 0, yearOfPlenty: 0, monopoly: 0 };
+    state.devDeck = shuffle(state.devDeck);
+    for (const card of player.progressCards) {
+      state.progressDecks[PROGRESS_CARD_DISCIPLINE[card]].push(card);
+    }
+    player.progressCards = [];
+
+    // 2) Recordar quién es el activo ANTES de quitar al jugador.
+    const wasActive = state.turnOrder[state.currentTurnIndex] === playerId;
+    const activeIdx = state.currentTurnIndex;
+    const currentActiveId = state.turnOrder[state.currentTurnIndex];
+
+    // 3) Quitar al jugador del estado.
+    state.players = state.players.filter((p) => p.id !== playerId);
+    state.turnOrder = state.turnOrder.filter((id) => id !== playerId);
+    delete state.pendingDiscards[playerId];
+    delete state.pendingProgressDiscard[playerId];
+    state.specialBuildQueue = state.specialBuildQueue.filter((id) => id !== playerId);
+    state.pendingBarbarianLoss = state.pendingBarbarianLoss.filter((id) => id !== playerId);
+    if (state.activeTrade && (state.activeTrade.fromId === playerId || state.activeTrade.toId === playerId)) {
+      state.activeTrade = undefined;
+    }
+    if (
+      state.activePortUse &&
+      (state.activePortUse.requesterId === playerId || state.activePortUse.ownerId === playerId)
+    ) {
+      state.activePortUse = undefined;
+    }
+
+    // 4) Reasignar roles si el que se va era anfitrión o encargado del banco.
+    if (state.hostId === playerId && state.players[0]) state.hostId = state.players[0].id;
+    if (state.bankManagerId === playerId) state.bankManagerId = state.hostId;
+
+    const name = player.name;
+    logAction(state, `${name} salió de la partida; sus cartas volvieron al banco.`, undefined);
+    io.to(state.code).emit('notice', { level: 'warn', text: `${name} salió de la partida.` });
+
+    if (state.turnOrder.length === 0) {
+      // No queda nadie jugando: cerrar la partida sin ganador.
+      state.status = 'ended';
+      state.winnerId = undefined;
+    } else {
+      // 5) Recolocar el turno.
+      if (wasActive) {
+        // Pasa al siguiente: el que estaba en activeIdx+1 ahora ocupa activeIdx.
+        state.currentTurnIndex = activeIdx % state.turnOrder.length;
+        state.phase = 'roll';
+        state.pendingRobberMove = false;
+        state.pendingRobberSteal = false;
+        const next = activePlayer(state);
+        if (next) {
+          logAction(state, `Turno de ${next.name}.`, next.id);
+          if (next.gameStats) {
+            next.gameStats.turnStartVP = totalVictoryPoints(next);
+            next.gameStats.devBoughtThisTurn = 0;
+          }
+        }
+      } else {
+        // Conservar al mismo activo: recomputar su índice tras el reordenamiento.
+        const idx = state.turnOrder.indexOf(currentActiveId);
+        state.currentTurnIndex = idx >= 0 ? idx : state.currentTurnIndex % state.turnOrder.length;
+      }
+      // 6) Recalcular hexes/PV/ejército (sus construcciones desaparecen).
+      state.hexes = rebuildHexes(state.players, state.hexes, state.extension56 ? 2 : 1);
+      recomputeVictoryPoints(state);
+      const prevArmy = state.players.find((p) => p.victoryPoints.largestArmy)?.id ?? null;
+      recomputeLargestArmy(state, prevArmy);
+    }
+
+    // 7) Sacar el socket de la sala y limpiar su identidad.
+    socket.leave(code);
+    socket.data.code = undefined;
+    socket.data.playerId = undefined;
+    broadcastState(io, state);
   });
 
   // === Desconexión ===

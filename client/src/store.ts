@@ -108,6 +108,9 @@ interface StoreState {
   reconnectGame: () => Promise<{ ok?: boolean; error?: string }>;
   forgetSession: () => void;
   leaveRoom: () => void;
+  // Abandonar una partida EN CURSO: el servidor devuelve las cartas al banco y
+  // quita al jugador del orden de turnos; aquí limpiamos la sesión local.
+  leaveGame: () => void;
 
   // Invitaciones de amigos
   pushInvite: (invite: GameInvite) => void;
@@ -377,6 +380,18 @@ export const useStore = create<StoreState>((set, get) => ({
 
   leaveRoom: () => {
     socket.emit('lobby:leave');
+    clearSession();
+    set({
+      session: null,
+      view: null,
+      reconnectFailed: false,
+      attemptedReconnect: false,
+      initialSyncReceived: false,
+    });
+  },
+
+  leaveGame: () => {
+    socket.emit('game:leave');
     clearSession();
     set({
       session: null,
