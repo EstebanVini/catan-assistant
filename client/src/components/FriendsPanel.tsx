@@ -7,9 +7,10 @@ import {
   requestFriend,
   searchUsers,
 } from '../api';
-import type { FriendEntry, UserSearchResult } from '../types';
+import type { FriendEntry, FriendUser, UserSearchResult } from '../types';
 import { Avatar } from './Avatar';
 import { BadgeChip } from './BadgeIcon';
+import { FriendProfileModal } from './FriendProfileModal';
 import { useModalA11y } from '../lib/useModalA11y';
 
 // Panel de Amigos (brief §1). Overlay full-screen tipo sheet con tres zonas
@@ -32,6 +33,9 @@ export function FriendsPanel({ onClose }: { onClose: () => void }): JSX.Element 
   useModalA11y(dialogRef, onClose);
 
   const [loadState, setLoadState] = useState<LoadState>('loading');
+  // F4 — perfil completo de un amigo. Estado local del panel: el amigo cuyo
+  // perfil se está viendo, o null si el modal está cerrado.
+  const [viewingProfile, setViewingProfile] = useState<FriendUser | null>(null);
   const [data, setData] = useState<{
     friends: FriendEntry[];
     incoming: FriendEntry[];
@@ -137,11 +141,19 @@ export function FriendsPanel({ onClose }: { onClose: () => void }): JSX.Element 
               token={authToken}
               friends={data.friends}
               onMutated={refresh}
+              onViewProfile={setViewingProfile}
               pushToast={pushToast}
             />
           </>
         )}
       </div>
+
+      {viewingProfile ? (
+        <FriendProfileModal
+          user={viewingProfile}
+          onClose={() => setViewingProfile(null)}
+        />
+      ) : null}
     </Shell>
   );
 }
@@ -539,11 +551,13 @@ function FriendsZone({
   token,
   friends,
   onMutated,
+  onViewProfile,
   pushToast,
 }: {
   token: string;
   friends: FriendEntry[];
   onMutated: () => Promise<void>;
+  onViewProfile: (user: FriendUser) => void;
   pushToast: (kind: 'info' | 'error' | 'success', text: string) => void;
 }): JSX.Element {
   const [confirm, setConfirm] = useState<FriendEntry | null>(null);
@@ -592,40 +606,51 @@ function FriendsZone({
           return (
             <li
               key={f.friendshipId}
-              className="flex items-center gap-3 rounded-xl border border-white/10 bg-surface-1 p-2.5"
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface-1 p-2.5"
             >
-              <Avatar
-                seed={f.user.username}
-                name={f.user.displayName}
-                avatarUrl={f.user.avatarUrl}
-                size={44}
-              />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-neutral-50">
-                  {f.user.displayName}
-                </p>
-                <p className="mt-0.5 truncate text-xs text-neutral-400">
-                  <span className="nums">{s.gamesPlayed}</span> partidas ·{' '}
-                  <span className="nums">{s.wins}</span> victorias ·{' '}
-                  <span className="nums">{badgeCount}</span> insignias
-                </p>
-                {badgeCount > 0 ? (
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                    {s.longestRoadBadges > 0 ? (
-                      <BadgeChip
-                        variant="road"
-                        label={`Camino más largo ×${s.longestRoadBadges}`}
-                      />
-                    ) : null}
-                    {s.largestArmyBadges > 0 ? (
-                      <BadgeChip
-                        variant="army"
-                        label={`Ejército más grande ×${s.largestArmyBadges}`}
-                      />
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
+              {/* Disparador del perfil: solo el área avatar+nombre+stats. Las
+                  acciones (eliminar) quedan FUERA de este botón para no anidar
+                  botones dentro de botones. Los BadgeChip son `role="img"`
+                  (no interactivos), así que son seguros aquí dentro. */}
+              <button
+                type="button"
+                onClick={() => onViewProfile(f.user)}
+                aria-label={`Ver perfil de ${f.user.displayName}`}
+                className="flex min-h-[44px] min-w-0 flex-1 items-center gap-3 rounded-lg text-left transition-colors active:bg-white/[0.06]"
+              >
+                <Avatar
+                  seed={f.user.username}
+                  name={f.user.displayName}
+                  avatarUrl={f.user.avatarUrl}
+                  size={44}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-neutral-50">
+                    {f.user.displayName}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-neutral-400">
+                    <span className="nums">{s.gamesPlayed}</span> partidas ·{' '}
+                    <span className="nums">{s.wins}</span> victorias ·{' '}
+                    <span className="nums">{badgeCount}</span> insignias
+                  </p>
+                  {badgeCount > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      {s.longestRoadBadges > 0 ? (
+                        <BadgeChip
+                          variant="road"
+                          label={`Camino más largo ×${s.longestRoadBadges}`}
+                        />
+                      ) : null}
+                      {s.largestArmyBadges > 0 ? (
+                        <BadgeChip
+                          variant="army"
+                          label={`Ejército más grande ×${s.largestArmyBadges}`}
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </button>
               <button
                 type="button"
                 onClick={() => setConfirm(f)}
