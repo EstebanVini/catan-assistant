@@ -9,7 +9,7 @@
 Aplicación web **mobile-first** que funciona como **asistente digital para partidas presenciales del juego de mesa Catán**. El tablero físico sigue existiendo; la app reemplaza el papel y las cartas de recursos para llevar la contabilidad sin trampas y compartida en tiempo real.
 
 - Varios jugadores entran desde sus celulares a la **misma sesión** con un **código de sala** y ven un estado compartido que se actualiza al instante.
-- Soporta la **edición base (3–4 jugadores)** y la **extensión 5–6 jugadores** (toggle en el lobby).
+- Soporta la **edición base (3–4 jugadores)**, la **extensión 5–6 jugadores** (toggle en el lobby) y la **expansión Caballeros y Ciudades** (toggle `citiesKnights`, victoria a 13; ver §5b y `caballeros-plan.md`).
 - **UI 100% en español**; **identificadores de código en inglés**.
 
 ## 2. Stack y arquitectura
@@ -89,10 +89,23 @@ catan-assistant/
 - **Puntos de victoria:** Poblado 1, Ciudad 2, Camino más largo ≥5 (manual, bank manager) 2, Ejército más grande ≥3 (automático) 2, carta VP 1. Victoria a **10** en tu turno → `game:declareWin` → persiste Match + stats.
 - **Extensión 5–6:** hasta 6 jugadores (colores verde/café), banco 24, mazo 34, y **Fase de Construcción Especial** tras cada turno (salvo `noSpecialBuild`).
 
+## 5b. Caballeros y Ciudades (expansión `citiesKnights`)
+
+Aditiva: con el toggle apagado el juego se comporta EXACTAMENTE como el base. Con él encendido (decisiones en `caballeros-plan.md`; reporte QA en `docs/qa-caballeros.md`):
+- **Mercancías** (`coin`/`paper`/`cloth`): segundo tipo de carta; SOLO las producen las ciudades sobre montaña/bosque/pastura (1 recurso + 1 mercancía en vez de 2 recursos). Banco de mercancías informativo (12 c/u).
+- **Mejoras de ciudad** en 3 disciplinas (`trade`/`politics`/`science`), niveles 0–5, se pagan con la mercancía de la disciplina. Nivel 3 desbloquea habilidad (Casa de comercio / Fortaleza / Acueducto); nivel 4 reclama **metrópolis** (+2 PV), nivel 5 la blinda.
+- **Cartas de progreso** (3 mazos de 18, límite de mano 4): reemplazan a las de desarrollo, se reparten por el **calendario de la ciudad** (dado de evento de color + dado rojo ≤ nivel). "Registro asistido": las autocontenidas se automatizan, las que dependen del tablero se retiran y la mesa las resuelve.
+- **Caballeros** (`Knight` rango 1–3, activo/inactivo; sin geometría: rango + estado): se contratan, activan y promueven con recursos. Fuerza de defensa = suma de rango de los activos.
+- **Bárbaros:** dado de evento `barbarian` avanza la pista `barbarianStep` 0→7; al llegar atacan (`resolveBarbarianAttack`): defensa de caballeros vs ciudades, **Defensor de Catán** (+1 PV) al mayor defensor o cartas en empate, perdedores degradan una ciudad. El **ladrón arranca inmovilizado** (`robberActive=false`) hasta el primer ataque.
+- **Muros de ciudad** (0–3, 2 ladrillos c/u): cada uno sube +2 el límite de mano del 7.
+- **Inicio C&K:** cada jugador empieza con 1 poblado + 1 ciudad (se sube su 2º poblado registrado). Victoria a **13** (`victoryTargetFor`).
+- Eventos socket nuevos: `lobby:setCitiesKnights`, `turn:rollCK`, `progress:discard/play`, `city:upgrade/buildWall`, `knight:build/activate/promote/action`, `barbarian:downgradeCity`.
+
 ## 6. Frontend — pantallas y componentes clave
 
 - **Pantallas:** `LoginScreen` (registro/login/invitado), `HomeScreen` (crear/unirse/reconectar), `LobbyScreen` (código, colores, orden de turnos, bank manager, registro de construcciones iniciales, toggles de reglas), `GameScreen` (la principal), `ProfileScreen` (avatar, displayName, color, **stats**).
-- **Componentes notables:** `HandView`, `ConstructionTable`, `ActionGrid`, `BankPanel` (+ `NumericKeypad`, `GiveCardModal`), `DiceStats`, `Log`, `InitialBuildSetup`, `RobberFlow`, `DiscardModal`, `TradeModal`/`TradeIncomingModal`, `DevCardsPanel` (+ pickers Monopoly/YearOfPlenty/RoadBuilding), `PortFeeConfirmModal`/`PortIncomingModal`, `SpecialBuildBanner`, `PublicPlayersPanel`, `NoticeBanner`, `WinnerScreen`, `CollapsibleSection`, `Avatar`, `BadgeIcon`, `FriendsPanel`.
+- **Componentes notables:** `HandView`, `ConstructionTable` (incluye el selector de mover ladrón `RobberHexList`), `ActionGrid`, `BankPanel` (+ `NumericKeypad`, `GiveCardModal`), `DiceStats`, `Log`, `InitialBuildSetup`, `RobberFlow`, `DiscardModal`, `TradeModal`/`TradeIncomingModal`, `DevCardsPanel` (+ pickers Monopoly/YearOfPlenty/RoadBuilding), `PortFeeConfirmModal`/`PortIncomingModal`, `SpecialBuildBanner`, `PublicPlayersPanel`, `NoticeBanner`, `WinnerScreen`, `CollapsibleSection`, `Avatar`, `BadgeIcon`, `EndGameButton`, `FriendsPanel`.
+- **Componentes Caballeros y Ciudades:** `DiceInputCK` (3 dados), `KnightsPanel`, `BarbarianTrack`, `BarbarianLossModal`, `CityCalendarPanel`, `WallControl`, `ProgressHand`, `DevCardPreview`, `CommodityMonopolyPickerModal`, `ResourceMonopolyPickerModal`, `RoadBuildingConfirmModal`, `ContextBanner`, `TopBar`. Íconos C&K (mercancías, caballeros, disciplinas) en `assets/icons.tsx`, varios reciclados (ver `missing-icons.md`). Hay un `FireGlyph` ya disponible en `icons.tsx`.
 - **Estado:** Zustand en `store.ts`; el socket actualiza la vista; `types.ts` espeja `views.ts`.
 - **Tema visual:** fondo océano + superficies pergamino/madera (contraste WCAG AA); íconos centralizados en `assets/icons.tsx` con fallback emoji. Respeta `prefers-reduced-motion` (`lib/motion.ts`).
 
@@ -105,9 +118,12 @@ catan-assistant/
 ## 8. Documentación de apoyo (docs/)
 
 - `ux-brief-mvp.md`, `ux-brief-phase2.md`, `ux-brief-phase3-delta.md` — briefs de UX por fase.
-- `brief-cambios.md`, `brief-cambios-v2.md` — briefs de iteraciones de cambios.
+- `brief-cambios.md`, `brief-cambios-v2.md`, `brief-cambios-v3.md` — briefs de iteraciones de cambios.
 - `contrast-verification.md` — verificación de contraste WCAG.
+- `qa-caballeros.md` — reporte QA de la expansión Caballeros y Ciudades.
 - `pending-phase3.md` — ganchos futuros (foto del tablero, paired players, subida de avatar).
+- `logrosandxp.md` — plan de implementación de logros + XP y del resto de `cambios.txt` (bugs y features), con tareas por agente.
+- En la raíz: `caballeros-plan.md` (plan completo de la expansión C&K) y `missing-icons.md` (arte pendiente / reciclado).
 
 ## 9. Cómo correr y verificar
 
@@ -126,4 +142,6 @@ catan-assistant/
 
 ## 11. Estado actual
 
-La app es jugable de extremo a extremo: auth, lobby, MVP completo, cartas de desarrollo, insignias, victoria, persistencia, extensión 5–6, dice stats, tema visual, amigos. El trabajo nuevo se rastrea en `cambios.txt` y se planifica en `plan.md`.
+La app es jugable de extremo a extremo: auth, lobby, MVP completo, cartas de desarrollo, insignias, victoria, persistencia, extensión 5–6, dice stats, tema visual, amigos, **expansión Caballeros y Ciudades** (ver §5b). Las stats persistidas incluyen racha de victorias (`currentWinStreak`/`longestWinStreak`). El trabajo nuevo se rastrea en `cambios.txt` y se planifica en `plan.md` y `docs/logrosandxp.md`.
+
+**En curso (cambios.txt, plan en `docs/logrosandxp.md`):** bugs (2 desiertos en 5–6; semántica de `robberNoStealFirstRound`; reset de contadores en modales de descarte/puerto), features (salir de partida devolviendo cartas al banco, ícono de racha 🔥 en avatares, ver perfil de amigos, mover ladrón a ficha vacía) y el sistema de **logros + XP** (XP por victoria/insignias/PV/racha + 19 logros con su XP; lista con desbloqueados arriba y toggle para ocultar los pendientes).
