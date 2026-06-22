@@ -84,7 +84,7 @@ Disciplinas y habilidades:
 
 ### 2.5 Metrópolis
 - La **primera** persona en llegar a **nivel 4** de una disciplina convierte una de sus **ciudades en metrópolis**: vale **4 PV** (en lugar de 2). Hay **una metrópolis por disciplina** como máximo (3 en total en juego).
-- Si otro jugador alcanza **nivel 5** en una disciplina cuya metrópolis ya posee alguien con nivel 4, **se la arrebata** (la metrópolis se mueve a una de sus ciudades; el anterior dueño vuelve a tener una ciudad normal). El que tiene nivel 5 no puede ser arrebatado salvo por… (en C&K el nivel 5 es el tope; queda protegida).
+- **Regla de mesa de esta app (decisión confirmada con Esteban, cambios.txt):** el **robo de metrópolis ocurre al llegar a nivel 4**, no a nivel 5. Si la metrópolis la tiene otro jugador que **sigue en nivel 4** (no la ha blindado), el **siguiente jugador en llegar a nivel 4 se la arrebata** (empate en nivel 4 → el último en llegar la toma). Un dueño que sube a **nivel 5 la blinda**: a partir de ahí **nadie se la puede quitar**. Implementación pura en `upgradeCityImprovement` (`rules.ts`): `willSteal` cuando `target ≥ 4`, hay otro dueño y `ownerLevel < 5`; `metropolisBlocked` cuando el dueño ya está en nivel 5. Tests en `rules.test.ts`.
 - Una metrópolis **no puede** ser reducida por los bárbaros (ver §2.7) ni destruida.
 
 ### 2.6 Caballeros (knights)
@@ -99,7 +99,7 @@ Piezas en el tablero (intersecciones), con **rango** y **estado**:
   - **Moverse** por tus caminos a una intersección libre.
   - **Expulsar (displace)** a un caballero enemigo de **menor rango** de una intersección conectada a tus caminos; el dueño desplazado lo reubica o lo pierde si no puede.
   - **Ahuyentar al ladrón / pirata** (mover el ladrón a otra ficha) sin necesidad de un 7 — pero **solo después del primer ataque bárbaro** (§2.8).
-- **Límite**: hasta **6 caballeros** por jugador (2 de cada rango, según componentes). En el asistente: límite informativo, lo arbitra la mesa.
+- **Límite**: hasta **2 caballeros de cada rango** a la vez (básico/fuerte/poderoso) = 6 por jugador. En el asistente **se hace cumplir** (decisión confirmada con Esteban, cambios.txt): `knight:build` rechaza un 3er básico y `knight:promote` rechaza promover a un rango que ya tenga 2 (constante `MAX_KNIGHTS_PER_RANK`).
 
 ### 2.7 El barco bárbaro y los ataques
 - El barco bárbaro empieza en el **paso 0** de una pista de **7 pasos**. Cada cara de **barco** en el dado de evento lo **avanza 1 paso**. Al llegar al **paso 7**, **ataca** y luego **regresa a 0**.

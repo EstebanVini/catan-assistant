@@ -277,6 +277,7 @@ export interface CityUpgradeResult {
   abilityUnlocked?: 'tradingHouse' | 'fortress' | 'aqueduct'; // nivel 3
   gainedMetropolis?: boolean;
   stoleMetropolisFrom?: string; // playerId al que se le arrebató
+  metropolisBlocked?: boolean; // llegó a nivel 4+ pero la metrópolis está blindada (dueño en nivel 5)
 }
 
 const LEVEL3_ABILITY: Record<Discipline, 'tradingHouse' | 'fortress' | 'aqueduct'> = {
@@ -309,10 +310,27 @@ export function upgradeCityImprovement(
   }
   const hasCity = player.buildings.some((b) => b.type === 'city');
   const owner = state.metropolisOwners[discipline];
-  // Para reclamar (nivel 4 con metrópolis libre) o arrebatar (nivel 5) se
-  // necesita una ciudad que hospede la metrópolis.
-  const willClaim = target === 4 && owner === null;
-  const willSteal = target === 5 && owner !== null && owner !== player.id;
+  // Reglas de metrópolis (decisión de mesa, cambios.txt):
+  //  - Se reclama al llegar a nivel 4 si está libre.
+  //  - Se ARREBATA al llegar a nivel 4 (o más) si la tiene OTRO jugador que
+  //    aún NO la ha blindado, es decir que sigue por DEBAJO del nivel máximo
+  //    (5). Empate en nivel 4 → el último en llegar se la lleva.
+  //  - Un dueño en nivel 5 la tiene BLINDADA: nadie se la puede quitar.
+  const ownerLevel =
+    owner !== null && owner !== player.id
+      ? (state.players.find((p) => p.id === owner)?.improvements[discipline] ?? 0)
+      : 0;
+  const willClaim = target >= 4 && owner === null;
+  const willSteal =
+    target >= 4 &&
+    owner !== null &&
+    owner !== player.id &&
+    ownerLevel < MAX_IMPROVEMENT_LEVEL &&
+    target >= ownerLevel;
+  // Llegar a nivel 4+ con la metrópolis ya blindada (dueño en nivel 5): la
+  // mejora ocurre, pero no la obtienes (se informa al jugador).
+  const blockedByLock =
+    target >= 4 && owner !== null && owner !== player.id && ownerLevel >= MAX_IMPROVEMENT_LEVEL;
   if ((willClaim || willSteal) && !hasCity) {
     return { ok: false, reason: 'Necesitas una ciudad para convertirla en metrópolis.' };
   }
@@ -336,6 +354,8 @@ export function upgradeCityImprovement(
     if (!player.metropolises.includes(discipline)) player.metropolises.push(discipline);
     result.gainedMetropolis = true;
     result.stoleMetropolisFrom = owner ?? undefined;
+  } else if (blockedByLock) {
+    result.metropolisBlocked = true;
   }
   return result;
 }

@@ -176,7 +176,9 @@ export function GameScreen(): JSX.Element | null {
               <KnightsPanel />
             </CollapsibleSection>
           ) : null}
-          <DevCardsPanel />
+          {/* En Caballeros y Ciudades no existen las cartas de desarrollo
+              (se reemplazan por las cartas de progreso). Ocultamos su panel. */}
+          {!state.citiesKnights ? <DevCardsPanel /> : null}
           {/* Mano de cartas de progreso (Caballeros y Ciudades): privada del
               dueño. Solo C&K. Colapsable junto a la mano / dev cards. Cuando hay
               excedente (>4) el panel pide soltar cartas; lo dejamos por defecto

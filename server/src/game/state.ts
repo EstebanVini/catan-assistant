@@ -113,6 +113,10 @@ export interface Knight {
   active: boolean;
 }
 export const MAX_KNIGHTS = 6; // 2 de cada rango (informativo)
+// Caballeros y Ciudades: hasta 2 caballeros de CADA rango en el tablero a la
+// vez (básico/fuerte/poderoso). Limita contratar (rango 1) y promover (rango
+// destino). 2+2+2 = MAX_KNIGHTS.
+export const MAX_KNIGHTS_PER_RANK = 2;
 
 // Costos (en recursos) de las acciones de caballero.
 export const KNIGHT_BUILD_COST: Partial<Hand> = { wool: 1, ore: 1 };

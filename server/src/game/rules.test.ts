@@ -220,6 +220,68 @@ describe('upgradeCityImprovement — mejoras de ciudad y metrópolis', () => {
     expect(s.players[1].metropolises).toEqual([]);
     expect(p.metropolises).toEqual(['trade']);
   });
+
+  it('nivel 4 arrebata la metrópolis a un dueño que sigue en nivel 4 (el último en llegar la toma)', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    // p2 tiene la metrópolis de Comercio, todavía en nivel 4 (no blindada).
+    s.players[1].improvements.trade = 4;
+    s.players[1].metropolises = ['trade'];
+    s.metropolisOwners.trade = 'p2';
+    // p1 sube de 3 a 4 y se la arrebata.
+    const p = s.players[0];
+    p.improvements.trade = 3;
+    p.commodities.cloth = 4; // nivel 4 cuesta 4
+    p.buildings = [{ id: 'c1', type: 'city', spots: [] }];
+    const r = upgradeCityImprovement(s, p, 'trade');
+    expect(r.ok).toBe(true);
+    expect(r.level).toBe(4);
+    expect(r.gainedMetropolis).toBe(true);
+    expect(r.stoleMetropolisFrom).toBe('p2');
+    expect(s.metropolisOwners.trade).toBe('p1');
+    expect(s.players[1].metropolises).toEqual([]);
+    expect(p.metropolises).toEqual(['trade']);
+  });
+
+  it('un dueño en nivel 5 blinda la metrópolis: llegar a nivel 4 no la arrebata', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    // p2 llegó a nivel 5 con la metrópolis de Ciencia: blindada.
+    s.players[1].improvements.science = 5;
+    s.players[1].metropolises = ['science'];
+    s.metropolisOwners.science = 'p2';
+    // p1 sube de 3 a 4: mejora, pero NO se la lleva.
+    const p = s.players[0];
+    p.improvements.science = 3;
+    p.commodities.paper = 4;
+    p.buildings = [{ id: 'c1', type: 'city', spots: [] }];
+    const r = upgradeCityImprovement(s, p, 'science');
+    expect(r.ok).toBe(true);
+    expect(r.level).toBe(4);
+    expect(r.gainedMetropolis).toBeFalsy();
+    expect(r.metropolisBlocked).toBe(true);
+    expect(s.metropolisOwners.science).toBe('p2'); // sigue siendo de p2
+    expect(p.metropolises).toEqual([]);
+  });
+
+  it('una metrópolis blindada en nivel 5 tampoco se arrebata llegando a nivel 5', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    s.players[1].improvements.politics = 5;
+    s.players[1].metropolises = ['politics'];
+    s.metropolisOwners.politics = 'p2';
+    const p = s.players[0];
+    p.improvements.politics = 4; // p1 ya estaba en 4 sin metrópolis (estaba blindada)
+    p.commodities.coin = 5;
+    p.buildings = [{ id: 'c1', type: 'city', spots: [] }];
+    const r = upgradeCityImprovement(s, p, 'politics');
+    expect(r.ok).toBe(true);
+    expect(r.level).toBe(5);
+    expect(r.gainedMetropolis).toBeFalsy();
+    expect(r.metropolisBlocked).toBe(true);
+    expect(s.metropolisOwners.politics).toBe('p2');
+    expect(p.metropolises).toEqual([]);
+  });
 });
 
 describe('cartas de progreso (calendario)', () => {

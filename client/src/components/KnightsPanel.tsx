@@ -3,7 +3,7 @@ import { useStore } from '../store';
 import {
   Knight,
   KNIGHT_RANK_NAMES,
-  MAX_KNIGHTS,
+  MAX_KNIGHTS_PER_RANK,
   Resource,
   knightDefenseStrength,
 } from '../types';
@@ -94,13 +94,15 @@ export function KnightsPanel(): JSX.Element | null {
     return joinList(parts);
   }
 
-  const atMax = myKnights.length >= MAX_KNIGHTS;
+  // Hasta 2 caballeros de cada rango. Contratar crea uno básico (rango 1).
+  const basicCount = myKnights.filter((k) => k.rank === 1).length;
+  const atMaxBasic = basicCount >= MAX_KNIGHTS_PER_RANK;
 
   // Razón por la que "Contratar caballero" no es accionable (orden de prioridad).
   const buildReason: string | null = !canAct
     ? 'Solo puedes contratar en tu turno.'
-    : atMax
-      ? `Ya tienes el máximo de ${MAX_KNIGHTS} caballeros.`
+    : atMaxBasic
+      ? `Ya tienes ${MAX_KNIGHTS_PER_RANK} caballeros básicos (máximo por rango).`
       : !canAfford(KNIGHT_BUILD_COST)
         ? `Te falta ${missingDetail(KNIGHT_BUILD_COST)} para contratar.`
         : null;
@@ -119,6 +121,11 @@ export function KnightsPanel(): JSX.Element | null {
     if (!canAct) return 'Solo puedes promover en tu turno.';
     if (k.rank === 2 && !hasFortress)
       return 'Requiere Fortaleza (Política nivel 3).';
+    // Hasta 2 caballeros del rango destino.
+    const targetRank = k.rank + 1;
+    const targetCount = myKnights.filter((x) => x.rank === targetRank).length;
+    if (targetCount >= MAX_KNIGHTS_PER_RANK)
+      return `Ya tienes ${MAX_KNIGHTS_PER_RANK} caballeros ${targetRank === 2 ? 'fuertes' : 'poderosos'} (máximo por rango).`;
     if (!canAfford(KNIGHT_PROMOTE_COST))
       return `Te falta ${missingDetail(KNIGHT_PROMOTE_COST)} para promover.`;
     return null;

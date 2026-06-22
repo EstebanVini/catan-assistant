@@ -16,7 +16,7 @@ import {
   EventDie,
   ProgressCardType,
   PROGRESS_HAND_LIMIT,
-  MAX_KNIGHTS,
+  MAX_KNIGHTS_PER_RANK,
   KNIGHT_BUILD_COST,
   KNIGHT_ACTIVATE_COST,
   KNIGHT_PROMOTE_COST,
@@ -1112,6 +1112,15 @@ export function registerHandlers(io: Server, socket: Socket): void {
       if (!state) return;
       const player = findPlayer(state, socket.data.playerId ?? '');
       if (!player) return;
+      // Caballeros y Ciudades: NO existen las cartas de desarrollo. Se
+      // reemplazan por las cartas de progreso, que solo llegan por el calendario
+      // de la ciudad (turn:rollCK). No se pueden comprar.
+      if (type === 'devcard' && state.citiesKnights) {
+        socket.emit('error', {
+          message: 'En Caballeros y Ciudades no se compran cartas: se reparten por el calendario de la ciudad.',
+        });
+        return;
+      }
       // En main solo el activo; en specialBuild solo el primero de la cola
       if (state.phase === 'main') {
         if (!ensureActive(state, player.id)) {
@@ -1343,6 +1352,12 @@ export function registerHandlers(io: Server, socket: Socket): void {
           ? `${player.name} arrebató la Metrópolis de ${discName} a ${stoleFrom.name}.`
           : `${player.name} construyó la Metrópolis de ${discName} (4 puntos).`,
       });
+    } else if (r.metropolisBlocked) {
+      // Subió a nivel 4+, pero el dueño ya la blindó en nivel 5: no se la lleva.
+      // Aviso personal (toast informativo) solo para quien mejoró.
+      socket.emit('build:notify', {
+        text: `La Metrópolis de ${discName} está blindada (su dueño llegó a nivel 5): no puedes arrebatarla.`,
+      });
     }
     checkVictory(io, state, player);
   });
@@ -1394,8 +1409,9 @@ export function registerHandlers(io: Server, socket: Socket): void {
       socket.emit('error', { message: 'Solo puedes contratar caballeros en tu turno, después de tirar.' });
       return;
     }
-    if (player.knights.length >= MAX_KNIGHTS) {
-      socket.emit('error', { message: `Máximo ${MAX_KNIGHTS} caballeros.` });
+    // Hasta 2 caballeros de cada rango: contratar crea uno básico (rango 1).
+    if (player.knights.filter((k) => k.rank === 1).length >= MAX_KNIGHTS_PER_RANK) {
+      socket.emit('error', { message: `Máximo ${MAX_KNIGHTS_PER_RANK} caballeros básicos a la vez.` });
       return;
     }
     if (!canAfford(player.hand, KNIGHT_BUILD_COST)) {
@@ -1453,6 +1469,14 @@ export function registerHandlers(io: Server, socket: Socket): void {
     // Promover a nivel 3 (poderoso) requiere Fortaleza (Política nivel 3).
     if (knight.rank === 2 && player.improvements.politics < 3) {
       socket.emit('error', { message: 'Necesitas la Fortaleza (Política nivel 3) para promover a caballero poderoso.' });
+      return;
+    }
+    // Hasta 2 caballeros de cada rango: no se puede promover si ya hay 2 en el
+    // rango destino.
+    const targetRank = knight.rank + 1;
+    if (player.knights.filter((k) => k.rank === targetRank).length >= MAX_KNIGHTS_PER_RANK) {
+      const rankName = targetRank === 2 ? 'fuertes' : 'poderosos';
+      socket.emit('error', { message: `Máximo ${MAX_KNIGHTS_PER_RANK} caballeros ${rankName} a la vez.` });
       return;
     }
     if (!canAfford(player.hand, KNIGHT_PROMOTE_COST)) {

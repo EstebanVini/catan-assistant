@@ -168,7 +168,12 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
         </button>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        {(['road', 'settlement', 'city', 'devcard'] as BuildType[]).map((t) => {
+        {/* En Caballeros y Ciudades no se compran cartas de desarrollo: las
+            cartas de progreso solo llegan por el calendario de la ciudad. */}
+        {(state.citiesKnights
+          ? (['road', 'settlement', 'city'] as BuildType[])
+          : (['road', 'settlement', 'city', 'devcard'] as BuildType[])
+        ).map((t) => {
           const reason = buildReason(t);
           const isDisabled = reason !== null;
           return (
@@ -207,7 +212,7 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
           );
         })}
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className={'mt-2 grid gap-2 ' + (state.citiesKnights ? 'grid-cols-1' : 'grid-cols-2')}>
         <DisabledAwareButton
           label="Intercambiar"
           disabled={!allowTrades}
@@ -217,15 +222,19 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
             if (tradeReason) pushToast('info', tradeReason);
           }}
         />
-        <DisabledAwareButton
-          label="Jugar carta de desarrollo"
-          disabled={!allowDevPlay}
-          reason={devReason}
-          onClick={onPlayDev}
-          onDisabledClick={() => {
-            if (devReason) pushToast('info', devReason);
-          }}
-        />
+        {/* En C&K no hay cartas de desarrollo que jugar (se usan cartas de
+            progreso desde su propio panel). */}
+        {!state.citiesKnights ? (
+          <DisabledAwareButton
+            label="Jugar carta de desarrollo"
+            disabled={!allowDevPlay}
+            reason={devReason}
+            onClick={onPlayDev}
+            onDisabledClick={() => {
+              if (devReason) pushToast('info', devReason);
+            }}
+          />
+        ) : null}
       </div>
       {/* En construcción especial, si no puedo pagar nada, recordatorio
           breve para que sepa que "Listo, paso" es la salida natural. */}

@@ -88,6 +88,8 @@ export interface Knight {
   active: boolean;
 }
 export const MAX_KNIGHTS = 6;
+// Hasta 2 caballeros de cada rango (básico/fuerte/poderoso) a la vez.
+export const MAX_KNIGHTS_PER_RANK = 2;
 export const MAX_WALLS = 3;
 
 // Límite de mano antes de descartar con un 7 (espejo del server). En C&K cada
