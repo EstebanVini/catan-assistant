@@ -76,6 +76,11 @@ import { User } from '../db/models/User';
 import { acceptedFriendIds } from '../auth/friends';
 import { persistMatchResult } from '../db/persistMatch';
 
+// Caballeros y Ciudades está EN DESARROLLO: solo estas cuentas (username en
+// minúsculas) pueden activarla. Mantener en sincronía con el espejo del cliente
+// en client/src/lib/featureFlags.ts.
+const CK_ALLOWED_USERNAMES = new Set<string>(['esteban', 'yoyo']);
+
 // Trackea qué socket pertenece a qué playerId / code
 interface SocketData {
   code?: string;
@@ -92,6 +97,7 @@ async function loadProfile(socket: Socket): Promise<(UserProfileInfo & { display
     if (!user) return undefined;
     return {
       userId,
+      username: user.username,
       avatarUrl: user.avatarUrl ?? undefined,
       preferredColor: user.color ?? undefined,
       currentWinStreak: user.stats?.currentWinStreak ?? 0,
@@ -471,6 +477,18 @@ export function registerHandlers(io: Server, socket: Socket): void {
     const state = getRoom(socket.data.code ?? '');
     if (!state || state.status !== 'lobby') return;
     if (!ensureHost(state, socket.data.playerId)) return;
+    // Caballeros y Ciudades está EN DESARROLLO: solo cuentas en la allowlist
+    // pueden activarla. Desactivarla siempre se permite. Verja autoritativa
+    // (el cliente también oculta/deshabilita el toggle, pero esto es la verdad).
+    if (enabled) {
+      const host = findPlayer(state, socket.data.playerId ?? '');
+      if (!host?.username || !CK_ALLOWED_USERNAMES.has(host.username.toLowerCase())) {
+        socket.emit('error', {
+          message: 'Caballeros y Ciudades está en desarrollo y todavía no está disponible.',
+        });
+        return;
+      }
+    }
     state.citiesKnights = enabled;
     logAction(
       state,

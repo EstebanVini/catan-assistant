@@ -35,6 +35,7 @@ export function generateCode(): string {
 // Datos del usuario autenticado (si los hay) al crear/unirse; los invitados no traen nada.
 export interface UserProfileInfo {
   userId?: string;
+  username?: string; // username de la cuenta (minúsculas)
   avatarUrl?: string;
   preferredColor?: string;
   currentWinStreak?: number; // racha activa del usuario (para el ícono 🔥)
@@ -45,6 +46,7 @@ function newPlayer(id: string, sessionToken: string, name: string, profile?: Use
   return {
     id,
     userId: profile?.userId,
+    username: profile?.username,
     sessionToken,
     name: name.trim().slice(0, 20),
     avatarUrl: profile?.avatarUrl,

@@ -207,6 +207,7 @@ export function emptyGameStats(): GameStats {
 export interface Player {
   id: string;
   userId?: string; // _id del User en MongoDB; ausente si juega como invitado
+  username?: string; // username de la cuenta (en minúsculas); ausente si invitado
   sessionToken: string; // privado, no se envía a otros
   name: string;
   avatarUrl?: string; // foto de perfil (pública en la partida) si está registrado

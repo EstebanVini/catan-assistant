@@ -15,6 +15,7 @@ import { COLOR_NAMES, RESOURCE_NAMES, joinList } from '../lib/spanish';
 import { useModalA11y } from '../lib/useModalA11y';
 import { InitialBuildSetup, CheckIcon } from '../components/InitialBuildSetup';
 import { Avatar } from '../components/Avatar';
+import { canUseCitiesKnights } from '../lib/featureFlags';
 import { getFriends } from '../api';
 
 export function LobbyScreen(): JSX.Element | null {
@@ -111,6 +112,9 @@ export function LobbyScreen(): JSX.Element | null {
   if (!view || !view.me) return null;
   const { state, me } = view;
   const isHost = state.hostId === me.id;
+  // Caballeros y Ciudades está en desarrollo: solo cuentas en la allowlist
+  // pueden activarla (el servidor es la verja autoritativa).
+  const canEnableCK = canUseCitiesKnights(authUser?.username);
   // §3 — Modo "Repartir recursos de inicio" (default true). Cuando está OFF se
   // inicia sin fichas y el registro de poblados deja de ser obligatorio, por lo
   // que ocultamos el contador "N/M listos" y mostramos una línea informativa.
@@ -510,26 +514,50 @@ export function LobbyScreen(): JSX.Element | null {
               className="h-5 w-5 shrink-0 accent-emerald-500"
             />
           </label>
-          {/* Fase A (Caballeros y Ciudades) — Toggle de modo. Mismo patrón que
-              "Repartir recursos de inicio": solo anfitrión, ayuda breve. */}
-          <label className="mt-3 flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-white/10 bg-neutral-950/80 px-3 py-2.5">
-            <span className="min-w-0">
-              <span className="block text-sm font-medium text-neutral-100">
-                Caballeros y Ciudades
-              </span>
-              <span className="mt-0.5 block text-[11px] leading-snug text-neutral-400">
-                {state.citiesKnights
-                  ? 'Objetivo de victoria a 13 puntos. Habilita caballeros, mercancías y mejoras de ciudad (en desarrollo).'
-                  : 'Activa la expansión: victoria a 13 puntos, con caballeros, mercancías y mejoras de ciudad (en desarrollo).'}
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              checked={state.citiesKnights}
-              onChange={(e) => setCitiesKnights(e.target.checked)}
-              className="h-5 w-5 shrink-0 accent-emerald-500"
-            />
-          </label>
+          {/* Fase A (Caballeros y Ciudades) — Toggle de modo. EN DESARROLLO:
+              solo cuentas autorizadas (allowlist) pueden activarla; al resto se
+              le muestra deshabilitado con un aviso. Si ya está activa (la activó
+              una cuenta autorizada), cualquiera puede desactivarla. */}
+          {(() => {
+            // Bloqueado solo cuando NO está autorizado e intenta ACTIVAR algo
+            // que está apagado. Permitimos siempre apagar.
+            const ckLocked = !canEnableCK && !state.citiesKnights;
+            return (
+              <label
+                className={
+                  'mt-3 flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 ' +
+                  (ckLocked
+                    ? 'cursor-not-allowed border-white/10 bg-neutral-950/50 opacity-70'
+                    : 'cursor-pointer border-white/10 bg-neutral-950/80')
+                }
+              >
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-neutral-100">
+                    Caballeros y Ciudades
+                    {ckLocked ? (
+                      <span className="inline-flex items-center rounded-full border border-amber-400/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-amber-200">
+                        En desarrollo
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-neutral-400">
+                    {ckLocked
+                      ? 'Esta funcionalidad se encuentra en desarrollo y todavía no está disponible.'
+                      : state.citiesKnights
+                        ? 'Objetivo de victoria a 13 puntos. Habilita caballeros, mercancías y mejoras de ciudad (en desarrollo).'
+                        : 'Activa la expansión: victoria a 13 puntos, con caballeros, mercancías y mejoras de ciudad (en desarrollo).'}
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={state.citiesKnights}
+                  disabled={ckLocked}
+                  onChange={(e) => setCitiesKnights(e.target.checked)}
+                  className="h-5 w-5 shrink-0 accent-emerald-500 disabled:cursor-not-allowed"
+                />
+              </label>
+            );
+          })()}
           <button
             type="button"
             onClick={() => rollOrderByDice()}
