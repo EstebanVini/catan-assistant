@@ -8,9 +8,24 @@ import {
   PortType,
   Resource,
   RESOURCES,
+  Commodity,
+  CommodityHand,
+  COMMODITIES,
+  Discipline,
+  DISCIPLINES,
+  EventDie,
+  ProgressCardType,
+  PROGRESS_HAND_LIMIT,
+  MAX_KNIGHTS_PER_RANK,
+  KNIGHT_BUILD_COST,
+  KNIGHT_ACTIVATE_COST,
+  KNIGHT_PROMOTE_COST,
+  MAX_WALLS,
+  WALL_COST,
   emptyHand,
   fullBank,
   handTotal,
+  victoryTargetFor,
 } from '../game/state';
 import {
   BUILD_COSTS,
@@ -21,6 +36,10 @@ import {
   computePendingDiscards,
   distributeForRoll,
   drainBank,
+  drainCommodityBank,
+  drawsProgressCard,
+  upgradeCityImprovement,
+  resolveBarbarianAttack,
   executeTrade,
   findPlayer,
   payToBank,
@@ -347,6 +366,24 @@ export function registerHandlers(io: Server, socket: Socket): void {
     broadcastState(io, state);
   });
 
+  // Modo "Caballeros y Ciudades": toggle del anfitrión en el lobby. Aditivo:
+  // cambia el objetivo de victoria a 13 y habilita las mecánicas C&K (se
+  // implementan por fases; ver caballeros-plan.md). El juego base no se ve
+  // afectado cuando está apagado.
+  socket.on('lobby:setCitiesKnights', ({ enabled }: { enabled: boolean }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || state.status !== 'lobby') return;
+    if (!ensureHost(state, socket.data.playerId)) return;
+    state.citiesKnights = enabled;
+    logAction(
+      state,
+      enabled
+        ? 'Se activó la expansión Caballeros y Ciudades (victoria a 13 puntos).'
+        : 'Se desactivó la expansión Caballeros y Ciudades.'
+    );
+    broadcastState(io, state);
+  });
+
   socket.on('lobby:rollOrderByDice', () => {
     const state = getRoom(socket.data.code ?? '');
     if (!state || state.status !== 'lobby') return;
@@ -553,6 +590,22 @@ export function registerHandlers(io: Server, socket: Socket): void {
     state.phase = 'roll';
     state.currentTurnIndex = 0;
     state.startedAt = Date.now();
+    // En Caballeros y Ciudades el ladrón arranca INMOVILIZADO: queda fuera de
+    // juego hasta el primer ataque bárbaro (un 7 antes de eso solo descarta).
+    if (state.citiesKnights) {
+      state.robberActive = false;
+      state.barbarianStep = 0;
+      // Cada jugador empieza con 1 poblado + 1 ciudad: en el juego oficial la
+      // 2ª colocación inicial es una ciudad. Subimos su SEGUNDO poblado
+      // registrado a ciudad, gratis, al iniciar (antes de derivar los hexes,
+      // para que la ciudad produzca desde el primer turno).
+      for (const player of state.players) {
+        const second = player.buildings[1];
+        if (second && second.type === 'settlement') {
+          second.type = 'city';
+        }
+      }
+    }
 
     // Derivar los hexes de producción y repartir los recursos de inicio:
     // 1 carta por cada ficha que tocan los poblados registrados (todos).
@@ -622,11 +675,20 @@ export function registerHandlers(io: Server, socket: Socket): void {
     } else {
       const result = distributeForRoll(state, number);
       const lines: string[] = [];
-      for (const [pid, hand] of Object.entries(result.perPlayer)) {
+      const allIds = new Set([
+        ...Object.keys(result.perPlayer),
+        ...Object.keys(result.perPlayerCommodities),
+      ]);
+      for (const pid of allIds) {
         const p = findPlayer(state, pid);
         if (!p) continue;
-        const parts = (Object.entries(hand) as [Resource, number][]).map(([r, n]) => `${n} ${esResource(r)}`);
-        lines.push(`${p.name} recibe ${parts.join(', ')}`);
+        const parts = (Object.entries(result.perPlayer[pid] ?? {}) as [Resource, number][]).map(
+          ([r, n]) => `${n} ${esResource(r)}`
+        );
+        const cparts = (
+          Object.entries(result.perPlayerCommodities[pid] ?? {}) as [Commodity, number][]
+        ).map(([c, n]) => `${n} ${esCommodity(c)}`);
+        lines.push(`${p.name} recibe ${[...parts, ...cparts].join(', ')}`);
       }
       logAction(state, `Salió ${number}. ${lines.join('; ') || 'Nadie recibió recursos.'}`);
       for (const partial of result.partials) {
@@ -642,36 +704,295 @@ export function registerHandlers(io: Server, socket: Socket): void {
     broadcastState(io, state);
   });
 
-  // === Descarte ===
-  socket.on('discard:submit', ({ resourcesToDiscard }: { resourcesToDiscard: Partial<Hand> }) => {
+  // === Tirada de Caballeros y Ciudades (3 dados) ===
+  // El encargado del banco ingresa: production (suma de los 2 dados de
+  // producción, 2-12), redDie (el dado rojo solo, 1-6, para el calendario) y
+  // eventDie (cara del dado de evento: 'barbarian' o una disciplina de color).
+  socket.on(
+    'turn:rollCK',
+    ({ production, redDie, eventDie }: { production: number; redDie: number; eventDie: EventDie }) => {
+      const state = getRoom(socket.data.code ?? '');
+      if (!state || state.status !== 'playing') return;
+      if (!state.citiesKnights) return; // este evento es exclusivo de C&K
+      if (!ensureBankManager(state, socket.data.playerId)) {
+        socket.emit('error', { message: 'Solo el encargado del banco puede ingresar los dados.' });
+        return;
+      }
+      if (state.phase !== 'roll') {
+        socket.emit('error', { message: 'Ya no es la fase Tirar.' });
+        return;
+      }
+      if (production < 2 || production > 12) return;
+      if (redDie < 1 || redDie > 6) return;
+      const yellow = production - redDie;
+      if (yellow < 1 || yellow > 6) {
+        socket.emit('error', { message: 'El dado rojo no es compatible con ese total. Revisa los valores.' });
+        return;
+      }
+      if (eventDie !== 'barbarian' && !DISCIPLINES.includes(eventDie)) return;
+
+      pushSnapshot(state);
+      state.diceStats[production] = (state.diceStats[production] ?? 0) + 1;
+      state.lastRolledNumber = production;
+      state.lastRedDie = redDie;
+      state.lastEventDie = eventDie;
+
+      // 1) Resolver el DADO DE EVENTO (independiente de la producción).
+      if (eventDie === 'barbarian') {
+        state.barbarianStep = Math.min(7, state.barbarianStep + 1);
+        if (state.barbarianStep >= 7) {
+          // Los bárbaros llegan a Catán: se resuelve el combate (fuerza de
+          // caballeros activos vs ciudades+metrópolis), se otorga el Defensor de
+          // Catán (o cartas en empate), se marcan perdedores, se desactivan los
+          // caballeros y se activa el ladrón en el primer ataque.
+          resolveBarbarianAttackCK(io, state);
+        } else {
+          logAction(state, `El barco bárbaro avanza a ${state.barbarianStep}/7.`);
+        }
+      } else {
+        // Puerta de color → calendario de la ciudad: cada jugador roba 1 carta
+        // de esa disciplina si su nivel de mejora ≥ el dado rojo.
+        const drawers: string[] = [];
+        for (const p of state.players) {
+          if (!drawsProgressCard(p.improvements[eventDie], redDie)) continue;
+          const deck = state.progressDecks[eventDie];
+          if (deck.length === 0) continue;
+          const card = deck.pop()!;
+          p.progressCards.push(card);
+          if (p.progressCards.length > PROGRESS_HAND_LIMIT) {
+            state.pendingProgressDiscard[p.id] =
+              p.progressCards.length - PROGRESS_HAND_LIMIT;
+          }
+          drawers.push(p.name);
+        }
+        const discName = DISCIPLINE_NAMES[eventDie];
+        logAction(
+          state,
+          drawers.length
+            ? `Puerta de ${discName} (rojo ${redDie}): roban carta de progreso ${drawers.join(', ')}.`
+            : `Puerta de ${discName} (rojo ${redDie}): nadie alcanza el nivel para robar.`
+        );
+      }
+
+      // 2) Resolver la PRODUCCIÓN (igual que turn:rollNumber, con el ladrón
+      //    condicionado a que ya haya habido un ataque bárbaro).
+      if (production === 7) {
+        const pending = computePendingDiscards(state);
+        logAction(state, 'Salió un 7. Quienes tengan más de 7 cartas descartan la mitad.');
+        if (Object.keys(pending).length > 0) {
+          state.pendingDiscards = pending;
+          state.phase = 'discard';
+        } else if (state.robberActive) {
+          state.phase = 'robber';
+          state.pendingRobberMove = true;
+          logAction(state, 'Nadie descarta. Turno de mover el ladrón.');
+        } else {
+          state.phase = 'main';
+          logAction(state, 'El ladrón sigue inmovilizado (aún no hay ataque bárbaro).');
+        }
+      } else {
+        const result = distributeForRoll(state, production);
+        const lines: string[] = [];
+        const allIds = new Set([
+          ...Object.keys(result.perPlayer),
+          ...Object.keys(result.perPlayerCommodities),
+        ]);
+        for (const pid of allIds) {
+          const p = findPlayer(state, pid);
+          if (!p) continue;
+          const parts = (Object.entries(result.perPlayer[pid] ?? {}) as [Resource, number][]).map(
+            ([r, n]) => `${n} ${esResource(r)}`
+          );
+          const cparts = (
+            Object.entries(result.perPlayerCommodities[pid] ?? {}) as [Commodity, number][]
+          ).map(([c, n]) => `${n} ${esCommodity(c)}`);
+          lines.push(`${p.name} recibe ${[...parts, ...cparts].join(', ')}`);
+        }
+        logAction(state, `Salió ${production}. ${lines.join('; ') || 'Nadie recibió recursos.'}`);
+        state.phase = 'main';
+      }
+      broadcastState(io, state);
+    }
+  );
+
+  // Descarte de cartas de progreso por exceder el límite de 4 (al robar la 5ª).
+  socket.on('progress:discard', ({ card }: { card: ProgressCardType }) => {
     const state = getRoom(socket.data.code ?? '');
     if (!state) return;
     const player = findPlayer(state, socket.data.playerId ?? '');
     if (!player) return;
-    if (state.phase !== 'discard') return;
-    const required = state.pendingDiscards[player.id] ?? 0;
-    if (required === 0) return;
-    const total = Object.values(resourcesToDiscard).reduce((a, b) => a + (b ?? 0), 0);
-    if (total !== required) {
-      socket.emit('error', { message: `Debes descartar exactamente ${required} cartas.` });
+    const owed = state.pendingProgressDiscard[player.id] ?? 0;
+    if (owed <= 0) return;
+    const idx = player.progressCards.indexOf(card);
+    if (idx === -1) {
+      socket.emit('error', { message: 'No tienes esa carta de progreso.' });
       return;
     }
-    for (const [res, n] of Object.entries(resourcesToDiscard) as [Resource, number][]) {
-      if (player.hand[res] < n) {
-        socket.emit('error', { message: 'No tienes esas cartas en la mano.' });
-        return;
-      }
-    }
     pushSnapshot(state);
-    for (const [res, n] of Object.entries(resourcesToDiscard) as [Resource, number][]) {
-      player.hand[res] -= n;
-      state.bank[res] += n;
-    }
-    delete state.pendingDiscards[player.id];
-    logAction(state, `${player.name} descartó ${required} cartas.`, player.id);
-    checkAllDiscardsDone(state);
+    player.progressCards.splice(idx, 1);
+    const remaining = owed - 1;
+    if (remaining > 0) state.pendingProgressDiscard[player.id] = remaining;
+    else delete state.pendingProgressDiscard[player.id];
+    logAction(state, `${player.name} descartó una carta de progreso (excedía el límite de 4).`, player.id);
     broadcastState(io, state);
   });
+
+  // === Jugar una carta de progreso (Caballeros y Ciudades) ===
+  // Decisión del proyecto (caballeros-plan.md §13.2): "registro asistido". Las
+  // cartas autocontenidas se automatizan por completo; las que dependen de
+  // caballeros/muros/caminos o de geometría de tablero se registran (se quitan
+  // de la mano + log/notice) para que la mesa las resuelva físicamente. Esas
+  // recibirán automatización plena en las fases D/E.
+  socket.on(
+    'progress:play',
+    ({ card, resource, commodity }: { card: ProgressCardType; resource?: Resource; commodity?: Commodity }) => {
+      const state = getRoom(socket.data.code ?? '');
+      if (!state || !state.citiesKnights) return;
+      const player = findPlayer(state, socket.data.playerId ?? '');
+      if (!player) return;
+      if (!ensureActive(state, player.id) || state.phase !== 'main') {
+        socket.emit('error', { message: 'Solo puedes jugar cartas de progreso en tu turno, después de tirar.' });
+        return;
+      }
+      const idx = player.progressCards.indexOf(card);
+      if (idx === -1) {
+        socket.emit('error', { message: 'No tienes esa carta de progreso.' });
+        return;
+      }
+      pushSnapshot(state);
+      const name = esProgressCard(card);
+      let handled = true;
+
+      if (card === 'printer' || card === 'constitution') {
+        // +1 PV permanente (como las cartas de PV del base).
+        player.victoryPoints.vpCards += 1;
+        logAction(state, `${player.name} jugó ${name}: +1 punto de victoria.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó ${name} (+1 PV).` });
+      } else if (card === 'resourceMonopoly') {
+        // Nombra un recurso; cada jugador te da hasta 2 de ese recurso.
+        if (!resource || !RESOURCES.includes(resource)) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige un recurso válido.' });
+          return;
+        }
+        let total = 0;
+        for (const other of state.players) {
+          if (other.id === player.id) continue;
+          const take = Math.min(2, other.hand[resource]);
+          other.hand[resource] -= take;
+          total += take;
+        }
+        player.hand[resource] += total;
+        logAction(state, `${player.name} jugó Monopolio de Recurso (${esResource(resource)}) y tomó ${total}.`, player.id);
+        io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} jugó Monopolio de ${esResource(resource)} (tomó ${total}).` });
+      } else if (card === 'tradeMonopoly') {
+        // Nombra una mercancía; cada jugador te da 1 si tiene.
+        if (!commodity || !COMMODITIES.includes(commodity)) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige una mercancía válida.' });
+          return;
+        }
+        let total = 0;
+        for (const other of state.players) {
+          if (other.id === player.id) continue;
+          const take = Math.min(1, other.commodities[commodity]);
+          other.commodities[commodity] -= take;
+          total += take;
+        }
+        player.commodities[commodity] += total;
+        logAction(state, `${player.name} jugó Monopolio de Comercio (${esCommodity(commodity)}) y tomó ${total}.`, player.id);
+        io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} jugó Monopolio de Comercio de ${esCommodity(commodity)} (tomó ${total}).` });
+      } else if (card === 'engineer') {
+        // Construye 1 muro de ciudad gratis (respeta el máximo).
+        if (player.walls >= MAX_WALLS) {
+          popSnapshot(state);
+          socket.emit('error', { message: `Ya tienes el máximo de ${MAX_WALLS} muros.` });
+          return;
+        }
+        player.walls += 1;
+        logAction(state, `${player.name} jugó Ingeniero: construyó un muro gratis (${player.walls}/${MAX_WALLS}).`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Ingeniero (muro gratis).` });
+      } else if (card === 'irrigation' || card === 'mining') {
+        // 2 recursos por cada ficha (spot) del recurso que toquen tus
+        // construcciones. irrigation→trigo, mining→mineral.
+        const res: Resource = card === 'irrigation' ? 'grain' : 'ore';
+        let spots = 0;
+        for (const b of player.buildings) {
+          for (const s of b.spots) if (s.resource === res) spots += 1;
+        }
+        const gained = spots * 2;
+        player.hand[res] += gained;
+        drainBank(state.bank, res, gained);
+        logAction(state, `${player.name} jugó ${name}: ganó ${gained} ${esResource(res)} (${spots} fichas de ${esResource(res)}).`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó ${name} (+${gained} ${esResource(res)}).` });
+      } else {
+        // Registro asistido: la carta se retira y la mesa la resuelve.
+        handled = false;
+        logAction(state, `${player.name} jugó ${name}. Resuélvanla en la mesa.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó ${name}. Resuélvanla en la mesa.` });
+      }
+
+      // Quitar la carta de la mano (por índice; ya validado arriba).
+      const removeAt = player.progressCards.indexOf(card);
+      if (removeAt !== -1) player.progressCards.splice(removeAt, 1);
+      void handled; // (handled se conserva por claridad; ambas ramas quitan la carta)
+      broadcastState(io, state);
+      checkVictory(io, state, player);
+    }
+  );
+
+  // === Descarte ===
+  // En Caballeros y Ciudades el descarte puede incluir mercancías (cuentan para
+  // el total). `commoditiesToDiscard` es opcional (vacío en el modo base).
+  socket.on(
+    'discard:submit',
+    ({
+      resourcesToDiscard,
+      commoditiesToDiscard,
+    }: {
+      resourcesToDiscard: Partial<Hand>;
+      commoditiesToDiscard?: Partial<CommodityHand>;
+    }) => {
+      const state = getRoom(socket.data.code ?? '');
+      if (!state) return;
+      const player = findPlayer(state, socket.data.playerId ?? '');
+      if (!player) return;
+      if (state.phase !== 'discard') return;
+      const required = state.pendingDiscards[player.id] ?? 0;
+      if (required === 0) return;
+      const resTotal = Object.values(resourcesToDiscard).reduce((a, b) => a + (b ?? 0), 0);
+      const commTotal = Object.values(commoditiesToDiscard ?? {}).reduce((a, b) => a + (b ?? 0), 0);
+      if (resTotal + commTotal !== required) {
+        socket.emit('error', { message: `Debes descartar exactamente ${required} cartas.` });
+        return;
+      }
+      for (const [res, n] of Object.entries(resourcesToDiscard) as [Resource, number][]) {
+        if (player.hand[res] < n) {
+          socket.emit('error', { message: 'No tienes esas cartas en la mano.' });
+          return;
+        }
+      }
+      for (const [c, n] of Object.entries(commoditiesToDiscard ?? {}) as [Commodity, number][]) {
+        if (player.commodities[c] < n) {
+          socket.emit('error', { message: 'No tienes esas mercancías en la mano.' });
+          return;
+        }
+      }
+      pushSnapshot(state);
+      for (const [res, n] of Object.entries(resourcesToDiscard) as [Resource, number][]) {
+        player.hand[res] -= n;
+        state.bank[res] += n;
+      }
+      for (const [c, n] of Object.entries(commoditiesToDiscard ?? {}) as [Commodity, number][]) {
+        player.commodities[c] -= n;
+        state.commodityBank[c] = Math.min(12, state.commodityBank[c] + n);
+      }
+      delete state.pendingDiscards[player.id];
+      logAction(state, `${player.name} descartó ${required} cartas.`, player.id);
+      checkAllDiscardsDone(state);
+      broadcastState(io, state);
+    }
+  );
 
   // El bank manager puede descartar por un jugador desconectado (aleatorio)
   socket.on('discard:forceRandom', ({ targetPlayerId }: { targetPlayerId: string }) => {
@@ -791,6 +1112,15 @@ export function registerHandlers(io: Server, socket: Socket): void {
       if (!state) return;
       const player = findPlayer(state, socket.data.playerId ?? '');
       if (!player) return;
+      // Caballeros y Ciudades: NO existen las cartas de desarrollo. Se
+      // reemplazan por las cartas de progreso, que solo llegan por el calendario
+      // de la ciudad (turn:rollCK). No se pueden comprar.
+      if (type === 'devcard' && state.citiesKnights) {
+        socket.emit('error', {
+          message: 'En Caballeros y Ciudades no se compran cartas: se reparten por el calendario de la ciudad.',
+        });
+        return;
+      }
       // En main solo el activo; en specialBuild solo el primero de la cola
       if (state.phase === 'main') {
         if (!ensureActive(state, player.id)) {
@@ -980,6 +1310,241 @@ export function registerHandlers(io: Server, socket: Socket): void {
       return;
     }
     logAction(state, `${player.name} intercambió con el banco ${r.ratio}:1: dio ${esResource(give)}, recibió ${esResource(receive)}.`, player.id);
+    broadcastState(io, state);
+  });
+
+  // === Mejora de ciudad (Caballeros y Ciudades) ===
+  socket.on('city:upgrade', ({ discipline }: { discipline: Discipline }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state) return;
+    if (!state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    const canActNow =
+      (ensureActive(state, player.id) && state.phase === 'main') ||
+      (state.phase === 'specialBuild' && state.specialBuildQueue[0] === player.id);
+    if (!canActNow) {
+      socket.emit('error', { message: 'Solo puedes mejorar ciudades en tu turno, después de tirar.' });
+      return;
+    }
+    if (!DISCIPLINES.includes(discipline)) return;
+    pushSnapshot(state);
+    const r = upgradeCityImprovement(state, player, discipline);
+    if (!r.ok) {
+      popSnapshot(state);
+      socket.emit('error', { message: r.reason ?? 'No pudimos mejorar la ciudad.' });
+      return;
+    }
+    const discName = DISCIPLINE_NAMES[discipline];
+    logAction(state, `${player.name} mejoró ${discName} al nivel ${r.level}.`, player.id);
+    if (r.abilityUnlocked) {
+      const abilityName = ABILITY_NAMES[r.abilityUnlocked];
+      io.to(state.code).emit('notice', {
+        level: 'info',
+        text: `${player.name} desbloqueó ${abilityName} (${discName} nivel 3).`,
+      });
+    }
+    if (r.gainedMetropolis) {
+      const stoleFrom = r.stoleMetropolisFrom ? findPlayer(state, r.stoleMetropolisFrom) : null;
+      io.to(state.code).emit('notice', {
+        level: 'success',
+        text: stoleFrom
+          ? `${player.name} arrebató la Metrópolis de ${discName} a ${stoleFrom.name}.`
+          : `${player.name} construyó la Metrópolis de ${discName} (4 puntos).`,
+      });
+    } else if (r.metropolisBlocked) {
+      // Subió a nivel 4+, pero el dueño ya la blindó en nivel 5: no se la lleva.
+      // Aviso personal (toast informativo) solo para quien mejoró.
+      socket.emit('build:notify', {
+        text: `La Metrópolis de ${discName} está blindada (su dueño llegó a nivel 5): no puedes arrebatarla.`,
+      });
+    }
+    checkVictory(io, state, player);
+  });
+
+  // === Muro de ciudad (Caballeros y Ciudades) ===
+  socket.on('city:buildWall', () => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    const canActNow =
+      (ensureActive(state, player.id) && state.phase === 'main') ||
+      (state.phase === 'specialBuild' && state.specialBuildQueue[0] === player.id);
+    if (!canActNow) {
+      socket.emit('error', { message: 'Solo puedes construir muros en tu turno, después de tirar.' });
+      return;
+    }
+    if (player.walls >= MAX_WALLS) {
+      socket.emit('error', { message: `Máximo ${MAX_WALLS} muros.` });
+      return;
+    }
+    if (!canAfford(player.hand, WALL_COST)) {
+      socket.emit('error', { message: 'Necesitas 2 ladrillos para un muro.' });
+      return;
+    }
+    pushSnapshot(state);
+    payToBank(player.hand, state.bank, WALL_COST);
+    player.walls += 1;
+    logAction(state, `${player.name} construyó un muro de ciudad (${player.walls}/${MAX_WALLS}).`, player.id);
+    broadcastState(io, state);
+  });
+
+  // === Caballeros (Caballeros y Ciudades) ===
+  // Helper: ¿el jugador puede actuar ahora (su turno en main, o cabeza de cola
+  // en construcción especial)?
+  function canActCK(state: GameState, player: Player): boolean {
+    return (
+      (ensureActive(state, player.id) && state.phase === 'main') ||
+      (state.phase === 'specialBuild' && state.specialBuildQueue[0] === player.id)
+    );
+  }
+
+  socket.on('knight:build', () => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    if (!canActCK(state, player)) {
+      socket.emit('error', { message: 'Solo puedes contratar caballeros en tu turno, después de tirar.' });
+      return;
+    }
+    // Hasta 2 caballeros de cada rango: contratar crea uno básico (rango 1).
+    if (player.knights.filter((k) => k.rank === 1).length >= MAX_KNIGHTS_PER_RANK) {
+      socket.emit('error', { message: `Máximo ${MAX_KNIGHTS_PER_RANK} caballeros básicos a la vez.` });
+      return;
+    }
+    if (!canAfford(player.hand, KNIGHT_BUILD_COST)) {
+      socket.emit('error', { message: 'Necesitas 1 lana y 1 mineral para un caballero.' });
+      return;
+    }
+    pushSnapshot(state);
+    payToBank(player.hand, state.bank, KNIGHT_BUILD_COST);
+    player.knights.push({ id: nanoid(8), rank: 1, active: false });
+    logAction(state, `${player.name} contrató un caballero básico (inactivo).`, player.id);
+    broadcastState(io, state);
+  });
+
+  socket.on('knight:activate', ({ knightId }: { knightId: string }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    if (!canActCK(state, player)) {
+      socket.emit('error', { message: 'Solo puedes activar caballeros en tu turno, después de tirar.' });
+      return;
+    }
+    const knight = player.knights.find((k) => k.id === knightId);
+    if (!knight) return;
+    if (knight.active) {
+      socket.emit('error', { message: 'Ese caballero ya está activo.' });
+      return;
+    }
+    if (!canAfford(player.hand, KNIGHT_ACTIVATE_COST)) {
+      socket.emit('error', { message: 'Necesitas 1 trigo para activar un caballero.' });
+      return;
+    }
+    pushSnapshot(state);
+    payToBank(player.hand, state.bank, KNIGHT_ACTIVATE_COST);
+    knight.active = true;
+    logAction(state, `${player.name} activó un caballero (fuerza ${knight.rank}).`, player.id);
+    broadcastState(io, state);
+  });
+
+  socket.on('knight:promote', ({ knightId }: { knightId: string }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    if (!canActCK(state, player)) {
+      socket.emit('error', { message: 'Solo puedes promover caballeros en tu turno, después de tirar.' });
+      return;
+    }
+    const knight = player.knights.find((k) => k.id === knightId);
+    if (!knight) return;
+    if (knight.rank >= 3) {
+      socket.emit('error', { message: 'Ese caballero ya es poderoso (nivel máximo).' });
+      return;
+    }
+    // Promover a nivel 3 (poderoso) requiere Fortaleza (Política nivel 3).
+    if (knight.rank === 2 && player.improvements.politics < 3) {
+      socket.emit('error', { message: 'Necesitas la Fortaleza (Política nivel 3) para promover a caballero poderoso.' });
+      return;
+    }
+    // Hasta 2 caballeros de cada rango: no se puede promover si ya hay 2 en el
+    // rango destino.
+    const targetRank = knight.rank + 1;
+    if (player.knights.filter((k) => k.rank === targetRank).length >= MAX_KNIGHTS_PER_RANK) {
+      const rankName = targetRank === 2 ? 'fuertes' : 'poderosos';
+      socket.emit('error', { message: `Máximo ${MAX_KNIGHTS_PER_RANK} caballeros ${rankName} a la vez.` });
+      return;
+    }
+    if (!canAfford(player.hand, KNIGHT_PROMOTE_COST)) {
+      socket.emit('error', { message: 'Necesitas 1 lana y 1 mineral para promover un caballero.' });
+      return;
+    }
+    pushSnapshot(state);
+    payToBank(player.hand, state.bank, KNIGHT_PROMOTE_COST);
+    knight.rank = (knight.rank + 1) as 1 | 2 | 3;
+    logAction(state, `${player.name} promovió un caballero a fuerza ${knight.rank}.`, player.id);
+    broadcastState(io, state);
+  });
+
+  // Acción de un caballero ACTIVO (mover/expulsar/ahuyentar). Sin geometría de
+  // tablero: se arbitra en la mesa (decisión §13). Usar el caballero lo
+  // desactiva. 'chaseRobber' solo tras el primer ataque bárbaro.
+  socket.on('knight:action', ({ knightId, kind }: { knightId: string; kind: 'move' | 'displace' | 'chaseRobber' }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    if (!canActCK(state, player)) {
+      socket.emit('error', { message: 'Solo puedes usar caballeros en tu turno.' });
+      return;
+    }
+    const knight = player.knights.find((k) => k.id === knightId);
+    if (!knight) return;
+    if (!knight.active) {
+      socket.emit('error', { message: 'El caballero debe estar activo para actuar.' });
+      return;
+    }
+    if (kind === 'chaseRobber' && !state.robberActive) {
+      socket.emit('error', { message: 'El ladrón aún no está en juego (falta el primer ataque bárbaro).' });
+      return;
+    }
+    pushSnapshot(state);
+    knight.active = false; // usar el caballero lo desactiva
+    const verb = kind === 'move' ? 'movió' : kind === 'displace' ? 'expulsó con' : 'ahuyentó al ladrón con';
+    logAction(state, `${player.name} ${verb} un caballero. Resuélvanlo en la mesa.`, player.id);
+    io.to(state.code).emit('notice', { level: 'info', text: `${player.name} usó un caballero (${kind === 'chaseRobber' ? 'ahuyentar ladrón' : kind === 'displace' ? 'expulsar' : 'mover'}). Resuélvanlo en la mesa.` });
+    broadcastState(io, state);
+  });
+
+  // Tras un saqueo bárbaro: el perdedor elige qué ciudad degradar a poblado.
+  socket.on('barbarian:downgradeCity', ({ buildingId }: { buildingId: string }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    if (!state.pendingBarbarianLoss.includes(player.id)) return;
+    // No se puede degradar una metrópolis: debe quedar al menos una ciudad
+    // no-metrópolis para poder elegir.
+    if (player.victoryPoints.cities - player.metropolises.length <= 0) {
+      socket.emit('error', { message: 'No tienes una ciudad (no metrópolis) que degradar.' });
+      return;
+    }
+    const building = player.buildings.find((b) => b.id === buildingId && b.type === 'city');
+    if (!building) {
+      socket.emit('error', { message: 'Elige una de tus ciudades.' });
+      return;
+    }
+    pushSnapshot(state);
+    building.type = 'settlement';
+    state.hexes = rebuildHexes(state.players, state.hexes);
+    recomputeVictoryPoints(state);
+    state.pendingBarbarianLoss = state.pendingBarbarianLoss.filter((id) => id !== player.id);
+    logAction(state, `${player.name} degradó una ciudad a poblado por el saqueo bárbaro.`, player.id);
+    io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} perdió una ciudad ante los bárbaros.` });
     broadcastState(io, state);
   });
 
@@ -1311,8 +1876,9 @@ export function registerHandlers(io: Server, socket: Socket): void {
       socket.emit('error', { message: 'Solo puedes declarar victoria en tu turno.' });
       return;
     }
-    if (totalVictoryPoints(player) < 10) {
-      socket.emit('error', { message: 'Necesitas 10 puntos para declarar victoria.' });
+    const target = victoryTargetFor(state);
+    if (totalVictoryPoints(player) < target) {
+      socket.emit('error', { message: `Necesitas ${target} puntos para declarar victoria.` });
       return;
     }
     state.status = 'ended';
@@ -1348,12 +1914,14 @@ export function registerHandlers(io: Server, socket: Socket): void {
       targetPlayerId,
       kind,
       resource,
+      commodity,
       devCard,
       force,
     }: {
       targetPlayerId: string;
-      kind: 'resource' | 'dev';
+      kind: 'resource' | 'commodity' | 'dev';
       resource?: Resource;
+      commodity?: Commodity;
       devCard?: DevCardType;
       force?: boolean;
     }) => {
@@ -1376,6 +1944,17 @@ export function registerHandlers(io: Server, socket: Socket): void {
         drainBank(state.bank, resource, 1);
         target.hand[resource] += 1;
         const text = `⚠️ El banco entregó 1 ${esResource(resource)} a ${target.name}`;
+        logAction(state, `${text} (entrega manual de ${giver?.name ?? 'banco'}).`, target.id);
+        io.to(state.code).emit('notice', { level: 'warn', text });
+      } else if (kind === 'commodity') {
+        if (!commodity || !COMMODITIES.includes(commodity)) {
+          socket.emit('error', { message: 'Elige una mercancía válida.' });
+          return;
+        }
+        pushSnapshot(state);
+        drainCommodityBank(state.commodityBank, commodity, 1);
+        target.commodities[commodity] += 1;
+        const text = `⚠️ El banco entregó 1 ${esCommodity(commodity)} a ${target.name}`;
         logAction(state, `${text} (entrega manual de ${giver?.name ?? 'banco'}).`, target.id);
         io.to(state.code).emit('notice', { level: 'warn', text });
       } else {
@@ -1512,9 +2091,67 @@ function esResource(r: Resource): string {
   }[r];
 }
 
+function esCommodity(c: Commodity): string {
+  return { coin: 'moneda', paper: 'papel', cloth: 'tela' }[c];
+}
+
+const DISCIPLINE_NAMES: Record<Discipline, string> = {
+  trade: 'Comercio',
+  politics: 'Política',
+  science: 'Ciencia',
+};
+
+const ABILITY_NAMES: Record<'tradingHouse' | 'fortress' | 'aqueduct', string> = {
+  tradingHouse: 'la Casa de Comercio',
+  fortress: 'la Fortaleza',
+  aqueduct: 'el Acueducto',
+};
+
+const PROGRESS_CARD_NAMES_ES: Record<ProgressCardType, string> = {
+  alchemist: 'Alquimista', crane: 'Grúa', engineer: 'Ingeniero', inventor: 'Inventor',
+  irrigation: 'Irrigación', mining: 'Minería', medicine: 'Medicina',
+  roadBuildingP: 'Construcción de Caminos', smith: 'Herrero', printer: 'Imprenta',
+  spy: 'Espía', bishop: 'Obispo', constitution: 'Constitución', deserter: 'Desertor',
+  diplomat: 'Diplomático', intrigue: 'Intriga', saboteur: 'Saboteador',
+  warlord: 'Señor de la Guerra', wedding: 'Boda',
+  merchant: 'Mercader', merchantFleet: 'Flota Mercante', commercialHarbor: 'Puerto Comercial',
+  masterMerchant: 'Maestro Mercader', resourceMonopoly: 'Monopolio de Recurso',
+  tradeMonopoly: 'Monopolio de Comercio',
+};
+
+function esProgressCard(card: ProgressCardType): string {
+  return PROGRESS_CARD_NAMES_ES[card];
+}
+
+// Resuelve el ataque bárbaro (cuando el barco llega a 7) y anuncia el resultado.
+function resolveBarbarianAttackCK(io: Server, state: GameState): void {
+  const r = resolveBarbarianAttack(state);
+  logAction(state, `¡Los bárbaros atacaron! Fuerza bárbara ${r.attack} vs defensa ${r.defense}.`);
+  if (r.defended) {
+    if (r.uniqueDefender) {
+      const w = findPlayer(state, r.uniqueDefender);
+      logAction(state, `Catán se defendió. ${w?.name ?? 'Alguien'} recibe el Defensor de Catán (+1 PV).`, r.uniqueDefender);
+      io.to(state.code).emit('notice', { level: 'success', text: `Catán repelió a los bárbaros. ${w?.name ?? 'Alguien'} es el Defensor de Catán (+1 PV).` });
+    } else if (r.tieRewardDraws.length) {
+      const names = r.tieRewardDraws.map((d) => findPlayer(state, d.playerId)?.name).filter(Boolean).join(', ');
+      logAction(state, `Catán se defendió. Empate de defensa: ${names} roban una carta de progreso.`);
+      io.to(state.code).emit('notice', { level: 'success', text: `Catán repelió a los bárbaros. Empate: ${names} roban carta de progreso.` });
+    } else {
+      io.to(state.code).emit('notice', { level: 'success', text: 'Catán repelió a los bárbaros.' });
+    }
+  } else if (r.losers.length) {
+    const names = r.losers.map((id) => findPlayer(state, id)?.name).filter(Boolean).join(', ');
+    logAction(state, `¡Los bárbaros saquearon! ${names} debe(n) degradar una ciudad a poblado.`);
+    io.to(state.code).emit('notice', { level: 'warn', text: `¡Los bárbaros saquearon Catán! ${names} debe(n) degradar una ciudad a poblado.` });
+  } else {
+    logAction(state, '¡Los bárbaros atacaron, pero nadie tenía una ciudad que perder!');
+    io.to(state.code).emit('notice', { level: 'warn', text: '¡Los bárbaros saquearon, pero no había ciudades que perder!' });
+  }
+}
+
 function checkVictory(io: Server, state: GameState, player: Player): void {
   recomputeVictoryPoints(state);
-  if (totalVictoryPoints(player) >= 10 && state.status === 'playing') {
+  if (totalVictoryPoints(player) >= victoryTargetFor(state) && state.status === 'playing') {
     // No declarar automáticamente; pero notificar al jugador con un mensaje en el log silencioso
     // El jugador debe tocar "Declarar victoria".
   }

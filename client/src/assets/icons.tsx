@@ -1,4 +1,11 @@
-import { DevCardType, Resource } from '../types';
+import {
+  Commodity,
+  DevCardType,
+  Discipline,
+  PROGRESS_CARD_DISCIPLINE,
+  ProgressCardType,
+  Resource,
+} from '../types';
 import brickUrl from './icons/ladrillo.png';
 import lumberUrl from './icons/madera.png';
 import woolUrl from './icons/obeja.png';
@@ -47,6 +54,17 @@ export const DEV_CARD_EMOJI: Record<DevCardType, string> = {
   monopoly: '💰',
   yearOfPlenty: '🎁',
   roadBuilding: '🛤️',
+};
+
+// Mercancías de Caballeros y Ciudades (commodities). Solo se muestran cuando
+// el modo C&K está activo. Reciclan temporalmente arte de recursos (ver
+// missing-icons.md §1) PERO el componente las distingue con un marco/anillo
+// dorado heráldico para que NUNCA se confundan con un recurso: una mercancía
+// no es un recurso.
+export const COMMODITY_EMOJI: Record<Commodity, string> = {
+  coin: '🪙',
+  paper: '📜',
+  cloth: '🧶',
 };
 
 export const ROBBER_EMOJI = '🥷';
@@ -141,6 +159,167 @@ export function ResourceGlyph({
   return <ImgGlyph src={RESOURCE_ICON_URL[resource]} size={size} className={className} />;
 }
 
+// ─── Mercancías (commodities) ─────────────────────────────────────────────────
+//
+// Arte RECICLADO provisionalmente (missing-icons.md §1): coin→mineral,
+// paper→madera, cloth→obeja. Para que se distingan de los recursos a simple
+// vista, el `CommodityGlyph` NO dibuja el medallón a secas: lo envuelve en un
+// anillo dorado heráldico (heraldic gold ring) con un punto de sello arriba.
+// El distintivo es CONSISTENTE entre las tres mercancías y se resuelve aquí, en
+// el componente, sin arte nuevo. Cuando llegue el arte definitivo de Esteban,
+// basta cambiar `COMMODITY_ICON_URL` (y opcionalmente retirar el anillo).
+
+export const COMMODITY_ICON_URL: Record<Commodity, string> = {
+  coin: oreUrl, // montañas/mineral → moneda
+  paper: lumberUrl, // bosque/madera → papel
+  cloth: woolUrl, // pastura/lana → tela
+};
+
+// Tono del medallón interior por mercancía (tinte cálido sutil, sin tapar el
+// arte): coordina con los tokens --commodity-* del reskin C&K.
+const COMMODITY_TINT: Record<Commodity, string> = {
+  coin: '#d9a93e',
+  cloth: '#e8e0cf',
+  paper: '#cdbb95',
+};
+
+export function CommodityGlyph({
+  commodity,
+  size = 20,
+  className,
+  fallback = false,
+}: GlyphProps & { commodity: Commodity }): JSX.Element {
+  if (fallback) {
+    return (
+      <EmojiGlyph
+        emoji={COMMODITY_EMOJI[commodity]}
+        size={size}
+        className={className}
+      />
+    );
+  }
+  // Medallón reciclado + anillo dorado heráldico. El anillo (borde dorado con
+  // sombra interior cálida) es el distintivo "mercancía" que la separa del
+  // recurso. El arte ocupa ~74% del área para dejar ver el aro completo.
+  const inner = Math.round(size * 0.74);
+  const gold = COMMODITY_TINT[commodity];
+  return (
+    <span
+      aria-hidden
+      className={className}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: size,
+        height: size,
+        flexShrink: 0,
+        borderRadius: '9999px',
+        // Anillo dorado heráldico: doble borde (dorado vivo + nogal) con un
+        // halo cálido interior para que el medallón "flote" sobre el aro.
+        background:
+          'radial-gradient(closest-side, rgba(217,169,62,0.18), rgba(217,169,62,0.05) 70%, transparent)',
+        border: `1.5px solid ${gold}`,
+        boxShadow: `inset 0 0 0 1px ${STROKE}33, 0 0 0 1px ${STROKE}22`,
+      }}
+    >
+      <img
+        src={COMMODITY_ICON_URL[commodity]}
+        width={inner}
+        height={inner}
+        alt=""
+        aria-hidden
+        draggable={false}
+        style={{ display: 'block', objectFit: 'contain' }}
+      />
+      {/* Sello heráldico: punto dorado arriba que remata el aro y refuerza el
+          lenguaje "carta de mercancía" (no recurso). */}
+      <span
+        aria-hidden
+        style={{
+          position: 'absolute',
+          top: -Math.max(1, Math.round(size * 0.06)),
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: Math.max(3, Math.round(size * 0.2)),
+          height: Math.max(3, Math.round(size * 0.2)),
+          borderRadius: '9999px',
+          background: gold,
+          border: `1px solid ${STROKE}`,
+        }}
+      />
+    </span>
+  );
+}
+
+// ─── Disciplinas de mejora de ciudad (calendario C&K) ─────────────────────────
+//
+// Arte RECICLADO provisionalmente (missing-icons.md §4): comercio→obeja (lana),
+// politica→mineral (ore), ciencia→madera (lumber). Para que NO se confundan con
+// recursos y se lean como "disciplina", el `DisciplineGlyph` envuelve el
+// medallón en un anillo del color funcional de la disciplina (los tokens
+// --discipline-* del reskin C&K): Comercio amarillo, Política azul, Ciencia
+// verde. El color del anillo es el distintivo. Cuando llegue el arte definitivo
+// (comercio/politica/ciencia.png), basta cambiar `DISCIPLINE_ICON_URL`.
+
+export const DISCIPLINE_ICON_URL: Record<Discipline, string> = {
+  trade: woolUrl, // pastura/lana → Comercio
+  politics: oreUrl, // montañas/mineral → Política
+  science: lumberUrl, // bosque/madera → Ciencia
+};
+
+// Color del anillo por disciplina (espejo de --discipline-* / tailwind
+// `discipline.*`). Se usa aquí como hex literal porque el glifo dibuja con
+// estilos inline, igual que `CommodityGlyph`.
+const DISCIPLINE_RING: Record<Discipline, string> = {
+  trade: '#d9a93e', // amarillo/dorado
+  politics: '#5b86d6', // azul
+  science: '#52a866', // verde
+};
+
+export function DisciplineGlyph({
+  discipline,
+  size = 20,
+  className,
+}: GlyphProps & { discipline: Discipline }): JSX.Element {
+  // Medallón reciclado + anillo del color de la disciplina. El arte ocupa
+  // ~74% del área para dejar ver el aro completo (mismo lenguaje que
+  // `CommodityGlyph`, pero el color identifica la disciplina, no el dorado
+  // heráldico de mercancía).
+  const inner = Math.round(size * 0.74);
+  const ring = DISCIPLINE_RING[discipline];
+  return (
+    <span
+      aria-hidden
+      className={className}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: size,
+        height: size,
+        flexShrink: 0,
+        borderRadius: '9999px',
+        background: `radial-gradient(closest-side, ${ring}22, ${ring}0d 70%, transparent)`,
+        border: `1.5px solid ${ring}`,
+        boxShadow: `inset 0 0 0 1px ${STROKE}33, 0 0 0 1px ${STROKE}22`,
+      }}
+    >
+      <img
+        src={DISCIPLINE_ICON_URL[discipline]}
+        width={inner}
+        height={inner}
+        alt=""
+        aria-hidden
+        draggable={false}
+        style={{ display: 'block', objectFit: 'contain' }}
+      />
+    </span>
+  );
+}
+
 // ─── Construcciones y tablero ────────────────────────────────────────────────
 
 export function BuildingGlyph({
@@ -188,6 +367,198 @@ export const DEV_CARD_ICON_URL: Record<DevCardType, string> = {
   yearOfPlenty: yearOfPlentyUrl,
   roadBuilding: roadBuildingUrl,
 };
+
+// ─── Cartas de progreso (Caballeros y Ciudades, §2.10) ────────────────────────
+//
+// Arte RECICLADO (no hay arte propio de las 25 cartas todavía): cada carta de
+// progreso se dibuja con el medallón de la carta de desarrollo del base que
+// mejor evoca su efecto, envuelto en el MISMO anillo del color de su disciplina
+// que usa `DisciplineGlyph` (Comercio amarillo, Política azul, Ciencia verde).
+// El anillo de color es el distintivo: una carta de progreso se lee por su
+// disciplina, no por el arte interior. El nombre vecino (PROGRESS_CARD_NAMES) la
+// identifica con precisión. Cuando llegue arte propio basta cambiar
+// `PROGRESS_CARD_ART` (o sustituir por URLs definitivas por carta).
+//
+// Mapeo arte interior por carta (criterio: el dev card cuyo significado se
+// acerca más al efecto del §2.10; el resto cae a un default por disciplina):
+//  - roadBuildingP → roadBuilding (literalmente "coloca 2 caminos").
+//  - resourceMonopoly / tradeMonopoly → monopoly (toma cartas de los rivales).
+//  - printer / constitution → vp (cartas permanentes de +1 PV).
+//  - warlord / smith / deserter / intrigue / saboteur / bishop → knight
+//    (efectos militares / de caballeros).
+//  - default por disciplina: ciencia→yearOfPlenty (ganancia del banco),
+//    comercio→monopoly (ventaja comercial), política→knight (poder militar).
+const PROGRESS_DISCIPLINE_DEFAULT_ART: Record<Discipline, DevCardType> = {
+  science: 'yearOfPlenty',
+  trade: 'monopoly',
+  politics: 'knight',
+};
+
+const PROGRESS_CARD_ART: Partial<Record<ProgressCardType, DevCardType>> = {
+  roadBuildingP: 'roadBuilding',
+  resourceMonopoly: 'monopoly',
+  tradeMonopoly: 'monopoly',
+  printer: 'vp',
+  constitution: 'vp',
+  warlord: 'knight',
+  smith: 'knight',
+  deserter: 'knight',
+  intrigue: 'knight',
+  saboteur: 'knight',
+  bishop: 'knight',
+};
+
+export function progressCardArt(card: ProgressCardType): DevCardType {
+  return (
+    PROGRESS_CARD_ART[card] ??
+    PROGRESS_DISCIPLINE_DEFAULT_ART[PROGRESS_CARD_DISCIPLINE[card]]
+  );
+}
+
+export function ProgressCardGlyph({
+  card,
+  size = 20,
+  className,
+}: GlyphProps & { card: ProgressCardType }): JSX.Element {
+  // Medallón de dev card reciclado + anillo del color de la disciplina (mismo
+  // lenguaje que `DisciplineGlyph`). El arte ocupa ~74% del área para dejar ver
+  // el aro completo.
+  const discipline = PROGRESS_CARD_DISCIPLINE[card];
+  const inner = Math.round(size * 0.74);
+  const ring = DISCIPLINE_RING[discipline];
+  return (
+    <span
+      aria-hidden
+      className={className}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: size,
+        height: size,
+        flexShrink: 0,
+        borderRadius: '9999px',
+        background: `radial-gradient(closest-side, ${ring}22, ${ring}0d 70%, transparent)`,
+        border: `1.5px solid ${ring}`,
+        boxShadow: `inset 0 0 0 1px ${STROKE}33, 0 0 0 1px ${STROKE}22`,
+      }}
+    >
+      <img
+        src={DEV_CARD_ICON_URL[progressCardArt(card)]}
+        width={inner}
+        height={inner}
+        alt=""
+        aria-hidden
+        draggable={false}
+        style={{ display: 'block', objectFit: 'contain' }}
+      />
+    </span>
+  );
+}
+
+// ─── Caballeros (Caballeros y Ciudades, §2.6) ─────────────────────────────────
+//
+// Arte RECICLADO del medallón de caballero del base (`caballero.png`, el mismo
+// que la carta de desarrollo `knight`). NO hay arte por rango ni por estado: el
+// componente los resuelve en CSS, sin arte nuevo (missing-icons.md):
+//  - RANGO (1 Básico / 2 Fuerte / 3 Poderoso): galones (chevrones) bajo el
+//    medallón, uno por nivel de rango.
+//  - ESTADO: ACTIVO → realce dorado heráldico (aro --gold, medallón a plena
+//    opacidad); INACTIVO → acero frío desaturado (aro --ck-steel, medallón
+//    atenuado), el caballero "en reserva".
+// El color del aro y la opacidad son el distintivo; el nombre/etiqueta vecina
+// (KNIGHT_RANK_NAMES + "Activo/Inactivo") lo precisa. Cuando llegue arte propio
+// por rango basta cambiar `knightUrl` o mapear por rango aquí.
+
+const KNIGHT_ACTIVE_RING = '#d9a93e'; // dorado heráldico (= --gold) → activo
+const KNIGHT_INACTIVE_RING = '#8b919b'; // acero (= --ck-steel) → inactivo
+
+export function KnightGlyph({
+  rank,
+  active,
+  size = 28,
+  className,
+}: {
+  rank: 1 | 2 | 3;
+  active: boolean;
+  size?: number;
+  className?: string;
+}): JSX.Element {
+  const ring = active ? KNIGHT_ACTIVE_RING : KNIGHT_INACTIVE_RING;
+  const inner = Math.round(size * 0.74);
+  // Galón por rango: alto fijo bajo el medallón; uno por nivel de rango.
+  const chevronH = Math.max(3, Math.round(size * 0.12));
+  const chevronGap = Math.max(1, Math.round(size * 0.04));
+  return (
+    <span
+      aria-hidden
+      className={className}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: chevronGap,
+        flexShrink: 0,
+      }}
+    >
+      <span
+        style={{
+          position: 'relative',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: size,
+          height: size,
+          borderRadius: '9999px',
+          background: active
+            ? `radial-gradient(closest-side, ${ring}26, ${ring}0f 70%, transparent)`
+            : `radial-gradient(closest-side, ${ring}1a, ${ring}08 70%, transparent)`,
+          border: `1.5px solid ${ring}`,
+          boxShadow: `inset 0 0 0 1px ${STROKE}33, 0 0 0 1px ${STROKE}22`,
+        }}
+      >
+        <img
+          src={knightUrl}
+          width={inner}
+          height={inner}
+          alt=""
+          aria-hidden
+          draggable={false}
+          style={{
+            display: 'block',
+            objectFit: 'contain',
+            // El caballero inactivo (en reserva) se atenúa y desatura para
+            // leerse "apagado" frente al activo (dorado, a plena opacidad).
+            opacity: active ? 1 : 0.55,
+            filter: active ? 'none' : 'grayscale(0.7)',
+          }}
+        />
+      </span>
+      {/* Galones de rango: 1 (Básico) / 2 (Fuerte) / 3 (Poderoso). */}
+      <span
+        aria-hidden
+        style={{ display: 'inline-flex', gap: chevronGap, height: chevronH }}
+      >
+        {Array.from({ length: rank }, (_, i) => (
+          <span
+            key={i}
+            style={{
+              width: chevronH,
+              height: chevronH,
+              borderRadius: '2px',
+              background: ring,
+              border: `1px solid ${STROKE}66`,
+              transform: 'rotate(45deg)',
+            }}
+          />
+        ))}
+      </span>
+    </span>
+  );
+}
 
 // ─── Ladrón ──────────────────────────────────────────────────────────────────
 

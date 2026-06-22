@@ -22,6 +22,7 @@ export function LobbyScreen(): JSX.Element | null {
   const pushToast = useStore((s) => s.pushToast);
   const setColor = useStore((s) => s.setColor);
   const setExtension = useStore((s) => s.setExtension56);
+  const setCitiesKnights = useStore((s) => s.setCitiesKnights);
   const setBankManager = useStore((s) => s.setBankManager);
   const setTurnOrder = useStore((s) => s.setTurnOrder);
   const rollOrderByDice = useStore((s) => s.rollOrderByDice);
@@ -508,6 +509,26 @@ export function LobbyScreen(): JSX.Element | null {
               className="h-5 w-5 shrink-0 accent-emerald-500"
             />
           </label>
+          {/* Fase A (Caballeros y Ciudades) — Toggle de modo. Mismo patrón que
+              "Repartir recursos de inicio": solo anfitrión, ayuda breve. */}
+          <label className="mt-3 flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-white/10 bg-neutral-950/80 px-3 py-2.5">
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-neutral-100">
+                Caballeros y Ciudades
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-neutral-400">
+                {state.citiesKnights
+                  ? 'Objetivo de victoria a 13 puntos. Habilita caballeros, mercancías y mejoras de ciudad (en desarrollo).'
+                  : 'Activa la expansión: victoria a 13 puntos, con caballeros, mercancías y mejoras de ciudad (en desarrollo).'}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={state.citiesKnights}
+              onChange={(e) => setCitiesKnights(e.target.checked)}
+              className="h-5 w-5 shrink-0 accent-emerald-500"
+            />
+          </label>
           <button
             type="button"
             onClick={() => rollOrderByDice()}
@@ -599,6 +620,18 @@ export function LobbyScreen(): JSX.Element | null {
           <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
             Reglas de la partida
           </h2>
+          <p className="mt-2 text-xs text-neutral-400">
+            Caballeros y Ciudades:{' '}
+            <span className="font-semibold text-neutral-100">
+              {state.citiesKnights ? 'Sí' : 'No'}
+            </span>
+          </p>
+          {state.citiesKnights ? (
+            <p className="mt-1 text-[11px] leading-snug text-amber-200">
+              Victoria a 13 puntos, con caballeros, mercancías y mejoras de
+              ciudad (en desarrollo).
+            </p>
+          ) : null}
           <p className="mt-2 text-xs text-neutral-400">
             Recursos de inicio:{' '}
             <span className="font-semibold text-neutral-100">

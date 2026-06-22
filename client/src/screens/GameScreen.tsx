@@ -18,8 +18,14 @@ import { MonopolyPickerModal } from '../components/MonopolyPickerModal';
 import { YearOfPlentyPickerModal } from '../components/YearOfPlentyPickerModal';
 import { RoadBuildingConfirmModal } from '../components/RoadBuildingConfirmModal';
 import { DiceStats } from '../components/DiceStats';
+import { CityCalendarPanel } from '../components/CityCalendarPanel';
+import { ProgressHand } from '../components/ProgressHand';
+import { BarbarianTrack } from '../components/BarbarianTrack';
+import { BarbarianLossModal } from '../components/BarbarianLossModal';
+import { KnightsPanel } from '../components/KnightsPanel';
+import { WallControl } from '../components/WallControl';
 import { CollapsibleSection } from '../components/CollapsibleSection';
-import { DevCardType, totalVictoryPoints } from '../types';
+import { DevCardType, playerVictoryPoints, victoryTarget } from '../types';
 import { DEV_CARD_NAMES, vpCardsCopy } from '../lib/spanish';
 import { DevCardGlyph } from '../assets/icons';
 import { DevCardPreview } from '../components/DevCardPreview';
@@ -70,12 +76,12 @@ export function GameScreen(): JSX.Element | null {
     }
     const { state, me } = view;
     const myPublic = state.players.find((p) => p.id === me.id);
-    const myVP = myPublic ? totalVictoryPoints(myPublic.victoryPoints) : 0;
+    const myVP = myPublic ? playerVictoryPoints(myPublic) : 0;
     const canDeclareNow =
       state.turnOrder[state.currentTurnIndex] === me.id &&
       state.phase === 'main' &&
       state.status === 'playing' &&
-      myVP >= 10;
+      myVP >= victoryTarget(state);
     if (canDeclareNow && !wasDeclarableRef.current) {
       wasDeclarableRef.current = true;
       pushToast('success', 'Puedes declarar victoria.');
@@ -113,6 +119,10 @@ export function GameScreen(): JSX.Element | null {
         </div>
       ) : null}
       <TopBar />
+      {/* Pista del barco bárbaro (Caballeros y Ciudades): indicador público de
+          tensión, visible para todos cerca del TopBar. Solo en C&K (el propio
+          componente se oculta fuera del modo). */}
+      <BarbarianTrack />
       {/* Layout responsivo (sólo md+/lg+; en móvil estos wrappers son <div>
           neutros que no cambian el flujo en columna):
            - md (tablet): 2 columnas — izquierda: banners + mano + acciones y
@@ -137,7 +147,56 @@ export function GameScreen(): JSX.Element | null {
         <div className="min-w-0 md:row-span-2 lg:row-span-1">
           <BankPanel />
           <ConstructionTable />
-          <DevCardsPanel />
+          {/* Calendario de la ciudad (Caballeros y Ciudades): subir las tres
+              disciplinas, ver habilidades de nivel 3 y metrópolis. Solo C&K.
+              Colapsable y por defecto abierto: es una acción de turno
+              recurrente en C&K, junto a la construcción. */}
+          {state.citiesKnights ? (
+            <CollapsibleSection
+              id="cityCalendar"
+              title="Calendario de la ciudad"
+              defaultCollapsed={false}
+            >
+              <CityCalendarPanel />
+            </CollapsibleSection>
+          ) : null}
+          {/* Defensa (Caballeros y Ciudades): agrupa Muros de ciudad (§2.9) y
+              Caballeros (§2.6). Los muros suben el límite de mano del 7; los
+              caballeros se contratan / activan / promueven y registran acciones.
+              Solo C&K. Colapsable junto a la construcción; por defecto abierto:
+              son acciones de turno recurrentes en C&K. */}
+          {state.citiesKnights ? (
+            <CollapsibleSection
+              id="defense"
+              title="Defensa"
+              defaultCollapsed={false}
+            >
+              <WallControl />
+              <div className="border-t border-white/10" />
+              <KnightsPanel />
+            </CollapsibleSection>
+          ) : null}
+          {/* En Caballeros y Ciudades no existen las cartas de desarrollo
+              (se reemplazan por las cartas de progreso). Ocultamos su panel. */}
+          {!state.citiesKnights ? <DevCardsPanel /> : null}
+          {/* Mano de cartas de progreso (Caballeros y Ciudades): privada del
+              dueño. Solo C&K. Colapsable junto a la mano / dev cards. Cuando hay
+              excedente (>4) el panel pide soltar cartas; lo dejamos por defecto
+              ABIERTO para que el aviso no quede oculto. */}
+          {state.citiesKnights ? (
+            <CollapsibleSection
+              id="progressHand"
+              title="Cartas de progreso"
+              defaultCollapsed={false}
+              summary={
+                <span className="nums text-[11px] text-neutral-400">
+                  {view.me.progressCards.length} / 4
+                </span>
+              }
+            >
+              <ProgressHand />
+            </CollapsibleSection>
+          ) : null}
         </div>
         <div className="min-w-0">
           <PublicPlayersPanel />
@@ -150,6 +209,7 @@ export function GameScreen(): JSX.Element | null {
         </div>
       </div>
       <DiscardModal />
+      <BarbarianLossModal />
       <RobberFlow />
       <PortIncomingModal />
       <PortFeeConfirmModal />

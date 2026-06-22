@@ -102,3 +102,106 @@ llevan borde/aro propio (`ColorChip`).
    los colores: hereda los pares ya verificados arriba.
 4. Cero cambios de layout en este pase: solo tokens, clases de color y
    `font-display` añadido a encabezados existentes.
+
+---
+
+# Paleta Caballeros y Ciudades — reskin condicional `[data-mode="ck"]` (Fase A)
+
+**Autor:** visual-designer · **Destinatario:** qa-auditor
+**Fecha:** 2026-06-17
+**Alcance:** tokens que se activan SOLO con `[data-mode="ck"]` en la raíz
+(`client/src/index.css`, espejados en `tailwind.config.js`: `ck.*`,
+`commodity.*`, `discipline.*`). El tema base **no cambia** fuera de ese
+selector. Mismo método y criterios que las secciones anteriores (ratios WCAG
+2.1; texto normal ≥4.5:1, texto grande ≥3:1, no-texto/controles ≥3:1).
+
+> Las mercancías, las disciplinas y los chips de caballero/metrópolis **se
+> apoyan siempre en superficies de madera** (nunca directamente en el océano),
+> igual que los colores de jugador del base. Por eso la columna de referencia
+> es surface-1/2/3.
+
+## CK.1 Mercancías y disciplinas sobre madera
+
+| Par (fg / bg) | Hex | Ratio | Uso previsto | AA |
+|---|---|---|---|---|
+| commodity-coin / surface-1 | `#d9a93e` / `#1f1812` | 8.10:1 | Medallón/nº de moneda | ✅ |
+| commodity-coin / surface-2 | `#d9a93e` / `#271e15` | 7.56:1 | ídem en mano | ✅ |
+| commodity-cloth / surface-1 | `#e8e0cf` / `#1f1812` | 13.35:1 | Medallón/nº de tela | ✅ |
+| commodity-cloth / surface-2 | `#e8e0cf` / `#271e15` | 12.47:1 | ídem | ✅ |
+| commodity-paper / surface-1 | `#cdbb95` / `#1f1812` | 9.30:1 | Medallón/nº de papel | ✅ |
+| commodity-paper / surface-2 | `#cdbb95` / `#271e15` | 8.68:1 | ídem | ✅ |
+| discipline-trade / surface-1 | `#d9a93e` / `#1f1812` | 8.10:1 | Chip/label Comercio | ✅ |
+| discipline-trade / surface-3 | `#d9a93e` / `#2f2419` | 6.99:1 | ídem en input/chip | ✅ |
+| discipline-politics / surface-1 | `#5b86d6` / `#1f1812` | 4.86:1 | Chip/label Política (texto normal) | ✅ |
+| discipline-politics / surface-2 | `#5b86d6` / `#271e15` | 4.54:1 | ídem | ✅ |
+| discipline-politics / surface-3 | `#5b86d6` / `#2f2419` | 4.20:1 | Como swatch/no-texto (≥3:1) | ✅ |
+| discipline-science / surface-1 | `#52a866` / `#1f1812` | 5.97:1 | Chip/label Ciencia | ✅ |
+| discipline-science / surface-3 | `#52a866` / `#2f2419` | 5.16:1 | ídem | ✅ |
+
+> El azul de Política sube respecto a `--player-blue #3b6dd1` (3.59:1, solo
+> no-texto) a `#5b86d6` (4.86:1) para que un label pequeño de disciplina lea AA
+> como texto sobre surface-1/2.
+
+## CK.2 Acero de caballero y carmesí heráldico
+
+| Par (fg / bg) | Hex | Ratio | Uso previsto | AA |
+|---|---|---|---|---|
+| ck-steel / surface-1 | `#8b919b` / `#1f1812` | 5.53:1 | Texto/iconos de caballero (hierro) | ✅ |
+| ck-steel / surface-2 | `#8b919b` / `#271e15` | 5.16:1 | ídem | ✅ |
+| ck-steel / surface-3 | `#8b919b` / `#2f2419` | 4.77:1 | Hints de caballero en chips | ✅ |
+| ck-steel-light / surface-1 | `#b9bec6` / `#1f1812` | 9.39:1 | Realce/borde brillante del acero | ✅ |
+| ck-crimson / surface-1 | `#bf4a40` / `#1f1812` | 3.56:1 | Swatch/borde carmesí (no-texto ≥3:1): borde de metrópolis, traza de la barra del bárbaro | ✅ (no-texto) |
+| ck-crimson / surface-2 | `#bf4a40` / `#271e15` | 3.33:1 | ídem | ✅ (no-texto) |
+| ck-crimson / surface-3 | `#bf4a40` / `#2f2419` | 3.08:1 | ídem | ✅ (no-texto) |
+
+> `ck-crimson` es un **acento no-texto** sobre madera (borde/swatch, ≥3:1). No
+> usar `text-ck-crimson` para texto pequeño sobre superficie (cae <4.5:1);
+> para texto carmesí pequeño usar `red-200`/`red-300` del base como hasta ahora.
+
+## CK.3 Texto claro SOBRE rellenos carmesí (botones de peligro)
+
+El carmesí se usa como **fondo** de elementos de peligro/heráldica (botón
+"resolver ataque", barra del bárbaro, pill de metrópolis) con texto claro
+encima:
+
+| Par (fg / bg) | Hex | Ratio | Uso previsto | AA |
+|---|---|---|---|---|
+| white / ck-crimson | `#ffffff` / `#bf4a40` | 4.92:1 | Texto en botón/pill carmesí (relleno claro) | ✅ |
+| ink-light / ck-crimson | `#f8f1e3` / `#bf4a40` | 4.38:1 | Texto cálido sobre carmesí (texto grande ≥3:1; para normal usar blanco) | ✅ (grande) |
+| white / ck-crimson-deep | `#ffffff` / `#5e1d1a` | 12.60:1 | Texto sobre relleno carmesí profundo | ✅ |
+| ink-light / ck-crimson-deep | `#f8f1e3` / `#5e1d1a` | 11.21:1 | ídem | ✅ |
+| gold-light / ck-crimson-deep | `#ecc35f` / `#5e1d1a` | 10.12:1 | Acento dorado heráldico sobre granate | ✅ |
+
+> Sobre `ck-crimson` (relleno claro) el texto normal debe ser **blanco** (4.92);
+> `ink-light` (4.38) solo para texto grande/bold. Sobre `ck-crimson-deep`
+> cualquier texto claro va sobrado.
+
+## CK.4 Desplazamiento del océano (fondo, nunca lectura)
+
+El degradado C&K reformula `--ocean-gradient`: rim ámbar (`ck-horizon`) →
+bruma carmesí (`#7a3a3a`, 8%) → mar de anochecer (`--ocean-high #214a66`, 24%)
+→ `ocean-mid` → `ocean-deep`. Es **fondo**; ningún texto se apoya en él (regla
+del brief). Los únicos textos cercanos al océano (títulos/labels del
+Login/Home) caen en la zona 8–24% del degradado. Peor caso bajo el título:
+
+| Par (fg / bg) | Hex | Ratio | Nota | AA |
+|---|---|---|---|---|
+| gold-light / ocean-high (dusk) | `#ecc35f` / `#214a66` | 5.61:1 | Título display en el tope del degradado. **Mejora** sobre el base (#176087 daba 4.10:1) | ✅ |
+| gold-light / bruma carmesí | `#ecc35f` / `#7a3a3a` | 5.03:1 | Peor caso real bajo el título (zona 8%) | ✅ |
+| neutral-300 / ocean-high (dusk) | `#c5b290` / `#214a66` | 4.54:1 | Labels/microcopy del Login sobre el mar de anochecer | ✅ |
+| neutral-300 / bruma carmesí | `#c5b290` / `#7a3a3a` | 4.07:1 | ídem, peor caso | ✅ |
+
+> El mar de anochecer es más oscuro/frío que el base, así que el contraste del
+> texto sobre el océano **sube** en modo C&K. El rim ámbar puro (`ck-horizon`,
+> 0%) queda casi fuera del viewport por el centro radial `at 50% -10%`: deja un
+> resplandor en el horizonte sin hospedar texto.
+
+## CK.5 Notas para el qa-auditor
+
+1. Verificar que `[data-mode="ck"]` se aplica/retira en la raíz según el modo
+   de la partida y que **el tema base queda idéntico** sin el atributo.
+2. `ck-crimson` es acento **no-texto** sobre madera; como **fondo** lleva texto
+   blanco. No usarlo como `text-ck-crimson` pequeño sobre superficie.
+3. Igual que en el base, **ningún chip C&K** (mercancía/disciplina/caballero/
+   metrópolis) se coloca directamente sobre el océano: siempre sobre madera.
+4. Cero cambios de layout: solo tokens condicionales y sus espejos en Tailwind.

@@ -2,8 +2,13 @@ import { create } from 'zustand';
 import {
   Building,
   BuildType,
+  Commodity,
+  CommodityHand,
   ConnectionStatus,
   DevCardType,
+  Discipline,
+  EventDie,
+  ProgressCardType,
   ExtraRules,
   GameInvite,
   Hand,
@@ -113,6 +118,8 @@ interface StoreState {
   setTurnOrder: (ids: string[]) => void;
   setBankManager: (playerId: string) => void;
   setExtension56: (enabled: boolean) => void;
+  setCitiesKnights: (enabled: boolean) => void;
+  upgradeCity: (discipline: Discipline) => void;
   setSeedResources: (enabled: boolean) => void;
   setExtraRules: (rules: Partial<ExtraRules>) => void;
   kickPlayer: (playerId: string) => void;
@@ -126,8 +133,9 @@ interface StoreState {
   // Banco (Fase 3): entrega manual de cartas, en cualquier momento.
   giveCard: (payload: {
     targetPlayerId: string;
-    kind: 'resource' | 'dev';
+    kind: 'resource' | 'commodity' | 'dev';
     resource?: Resource;
+    commodity?: Commodity;
     devCard?: DevCardType;
     force?: boolean;
   }) => void;
@@ -142,7 +150,23 @@ interface StoreState {
 
   // Turno y dado
   rollNumber: (n: number) => void;
-  submitDiscard: (resourcesToDiscard: Partial<Hand>) => void;
+  rollCK: (production: number, redDie: number, eventDie: EventDie) => void;
+  discardProgress: (card: ProgressCardType) => void;
+  playProgress: (payload: {
+    card: ProgressCardType;
+    resource?: Resource;
+    commodity?: Commodity;
+  }) => void;
+  buildKnight: () => void;
+  activateKnight: (knightId: string) => void;
+  promoteKnight: (knightId: string) => void;
+  knightAction: (knightId: string, kind: 'move' | 'displace' | 'chaseRobber') => void;
+  downgradeCity: (buildingId: string) => void;
+  buildWall: () => void;
+  submitDiscard: (
+    resourcesToDiscard: Partial<Hand>,
+    commoditiesToDiscard?: Partial<CommodityHand>
+  ) => void;
   forceRandomDiscard: (targetPlayerId: string) => void;
   moveRobber: (hexId: string) => void;
   stealFrom: (targetPlayerId: string) => void;
@@ -379,6 +403,9 @@ export const useStore = create<StoreState>((set, get) => ({
     socket.emit('lobby:setBankManager', { playerId }),
   setExtension56: (enabled) =>
     socket.emit('lobby:setExtension56', { enabled }),
+  setCitiesKnights: (enabled) =>
+    socket.emit('lobby:setCitiesKnights', { enabled }),
+  upgradeCity: (discipline) => socket.emit('city:upgrade', { discipline }),
   setSeedResources: (enabled) =>
     socket.emit('lobby:setSeedResources', { enabled }),
   setExtraRules: (rules) => socket.emit('lobby:setExtraRules', rules),
@@ -406,8 +433,18 @@ export const useStore = create<StoreState>((set, get) => ({
     socket.emit('building:ackNoResources', { buildingId }),
 
   rollNumber: (number) => socket.emit('turn:rollNumber', { number }),
-  submitDiscard: (resourcesToDiscard) =>
-    socket.emit('discard:submit', { resourcesToDiscard }),
+  rollCK: (production, redDie, eventDie) =>
+    socket.emit('turn:rollCK', { production, redDie, eventDie }),
+  discardProgress: (card) => socket.emit('progress:discard', { card }),
+  playProgress: (payload) => socket.emit('progress:play', payload),
+  buildKnight: () => socket.emit('knight:build'),
+  activateKnight: (knightId) => socket.emit('knight:activate', { knightId }),
+  promoteKnight: (knightId) => socket.emit('knight:promote', { knightId }),
+  knightAction: (knightId, kind) => socket.emit('knight:action', { knightId, kind }),
+  downgradeCity: (buildingId) => socket.emit('barbarian:downgradeCity', { buildingId }),
+  buildWall: () => socket.emit('city:buildWall'),
+  submitDiscard: (resourcesToDiscard, commoditiesToDiscard) =>
+    socket.emit('discard:submit', { resourcesToDiscard, commoditiesToDiscard }),
   forceRandomDiscard: (targetPlayerId) =>
     socket.emit('discard:forceRandom', { targetPlayerId }),
   moveRobber: (hexId) => socket.emit('robber:move', { hexId }),

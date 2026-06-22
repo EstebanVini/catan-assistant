@@ -6,6 +6,107 @@ export const RESOURCES: Resource[] = ['brick', 'lumber', 'wool', 'grain', 'ore']
 
 export type Hand = Record<Resource, number>;
 
+// Mercancías (Caballeros y Ciudades). Espejo de server/src/game/state.ts.
+export type Commodity = 'coin' | 'paper' | 'cloth';
+export const COMMODITIES: Commodity[] = ['coin', 'paper', 'cloth'];
+export type CommodityHand = Record<Commodity, number>;
+
+export function emptyCommodities(): CommodityHand {
+  return { coin: 0, paper: 0, cloth: 0 };
+}
+
+export function commodityTotal(c: CommodityHand): number {
+  return c.coin + c.paper + c.cloth;
+}
+
+// Mejoras de ciudad / disciplinas (Caballeros y Ciudades). Espejo del server.
+export type Discipline = 'trade' | 'politics' | 'science';
+export const DISCIPLINES: Discipline[] = ['trade', 'politics', 'science'];
+export const DISCIPLINE_COMMODITY: Record<Discipline, Commodity> = {
+  trade: 'cloth',
+  politics: 'coin',
+  science: 'paper',
+};
+export type CityImprovements = Record<Discipline, number>;
+export const MAX_IMPROVEMENT_LEVEL = 5;
+
+// Costo (en la mercancía de la disciplina) para subir AL nivel `target`.
+export function improvementUpgradeCost(target: number): number {
+  return target >= 1 && target <= MAX_IMPROVEMENT_LEVEL ? target : 0;
+}
+
+// Habilidad desbloqueada al nivel 3 de cada disciplina.
+export const DISCIPLINE_LEVEL3_ABILITY: Record<Discipline, string> = {
+  trade: 'Casa de Comercio',
+  politics: 'Fortaleza',
+  science: 'Acueducto',
+};
+
+// Cartas de progreso (Caballeros y Ciudades). Espejo del server.
+export type ScienceCard =
+  | 'alchemist' | 'crane' | 'engineer' | 'inventor' | 'irrigation'
+  | 'mining' | 'medicine' | 'roadBuildingP' | 'smith' | 'printer';
+export type PoliticsCard =
+  | 'spy' | 'bishop' | 'constitution' | 'deserter' | 'diplomat'
+  | 'intrigue' | 'saboteur' | 'warlord' | 'wedding';
+export type TradeCard =
+  | 'merchant' | 'merchantFleet' | 'commercialHarbor' | 'masterMerchant'
+  | 'resourceMonopoly' | 'tradeMonopoly';
+export type ProgressCardType = ScienceCard | PoliticsCard | TradeCard;
+
+export const PROGRESS_CARD_DISCIPLINE: Record<ProgressCardType, Discipline> = {
+  alchemist: 'science', crane: 'science', engineer: 'science', inventor: 'science',
+  irrigation: 'science', mining: 'science', medicine: 'science', roadBuildingP: 'science',
+  smith: 'science', printer: 'science',
+  spy: 'politics', bishop: 'politics', constitution: 'politics', deserter: 'politics',
+  diplomat: 'politics', intrigue: 'politics', saboteur: 'politics', warlord: 'politics',
+  wedding: 'politics',
+  merchant: 'trade', merchantFleet: 'trade', commercialHarbor: 'trade',
+  masterMerchant: 'trade', resourceMonopoly: 'trade', tradeMonopoly: 'trade',
+};
+
+export const PROGRESS_HAND_LIMIT = 4;
+
+// Cartas de progreso con automatización plena en la app (las demás son de
+// "registro asistido": se juegan y se resuelven en la mesa). Espejo de la
+// lógica de progress:play en el servidor.
+export const PROGRESS_AUTOMATED: ProgressCardType[] = [
+  'printer', 'constitution', 'resourceMonopoly', 'tradeMonopoly', 'irrigation', 'mining', 'engineer',
+];
+// Cartas que requieren elegir un recurso / una mercancía al jugarse.
+export const PROGRESS_NEEDS_RESOURCE: ProgressCardType[] = ['resourceMonopoly'];
+export const PROGRESS_NEEDS_COMMODITY: ProgressCardType[] = ['tradeMonopoly'];
+
+// Caras del dado de evento: barco bárbaro o una puerta de color (disciplina).
+export type EventDie = 'barbarian' | Discipline;
+
+// Caballeros (Caballeros y Ciudades). Espejo del server.
+export type KnightRank = 1 | 2 | 3;
+export interface Knight {
+  id: string;
+  rank: KnightRank;
+  active: boolean;
+}
+export const MAX_KNIGHTS = 6;
+// Hasta 2 caballeros de cada rango (básico/fuerte/poderoso) a la vez.
+export const MAX_KNIGHTS_PER_RANK = 2;
+export const MAX_WALLS = 3;
+
+// Límite de mano antes de descartar con un 7 (espejo del server). En C&K cada
+// muro suma +2 y el conteo incluye recursos + mercancías.
+export function handLimitForSeven(walls: number, citiesKnights: boolean): number {
+  return citiesKnights ? 7 + 2 * walls : 7;
+}
+export const KNIGHT_RANK_NAMES: Record<KnightRank, string> = {
+  1: 'Básico',
+  2: 'Fuerte',
+  3: 'Poderoso',
+};
+
+export function knightDefenseStrength(knights: Knight[]): number {
+  return knights.reduce((sum, k) => sum + (k.active ? k.rank : 0), 0);
+}
+
 export type DevCardType =
   | 'knight'
   | 'vp'
@@ -103,6 +204,13 @@ export interface PublicPlayer {
   color: PlayerColor | null;
   connected: boolean;
   cardCount: number;
+  commodityCount: number; // total de mercancías (público); el detalle es privado
+  improvements: CityImprovements; // niveles de mejora de ciudad (público)
+  metropolises: Discipline[]; // disciplinas con metrópolis (público)
+  progressCardsCount: number; // total de cartas de progreso (público); detalle privado
+  knights: Knight[]; // caballeros (rango + activo); público. Solo C&K.
+  defenderCards: number; // cartas Defensor de Catán (+1 PV c/u); público
+  walls: number; // muros de ciudad (0..3); público
   devCardsCount: number;
   knightsPlayed: number;
   ports: PortType[];
@@ -205,6 +313,8 @@ export interface MeView {
   name: string;
   color: PlayerColor | null;
   hand: Hand;
+  commodities: CommodityHand; // mercancías propias (privado; solo Caballeros y Ciudades)
+  progressCards: ProgressCardType[]; // mis cartas de progreso (privado; máx 4)
   devCards: DevCardCounts;
   devCardsBoughtThisTurn: DevCardType[];
   ports: PortType[];
@@ -223,6 +333,15 @@ export interface PublicGameState {
   bankManagerId: string;
   status: GameStatus;
   extension56: boolean;
+  citiesKnights: boolean;
+  barbarianStep: number;
+  barbarianAttacks: number;
+  robberActive: boolean;
+  metropolisOwners: Record<Discipline, string | null>;
+  lastRedDie: number | null;
+  lastEventDie: EventDie | null;
+  pendingProgressDiscard: Record<string, number>;
+  pendingBarbarianLoss: string[]; // jugadores que deben degradar una ciudad
   seedInitialResources: boolean;
   extraRules: ExtraRules;
   players: PublicPlayer[];
@@ -295,5 +414,25 @@ export function totalVictoryPoints(vp: VictoryPoints): number {
     (vp.longestRoad ? 2 : 0) +
     (vp.largestArmy ? 2 : 0) +
     vp.vpCards
+  );
+}
+
+// Puntos necesarios para ganar: 13 en Caballeros y Ciudades, 10 en el base.
+// Espejo de victoryTargetFor del servidor (server/src/game/state.ts).
+export function victoryTarget(state: Pick<PublicGameState, 'citiesKnights'>): number {
+  return state.citiesKnights ? 13 : 10;
+}
+
+// PV TOTALES de un jugador público, incluyendo lo de Caballeros y Ciudades
+// (metrópolis +2 c/u, Defensor de Catán +1 c/u). Espejo de publicVictoryPoints
+// del servidor. Usar SIEMPRE este en vez de totalVictoryPoints(vp) cuando se
+// dispone del PublicPlayer, para no subcontar en C&K.
+export function playerVictoryPoints(
+  p: Pick<PublicPlayer, 'victoryPoints' | 'metropolises' | 'defenderCards'>
+): number {
+  return (
+    totalVictoryPoints(p.victoryPoints) +
+    2 * (p.metropolises?.length ?? 0) +
+    (p.defenderCards ?? 0)
   );
 }

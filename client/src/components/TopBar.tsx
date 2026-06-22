@@ -2,7 +2,7 @@ import { useStore } from '../store';
 import { PHASE_NAMES } from '../lib/spanish';
 import { ColorChip } from './ColorChip';
 import { PLAYER_HEX } from '../lib/playerColors';
-import { totalVictoryPoints } from '../types';
+import { playerVictoryPoints } from '../types';
 
 export function TopBar(): JSX.Element | null {
   const view = useStore((s) => s.view);
@@ -17,7 +17,7 @@ export function TopBar(): JSX.Element | null {
   const accent = active?.color ? PLAYER_HEX[active.color] : 'rgba(255,255,255,0.12)';
   // Mi marcador, siempre a la vista: nombre, color y puntos actuales.
   const myPublic = me ? state.players.find((p) => p.id === me.id) ?? null : null;
-  const myPts = myPublic ? totalVictoryPoints(myPublic.victoryPoints) : 0;
+  const myPts = myPublic ? playerVictoryPoints(myPublic) : 0;
   return (
     <header
       className="sticky top-0 z-30 border-b border-white/10 bg-neutral-950/95 backdrop-blur supports-[backdrop-filter]:bg-neutral-950/80"
@@ -43,8 +43,24 @@ export function TopBar(): JSX.Element | null {
             )}
           </div>
         </div>
-        <div className="flex-shrink-0 rounded-md border border-white/10 bg-surface-2 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-200">
-          {PHASE_NAMES[state.phase]}
+        <div className="flex min-w-0 flex-shrink items-center gap-1.5">
+          {/* Fase A — Insignia discreta del modo Caballeros y Ciudades. Solo
+              visible cuando el modo está activo, junto al indicador de fase. */}
+          {state.citiesKnights ? (
+            <span
+              className="flex-shrink-0 rounded-md border border-amber-400/40 bg-amber-500/[0.12] px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-200"
+              aria-label="Modo Caballeros y Ciudades"
+              title="Caballeros y Ciudades"
+            >
+              <span className="hidden sm:inline">Caballeros y Ciudades</span>
+              <span className="sm:hidden" aria-hidden>
+                C&amp;C
+              </span>
+            </span>
+          ) : null}
+          <div className="flex-shrink-0 rounded-md border border-white/10 bg-surface-2 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-200">
+            {PHASE_NAMES[state.phase]}
+          </div>
         </div>
         <div className="flex min-w-0 flex-shrink-0 items-center gap-2">
           <div className="flex min-w-0 flex-col items-end leading-tight">

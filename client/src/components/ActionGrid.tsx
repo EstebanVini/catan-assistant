@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
-import { BUILD_COSTS, Building, BuildType, Resource, totalVictoryPoints } from '../types';
+import { BUILD_COSTS, Building, BuildType, Resource, playerVictoryPoints, victoryTarget } from '../types';
 import { buildTypeLabel, RESOURCE_NAMES_LOWER, joinList } from '../lib/spanish';
 import { BuildCostBadge } from './BuildCostBadge';
 import { useCollapsePref } from './CollapsibleSection';
@@ -45,7 +45,7 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
       return false;
     const mp = s.players.find((p) => p.id === meId);
     if (!mp) return false;
-    return totalVictoryPoints(mp.victoryPoints) >= 10;
+    return playerVictoryPoints(mp) >= victoryTarget(s);
   })();
 
   useEffect(() => {
@@ -68,8 +68,8 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
   const inSpecial =
     state.phase === 'specialBuild' && state.specialBuildQueue[0] === me.id;
   const myPublic = state.players.find((p) => p.id === me.id);
-  const myVP = myPublic ? totalVictoryPoints(myPublic.victoryPoints) : 0;
-  const canDeclare = inMain && myVP >= 10;
+  const myVP = myPublic ? playerVictoryPoints(myPublic) : 0;
+  const canDeclare = inMain && myVP >= victoryTarget(state);
 
   // Cambio A: poblados comprados este turno sin fichas registradas. El servidor
   // rechaza terminar el turno / pasar en construcción especial mientras esto no
@@ -168,7 +168,12 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
         </button>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        {(['road', 'settlement', 'city', 'devcard'] as BuildType[]).map((t) => {
+        {/* En Caballeros y Ciudades no se compran cartas de desarrollo: las
+            cartas de progreso solo llegan por el calendario de la ciudad. */}
+        {(state.citiesKnights
+          ? (['road', 'settlement', 'city'] as BuildType[])
+          : (['road', 'settlement', 'city', 'devcard'] as BuildType[])
+        ).map((t) => {
           const reason = buildReason(t);
           const isDisabled = reason !== null;
           return (
@@ -207,7 +212,7 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
           );
         })}
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className={'mt-2 grid gap-2 ' + (state.citiesKnights ? 'grid-cols-1' : 'grid-cols-2')}>
         <DisabledAwareButton
           label="Intercambiar"
           disabled={!allowTrades}
@@ -217,15 +222,19 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
             if (tradeReason) pushToast('info', tradeReason);
           }}
         />
-        <DisabledAwareButton
-          label="Jugar carta de desarrollo"
-          disabled={!allowDevPlay}
-          reason={devReason}
-          onClick={onPlayDev}
-          onDisabledClick={() => {
-            if (devReason) pushToast('info', devReason);
-          }}
-        />
+        {/* En C&K no hay cartas de desarrollo que jugar (se usan cartas de
+            progreso desde su propio panel). */}
+        {!state.citiesKnights ? (
+          <DisabledAwareButton
+            label="Jugar carta de desarrollo"
+            disabled={!allowDevPlay}
+            reason={devReason}
+            onClick={onPlayDev}
+            onDisabledClick={() => {
+              if (devReason) pushToast('info', devReason);
+            }}
+          />
+        ) : null}
       </div>
       {/* En construcción especial, si no puedo pagar nada, recordatorio
           breve para que sepa que "Listo, paso" es la salida natural. */}
@@ -395,7 +404,7 @@ function PurchaseConfirmModal({
               id="purchase-title"
               className="text-base font-semibold tracking-tight text-neutral-50"
             >
-              Comprar {buildTypeLabel(type).toLowerCase()}
+              {`Comprar ${buildTypeLabel(type).toLowerCase()}`}
             </h2>
             <div className="mt-1.5">
               <BuildCostBadge type={type} />

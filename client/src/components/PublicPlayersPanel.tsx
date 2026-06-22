@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../store';
-import { PublicPlayer } from '../types';
+import { Discipline, Knight, MAX_WALLS, PublicPlayer, knightDefenseStrength, playerVictoryPoints } from '../types';
 import { ColorChip } from './ColorChip';
-import { portLabel } from '../lib/spanish';
+import { DISCIPLINE_NAMES, portLabel } from '../lib/spanish';
 import { playerHex } from '../lib/playerColors';
 import { BadgeChip, BadgeIcon } from './BadgeIcon';
+import { KnightGlyph } from '../assets/icons';
 import { CollapsibleSection } from './CollapsibleSection';
 
 // Estado público por jugador. Manos ajenas nunca se muestran (privacidad).
@@ -141,13 +142,9 @@ export function PublicPlayersPanel(): JSX.Element | null {
           {ordered.map((p) => {
             const isActive = p.id === activeId;
             // Marcador 100% público: vpCards son cartas de Punto de victoria
-            // ya usadas; las que siguen en mano no cuentan para nadie.
-            const vpVisible =
-              p.victoryPoints.settlements +
-              p.victoryPoints.cities * 2 +
-              (p.victoryPoints.longestRoad ? 2 : 0) +
-              (p.victoryPoints.largestArmy ? 2 : 0) +
-              p.victoryPoints.vpCards;
+            // ya usadas; las que siguen en mano no cuentan para nadie. En C&K
+            // incluye metrópolis (+2) y Defensor de Catán (+1) vía el helper.
+            const vpVisible = playerVictoryPoints(p);
             // El tick > 0 indica que hubo al menos un cambio: aplicamos la
             // clase de pulso. El `key` con tick fuerza re-mount cada cambio
             // para que la animación CSS se reinicie. La animación corre
@@ -204,6 +201,28 @@ export function PublicPlayersPanel(): JSX.Element | null {
                       </span>
                     </span>
                     <Sep />
+                    {/* Conteo público de mercancías (C&K): igual que la mano,
+                        solo el total — el detalle por tipo es privado. */}
+                    {state.citiesKnights ? (
+                      <>
+                        <span className="text-commodity-coin">
+                          Mercancías:{' '}
+                          <span className="nums font-semibold text-commodity-coin">
+                            {p.commodityCount}
+                          </span>
+                        </span>
+                        <Sep />
+                        {/* Conteo público de cartas de progreso (C&K): solo el
+                            total — el detalle es privado, igual que la mano. */}
+                        <span>
+                          Progreso:{' '}
+                          <span className="nums font-semibold text-neutral-100">
+                            {p.progressCardsCount}
+                          </span>
+                        </span>
+                        <Sep />
+                      </>
+                    ) : null}
                     {/* Recuento público de la Tabla de construcción de cada
                         jugador (las fichas concretas solo las ve su dueño). */}
                     <span>
@@ -281,6 +300,40 @@ export function PublicPlayersPanel(): JSX.Element | null {
                           />
                         </span>
                       ) : null}
+                    </div>
+                  ) : null}
+                  {/* Metrópolis (C&K): un marcador heráldico dorado por
+                      disciplina que el jugador posee, con su color funcional.
+                      Solo se renderiza en modo C&K y si tiene alguna. */}
+                  {state.citiesKnights && p.metropolises.length > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      {p.metropolises.map((d) => (
+                        <MetropolisChip key={d} discipline={d} />
+                      ))}
+                    </div>
+                  ) : null}
+                  {/* Caballeros (C&K): recuento total + fuerza de defensa
+                      pública (suma del rango de los ACTIVOS), distinguiendo
+                      activos/inactivos. Los caballeros viven en `p.knights`
+                      (públicos: rango + activo). Solo en C&K. */}
+                  {state.citiesKnights ? (
+                    <KnightsSummary knights={p.knights} />
+                  ) : null}
+                  {/* Muros de ciudad (C&K): cada muro sube en +2 el límite de
+                      mano del 7 de su dueño. Indicador público (p.walls), solo
+                      cuando tiene alguno. El acero (--ck-steel) lo separa del
+                      lenguaje dorado de las insignias/metrópolis. */}
+                  {state.citiesKnights && p.walls > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      <WallsChip walls={p.walls} />
+                    </div>
+                  ) : null}
+                  {/* Defensor de Catán (C&K): cada carta vale +1 PV. Se gana al
+                      ser el jugador con más caballeros que repelen un ataque
+                      bárbaro. Solo se muestra cuando el jugador tiene alguna. */}
+                  {state.citiesKnights && p.defenderCards > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      <DefenderChip count={p.defenderCards} />
                     </div>
                   ) : null}
                   {p.ports.length > 0 ? (
@@ -402,4 +455,195 @@ function Badge({
 
 function Sep(): JSX.Element {
   return <span className="text-neutral-700" aria-hidden>·</span>;
+}
+
+// Chip de metrópolis (C&K): aro dorado heráldico (las metrópolis son uno de los
+// usos legítimos del dorado, como las insignias) con un punto del color
+// funcional de la disciplina y su nombre. Clases por disciplina como cadenas
+// literales (el JIT de Tailwind no detecta `text-discipline-${d}`).
+const DISCIPLINE_CHIP_TEXT: Record<Discipline, string> = {
+  trade: 'text-discipline-trade',
+  politics: 'text-discipline-politics',
+  science: 'text-discipline-science',
+};
+const DISCIPLINE_CHIP_DOT: Record<Discipline, string> = {
+  trade: 'bg-discipline-trade',
+  politics: 'bg-discipline-politics',
+  science: 'bg-discipline-science',
+};
+
+// Resumen público de caballeros de un jugador (C&K): chip con la fuerza de
+// defensa (suma de rango de los activos) y el desglose activos/inactivos. El
+// acero (--ck-steel) lo separa del lenguaje dorado de las insignias/metrópolis.
+function KnightsSummary({ knights }: { knights: Knight[] }): JSX.Element | null {
+  if (knights.length === 0) return null;
+  const defense = knightDefenseStrength(knights);
+  const active = knights.filter((k) => k.active).length;
+  const inactive = knights.length - active;
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-ck-steel/40 bg-ck-steel/[0.12] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-ck-steel-light"
+        aria-label={`Caballeros: ${knights.length} (${active} activos, ${inactive} inactivos). Fuerza de defensa ${defense}.`}
+        title={`Fuerza de defensa ${defense} · ${active} activos · ${inactive} inactivos`}
+      >
+        <KnightGlyph rank={3} active={defense > 0} size={14} />
+        <span>
+          Caballeros{' '}
+          <span className="nums text-neutral-100">{knights.length}</span>
+        </span>
+        <span aria-hidden className="text-ck-steel/60">|</span>
+        <span>
+          Defensa <span className="nums text-ck-steel-light">{defense}</span>
+        </span>
+      </span>
+      <span className="text-[10px] leading-none text-neutral-500">
+        <span className="nums text-gold-light">{active}</span> act ·{' '}
+        <span className="nums text-neutral-300">{inactive}</span> inact
+      </span>
+    </div>
+  );
+}
+
+// Defensor de Catán (C&K): escudo dorado con la cuenta de cartas. El dorado es
+// legítimo aquí (cada carta es un título/+1 PV, como las insignias). El glifo
+// de escudo lo distingue de las medallas de Ejército/Camino. Estos PV ya van
+// incluidos en `playerVictoryPoints`; el chip es informativo.
+function DefenderChip({ count }: { count: number }): JSX.Element {
+  const label =
+    count === 1
+      ? 'Defensor de Catán (+1 PV)'
+      : `Defensor de Catán ×${count} (+${count} PV)`;
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/[0.10] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-gold-light shadow-medal"
+    >
+      <DefenderShieldGlyph size={13} />
+      <span>
+        Defensor
+        {count > 1 ? (
+          <>
+            {' '}
+            <span className="nums text-gold-light">×{count}</span>
+          </>
+        ) : null}
+      </span>
+    </span>
+  );
+}
+
+// Glifo de escudo (Defensor de Catán) en dorado heráldico. Decorativo: el
+// `aria-label` del chip que lo contiene lo describe.
+function DefenderShieldGlyph({ size = 13 }: { size?: number }): JSX.Element {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden
+      className="flex-shrink-0"
+    >
+      <path
+        d="M12 3 L19 5.5 V11 C 19 16, 15.5 19.5, 12 21 C 8.5 19.5, 5 16, 5 11 V5.5 Z"
+        fill="#caa24a"
+        stroke="#1a130c"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 6.5 V17.5 M7.8 8 H16.2"
+        stroke="#1a130c"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+        opacity="0.6"
+      />
+    </svg>
+  );
+}
+
+// Muros de ciudad (C&K): chip de acero con el recuento de muros y el límite de
+// mano del 7 que aporta (cada muro +2). Solo informativo; se muestra cuando el
+// jugador tiene al menos un muro. El acero (--ck-steel) lo separa del lenguaje
+// dorado de las insignias/metrópolis, igual que el resumen de caballeros.
+function WallsChip({ walls }: { walls: number }): JSX.Element {
+  const label = `Muros de ciudad: ${walls} de ${MAX_WALLS}. Sube su límite de mano del 7 a ${7 + 2 * walls} cartas.`;
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="inline-flex items-center gap-1 rounded-full border border-ck-steel/40 bg-ck-steel/[0.12] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-ck-steel-light"
+    >
+      <WallGlyph size={13} />
+      <span>
+        Muros{' '}
+        <span className="nums text-neutral-100">{walls}</span>
+        <span className="text-ck-steel/70">/{MAX_WALLS}</span>
+      </span>
+    </span>
+  );
+}
+
+// Glifo de muralla (SVG inline) en acero. Decorativo: el `aria-label` del chip
+// que lo contiene lo describe. No hay arte propio de muro (missing-icons.md);
+// dibujamos una almena de piedra en el lenguaje del set (trazo nogal cálido).
+function WallGlyph({ size = 13 }: { size?: number }): JSX.Element {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden
+      className="flex-shrink-0"
+    >
+      <path
+        d="M3 8 H6 V6 H9 V8 H12 V6 H15 V8 H18 V6 H21 V8 H3 Z"
+        fill="#8b919b"
+        stroke="#1a130c"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
+      <rect
+        x="3"
+        y="8"
+        width="18"
+        height="11"
+        fill="#8b919b"
+        stroke="#1a130c"
+        strokeWidth="1"
+        strokeLinejoin="round"
+      />
+      <g stroke="#6b7079" strokeWidth="0.9" strokeLinecap="round">
+        <path d="M3 12.5 H21" />
+        <path d="M3 15.5 H21" />
+        <path d="M8.5 8 V12.5 M15.5 8 V12.5" />
+        <path d="M5.5 12.5 V15.5 M12 12.5 V15.5 M18.5 12.5 V15.5" />
+        <path d="M8.5 15.5 V19 M15.5 15.5 V19" />
+      </g>
+    </svg>
+  );
+}
+
+function MetropolisChip({ discipline }: { discipline: Discipline }): JSX.Element {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/[0.10] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-gold-light"
+      aria-label={`Metrópolis de ${DISCIPLINE_NAMES[discipline]} (4 puntos)`}
+      title={`Metrópolis de ${DISCIPLINE_NAMES[discipline]} · 4 PV`}
+    >
+      <span
+        className={
+          'h-2 w-2 flex-shrink-0 rounded-full ring-1 ring-inset ring-black/30 ' +
+          DISCIPLINE_CHIP_DOT[discipline]
+        }
+        aria-hidden
+      />
+      <span className={DISCIPLINE_CHIP_TEXT[discipline]}>
+        Metrópolis · {DISCIPLINE_NAMES[discipline]}
+      </span>
+    </span>
+  );
 }

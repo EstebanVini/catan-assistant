@@ -3,12 +3,16 @@ import {
   GameState,
   Player,
   emptyHand,
+  emptyCommodities,
+  emptyImprovements,
+  emptyMetropolisOwners,
   emptyDevCards,
   fullBank,
+  fullCommodityBank,
   defaultExtraRules,
   PlayerColor,
 } from './state';
-import { buildDevDeck } from './rules';
+import { buildDevDeck, buildProgressDecks } from './rules';
 
 const rooms = new Map<string, GameState>();
 // Pila de snapshots para undo (uno por sala)
@@ -46,6 +50,13 @@ function newPlayer(id: string, sessionToken: string, name: string, profile?: Use
     connected: true,
     buildings: [],
     hand: emptyHand(),
+    commodities: emptyCommodities(),
+    improvements: emptyImprovements(),
+    metropolises: [],
+    progressCards: [],
+    knights: [],
+    defenderCards: 0,
+    walls: 0,
     ports: [],
     devCards: emptyDevCards(),
     devCardsBoughtThisTurn: [],
@@ -77,6 +88,12 @@ export function createRoom(hostName: string, profile?: UserProfileInfo): { state
     bankManagerId: hostId,
     status: 'lobby',
     extension56: false,
+    citiesKnights: false,
+    barbarianStep: 0,
+    barbarianAttacks: 0,
+    // En el base el ladrón siempre está activo; en C&K se desactiva al iniciar
+    // la partida (queda inmovilizado hasta el primer ataque bárbaro).
+    robberActive: true,
     seedInitialResources: true,
     extraRules: defaultExtraRules(),
     players: [host],
@@ -86,6 +103,13 @@ export function createRoom(hostName: string, profile?: UserProfileInfo): { state
     specialBuildQueue: [],
     hexes: [],
     bank: fullBank(false),
+    commodityBank: fullCommodityBank(),
+    metropolisOwners: emptyMetropolisOwners(),
+    progressDecks: buildProgressDecks(),
+    lastRedDie: null,
+    lastEventDie: null,
+    pendingProgressDiscard: {},
+    pendingBarbarianLoss: [],
     devDeck: buildDevDeck(false),
     diceStats: { 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0 },
     startedAt: null,
@@ -169,6 +193,17 @@ export function pushSnapshot(state: GameState): void {
     activePortUse: state.activePortUse,
     winnerId: state.winnerId,
     status: state.status,
+    // Estado de Caballeros y Ciudades (para que el undo lo revierta también).
+    commodityBank: state.commodityBank,
+    metropolisOwners: state.metropolisOwners,
+    progressDecks: state.progressDecks,
+    barbarianStep: state.barbarianStep,
+    barbarianAttacks: state.barbarianAttacks,
+    robberActive: state.robberActive,
+    lastRedDie: state.lastRedDie,
+    lastEventDie: state.lastEventDie,
+    pendingProgressDiscard: state.pendingProgressDiscard,
+    pendingBarbarianLoss: state.pendingBarbarianLoss,
   }));
   if (stack.length > MAX_UNDO) stack.shift();
   undoStack.set(state.code, stack);
