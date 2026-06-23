@@ -31,10 +31,10 @@ function ctx(over: Partial<AchievementContext> = {}): AchievementContext {
 }
 
 describe('catálogo de logros', () => {
-  it('tiene 19 logros con ids únicos y XP positivo', () => {
-    expect(ACHIEVEMENTS).toHaveLength(19);
+  it('tiene 20 logros con ids únicos y XP positivo', () => {
+    expect(ACHIEVEMENTS).toHaveLength(20);
     const ids = new Set(ACHIEVEMENTS.map((a) => a.id));
-    expect(ids.size).toBe(19);
+    expect(ids.size).toBe(20);
     expect(ACHIEVEMENTS.every((a) => a.xp > 0)).toBe(true);
   });
 });
@@ -82,6 +82,9 @@ describe('satisfiedAchievements', () => {
     expect(satisfiedAchievements(gs(), ctx({ won: true, opponentsVP: [6, 3] }))).not.toContain('demolisher');
     expect(satisfiedAchievements(gs(), ctx({ won: true, citiesAtEnd: 0 }))).toContain('villager');
     expect(satisfiedAchievements(gs(), ctx({ won: true, citiesAtEnd: 1 }))).not.toContain('villager');
+    expect(satisfiedAchievements(gs(), ctx({ won: true, finalVP: 11 }))).toContain('tu_hermana');
+    expect(satisfiedAchievements(gs(), ctx({ won: true, finalVP: 10 }))).not.toContain('tu_hermana');
+    expect(satisfiedAchievements(gs(), ctx({ won: false, finalVP: 11 }))).not.toContain('tu_hermana');
   });
 
   it('insignias, racha y puertos', () => {
