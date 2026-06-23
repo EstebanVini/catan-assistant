@@ -34,6 +34,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'demolisher', name: 'Victoria demoledora', description: 'Gana una partida sin que ninguno de tus oponentes llegue a 6 puntos o más.', xp: 25, kind: 'game' },
   { id: 'streaker', name: 'Enrachado', description: 'Acumula una racha de 5 victorias seguidas.', xp: 50, kind: 'career' },
   { id: 'villager', name: 'Pueblerino', description: 'Gana una partida sin construir una ciudad.', xp: 40, kind: 'game' },
+  { id: 'tu_hermana', name: 'Tu hermana (11/10)', description: 'Gana una partida con 11 puntos de victoria.', xp: 30, kind: 'game' },
 ];
 
 export const ACHIEVEMENT_XP: Record<string, number> = Object.fromEntries(
@@ -100,6 +101,7 @@ export function satisfiedAchievements(gs: GameStats, ctx: AchievementContext): s
   ok('demolisher', ctx.won && ctx.opponentsVP.every((v) => v < 6));
   ok('streaker', ctx.winStreakAfter >= 5);
   ok('villager', ctx.won && ctx.citiesAtEnd === 0);
+  ok('tu_hermana', ctx.won && ctx.finalVP >= 11);
   return out;
 }
 

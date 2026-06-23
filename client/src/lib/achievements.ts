@@ -30,6 +30,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'demolisher', name: 'Victoria demoledora', description: 'Gana una partida sin que ninguno de tus oponentes llegue a 6 puntos o más.', xp: 25, kind: 'game' },
   { id: 'streaker', name: 'Enrachado', description: 'Acumula una racha de 5 victorias seguidas.', xp: 50, kind: 'career' },
   { id: 'villager', name: 'Pueblerino', description: 'Gana una partida sin construir una ciudad.', xp: 40, kind: 'game' },
+  { id: 'tu_hermana', name: 'Tu hermana (11/10)', description: 'Gana una partida con 11 puntos de victoria.', xp: 30, kind: 'game' },
 ];
 
 export const ACHIEVEMENTS_BY_ID: Record<string, AchievementDef> = Object.fromEntries(

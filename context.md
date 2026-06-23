@@ -84,7 +84,7 @@ catan-assistant/
         state.ts          # TIPOS del dominio + GameState + Player.gameStats + helpers
         rules.ts          # lógica PURA de Catán (costos, distribución, 7, robo, VP, C&K) — testeada
         setup.ts          # sembrado de hexes (1–2 desiertos) + reparto inicial — testeada
-        achievements.ts   # catálogo de 19 logros + reglas de XP + nivel — testeada
+        achievements.ts   # catálogo de 20 logros + reglas de XP + nivel — testeada
         rooms.ts          # salas en memoria; createRoom / joinRoom (carga racha del usuario)
         rules.test.ts, setup.test.ts, achievements.test.ts  # vitest
       socket/
@@ -142,7 +142,7 @@ Aditiva: con el toggle apagado el juego se comporta EXACTAMENTE como el base. Co
 - **Stats persistidas** (`User.stats`): `gamesPlayed, wins, losses, longestRoadBadges, largestArmyBadges, totalVictoryPoints, currentWinStreak, longestWinStreak, xp, achievements[]`. Se actualizan al terminar la partida en `persistMatch.ts` (lectura-modificación-escritura por usuario; los invitados no acumulan).
 - **Racha** (`currentWinStreak`): se carga al unirse a una sala y se expone como `winStreak` en la vista pública para mostrar el ícono de fuego 🔥 con el número en los avatares (lobby + marcador).
 - **XP** (regla en `achievements.ts xpForGame`): victoria +10 · cada insignia +5 · 1 XP por PV · +10 por cada victoria que suma a la racha (desde la 2ª consecutiva) · + XP de los logros recién desbloqueados. **Nivel** derivado de la XP (`levelForXp`, curva cuadrática; espejado en `client/src/lib/achievements.ts`).
-- **Logros** (`server/src/game/achievements.ts`, 19 en total, con tests): catálogo `{id, name, description, xp, kind}`. El servidor **trackea por partida** en `Player.gameStats` (picos de recursos/puertos, Δ PV por turno, caminos, compras dev por turno, ronda sin recibir recursos) vía hooks en `handlers.ts` (`trackPeaks` en `broadcastState`, frontera de ronda en `nextTurn`, `build`, distribución). `satisfiedAchievements`/`newlyUnlocked` deciden los desbloqueados al terminar. El cliente espeja el catálogo en `lib/achievements.ts` y los muestra en `AchievementsPanel` (perfil propio y de amigos).
+- **Logros** (`server/src/game/achievements.ts`, 20 en total, con tests): catálogo `{id, name, description, xp, kind}`. El servidor **trackea por partida** en `Player.gameStats` (picos de recursos/puertos, Δ PV por turno, caminos, compras dev por turno, ronda sin recibir recursos) vía hooks en `handlers.ts` (`trackPeaks` en `broadcastState`, frontera de ronda en `nextTurn`, `build`, distribución). `satisfiedAchievements`/`newlyUnlocked` deciden los desbloqueados al terminar. El cliente espeja el catálogo en `lib/achievements.ts` y los muestra en `AchievementsPanel` (perfil propio y de amigos).
 - **Desbloqueo EN VIVO + notificaciones:** tras cada cambio de estado, `checkMidGameAchievements` (en `broadcastState`) evalúa los logros monótonos detectables a mitad de partida (`midGameSatisfied`; subconjunto `MIDGAME_ACHIEVEMENT_IDS` — nunca dispara los de fin de partida como pacifista/perdedor/carrera/racha/condicionados a ganar). Para cada logro nuevo de un jugador **registrado** (baseline = `Player.unlockedAchievements` cargado al unirse + `newAchievementsThisGame`): emite `achievement:unlocked` con `mine` por socket → al dueño una notificación **prominente** (`notice`/banner), a los oponentes una **silenciosa** (`toast`); además queda en el log. Se persisten al terminar (`persistMatch` los recalcula desde `gameStats`).
 
 ## 6. Frontend — pantallas y componentes clave
