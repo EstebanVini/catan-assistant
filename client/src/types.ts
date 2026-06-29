@@ -67,15 +67,38 @@ export const PROGRESS_CARD_DISCIPLINE: Record<ProgressCardType, Discipline> = {
 
 export const PROGRESS_HAND_LIMIT = 4;
 
-// Cartas de progreso con automatización plena en la app (las demás son de
-// "registro asistido": se juegan y se resuelven en la mesa). Espejo de la
-// lógica de progress:play en el servidor.
-export const PROGRESS_AUTOMATED: ProgressCardType[] = [
-  'printer', 'constitution', 'resourceMonopoly', 'tradeMonopoly', 'irrigation', 'mining', 'engineer',
+// Cartas de progreso de "registro asistido": la app NO las resuelve (geometría
+// de tablero o elección física multi-jugador); se retiran de la mano y la mesa
+// las resuelve. TODO lo demás lo automatiza el servidor. Espejo de progress:play.
+export const PROGRESS_TABLE_RESOLVED: ProgressCardType[] = [
+  'alchemist', 'inventor', 'diplomat', 'intrigue', 'saboteur', 'wedding', 'commercialHarbor', 'bishop',
 ];
-// Cartas que requieren elegir un recurso / una mercancía al jugarse.
-export const PROGRESS_NEEDS_RESOURCE: ProgressCardType[] = ['resourceMonopoly'];
+export function isProgressAutomated(card: ProgressCardType): boolean {
+  return !PROGRESS_TABLE_RESOLVED.includes(card);
+}
+// Lista de automatizadas (compat con consumidores que iteran). Derivada.
+export const PROGRESS_AUTOMATED: ProgressCardType[] = (
+  [
+    'alchemist', 'crane', 'engineer', 'inventor', 'irrigation', 'mining', 'medicine',
+    'roadBuildingP', 'smith', 'printer', 'spy', 'bishop', 'constitution', 'deserter',
+    'diplomat', 'intrigue', 'saboteur', 'warlord', 'wedding', 'merchant', 'merchantFleet',
+    'commercialHarbor', 'masterMerchant', 'resourceMonopoly', 'tradeMonopoly',
+  ] as ProgressCardType[]
+).filter((c) => !PROGRESS_TABLE_RESOLVED.includes(c));
+
+// Qué picker abre cada carta al jugarse (el servidor valida igual):
+//  - RESOURCE: elegir un recurso (Monopolio de Recurso; Mercader = ficha donde se coloca).
+//  - COMMODITY: elegir una mercancía (Monopolio de Comercio).
+//  - TYPE: elegir un recurso O una mercancía (Flota Mercante, 2:1 del tipo).
+//  - TARGET: elegir a un oponente (Espía, Maestro Mercader, Desertor).
+//  - SETTLEMENT: elegir un poblado propio (Medicina → ciudad).
+//  - KNIGHTS: elegir hasta 2 caballeros propios a promover (Fragua).
+export const PROGRESS_NEEDS_RESOURCE: ProgressCardType[] = ['resourceMonopoly', 'merchant'];
 export const PROGRESS_NEEDS_COMMODITY: ProgressCardType[] = ['tradeMonopoly'];
+export const PROGRESS_NEEDS_TYPE: ProgressCardType[] = ['merchantFleet'];
+export const PROGRESS_NEEDS_TARGET: ProgressCardType[] = ['spy', 'masterMerchant', 'deserter'];
+export const PROGRESS_NEEDS_SETTLEMENT: ProgressCardType[] = ['medicine'];
+export const PROGRESS_NEEDS_KNIGHTS: ProgressCardType[] = ['smith'];
 
 // Caras del dado de evento: barco bárbaro o una puerta de color (disciplina).
 export type EventDie = 'barbarian' | Discipline;
@@ -167,12 +190,18 @@ export interface PortUseRequest {
   commission?: Partial<Hand>;
 }
 
+// Un ítem comerciable es un recurso o una mercancía (Caballeros y Ciudades).
+export type TradeItemKind = 'resource' | 'commodity';
+
 export interface TradeOffer {
   id: string;
   fromId: string;
   toId: string | null;
   give: Partial<Hand>;
   receive: Partial<Hand>;
+  // Mercancías ofrecidas/pedidas (solo C&K). Aditivo.
+  giveCommodities?: Partial<CommodityHand>;
+  receiveCommodities?: Partial<CommodityHand>;
   // Quiénes ya rechazaron: la oferta se oculta solo para ellos; el resto la
   // sigue viendo hasta aceptar o rechazar.
   rejectedBy: string[];
@@ -340,6 +369,11 @@ export interface MeView {
   // servidor rechaza `turn:end` / `specialBuild:done` mientras no esté vacío;
   // el cliente lo anticipa deshabilitando esos botones y guiando el registro.
   pendingSettlementRegistration?: string[];
+  // Flags de turno C&K (privados): Flota Mercante (2:1 de un tipo), descuento de
+  // Grúa (próxima mejora -1 mercancía) y caminos gratis pendientes.
+  merchantFleet?: { kind: TradeItemKind; type: Resource | Commodity } | null;
+  craneDiscount?: boolean;
+  freeRoads?: number;
 }
 
 export interface PublicGameState {
@@ -353,6 +387,10 @@ export interface PublicGameState {
   barbarianAttacks: number;
   robberActive: boolean;
   metropolisOwners: Record<Discipline, string | null>;
+  // Comerciante (Mercader): dueño + recurso (2:1 y +1 PV). null si en reserva.
+  merchant?: { ownerId: string; resource: Resource } | null;
+  // Acueducto (Ciencia nivel 3): jugadores que pueden tomar 1 recurso del banco.
+  pendingAqueductPick: string[];
   lastRedDie: number | null;
   lastEventDie: EventDie | null;
   pendingProgressDiscard: Record<string, number>;
@@ -440,15 +478,18 @@ export function victoryTarget(state: Pick<PublicGameState, 'citiesKnights'>): nu
 }
 
 // PV TOTALES de un jugador público, incluyendo lo de Caballeros y Ciudades
-// (metrópolis +2 c/u, Defensor de Catán +1 c/u). Espejo de publicVictoryPoints
-// del servidor. Usar SIEMPRE este en vez de totalVictoryPoints(vp) cuando se
-// dispone del PublicPlayer, para no subcontar en C&K.
+// (metrópolis +2 c/u, Defensor de Catán +1 c/u, y +1 si controla el comerciante).
+// Espejo de playerVP del servidor. Usar SIEMPRE este en vez de
+// totalVictoryPoints(vp) cuando se dispone del PublicPlayer, para no subcontar en
+// C&K. Pasa `merchantOwnerId` (state.merchant?.ownerId) para sumar el comerciante.
 export function playerVictoryPoints(
-  p: Pick<PublicPlayer, 'victoryPoints' | 'metropolises' | 'defenderCards'>
+  p: Pick<PublicPlayer, 'id' | 'victoryPoints' | 'metropolises' | 'defenderCards'>,
+  merchantOwnerId?: string | null
 ): number {
   return (
     totalVictoryPoints(p.victoryPoints) +
     2 * (p.metropolises?.length ?? 0) +
-    (p.defenderCards ?? 0)
+    (p.defenderCards ?? 0) +
+    (merchantOwnerId && p.id === merchantOwnerId ? 1 : 0)
   );
 }

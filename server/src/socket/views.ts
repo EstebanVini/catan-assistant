@@ -44,6 +44,11 @@ export interface PlayerView {
     devCards: Player['devCards'];
     devCardsBoughtThisTurn: Player['devCardsBoughtThisTurn'];
     pendingSettlementRegistration: Player['pendingSettlementRegistration'];
+    // Flags de turno C&K (privados): Flota Mercante, descuento de Grúa y
+    // caminos gratis pendientes. Ausentes/0 en el base.
+    merchantFleet: Player['merchantFleet'];
+    craneDiscount: boolean;
+    freeRoads: number;
     ports: Player['ports'];
     buildings: Player['buildings'];
     sessionToken?: string; // solo se manda en el handshake inicial
@@ -59,6 +64,10 @@ export interface PlayerView {
     barbarianAttacks: number;
     robberActive: boolean;
     metropolisOwners: GameState['metropolisOwners'];
+    // Comerciante (Mercader): dueño + recurso (2:1 y +1 PV). null si en reserva.
+    merchant: GameState['merchant'];
+    // Acueducto (Ciencia nivel 3): jugadores que pueden tomar 1 recurso del banco.
+    pendingAqueductPick: string[];
     lastRedDie: number | null;
     lastEventDie: GameState['lastEventDie'];
     pendingProgressDiscard: GameState['pendingProgressDiscard'];
@@ -102,6 +111,9 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
           devCards: me.devCards,
           devCardsBoughtThisTurn: me.devCardsBoughtThisTurn,
           pendingSettlementRegistration: me.pendingSettlementRegistration,
+          merchantFleet: me.merchantFleet ?? null,
+          craneDiscount: !!me.craneDiscount,
+          freeRoads: me.freeRoads ?? 0,
           ports: me.ports,
           buildings: me.buildings,
         }
@@ -117,6 +129,8 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
       barbarianAttacks: state.barbarianAttacks,
       robberActive: state.robberActive,
       metropolisOwners: state.metropolisOwners,
+      merchant: state.merchant ?? null,
+      pendingAqueductPick: state.pendingAqueductPick ?? [],
       lastRedDie: state.lastRedDie,
       lastEventDie: state.lastEventDie,
       pendingProgressDiscard: state.pendingProgressDiscard,

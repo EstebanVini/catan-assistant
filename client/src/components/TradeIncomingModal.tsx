@@ -1,10 +1,57 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store';
-import { Hand, Resource } from '../types';
-import { RESOURCE_NAMES, RESOURCE_NAMES_LOWER, joinList } from '../lib/spanish';
+import { Hand, Resource, Commodity, CommodityHand } from '../types';
+import {
+  RESOURCE_NAMES,
+  RESOURCE_NAMES_LOWER,
+  COMMODITY_NAMES,
+  COMMODITY_NAMES_LOWER,
+  joinList,
+} from '../lib/spanish';
 import { ResourceIcon } from './ResourceIcon';
+import { CommodityGlyph } from '../assets/icons';
 import { safeVibrate } from '../lib/motion';
 import { useModalA11y } from '../lib/useModalA11y';
+
+// Un ítem comerciado en una oferta: recurso o mercancía (Caballeros y Ciudades).
+// El emisor puede ofrecer/pedir ambos; aquí se renderizan en una sola lista.
+type TradeChip =
+  | { kind: 'resource'; key: Resource; n: number }
+  | { kind: 'commodity'; key: Commodity; n: number };
+
+// Combina recursos + mercancías de un lado de la oferta en chips, filtrando 0.
+function buildChips(res?: Partial<Hand>, com?: Partial<CommodityHand>): TradeChip[] {
+  const out: TradeChip[] = [];
+  for (const [r, n] of Object.entries(res ?? {}) as [Resource, number][]) {
+    if (n > 0) out.push({ kind: 'resource', key: r, n });
+  }
+  for (const [c, n] of Object.entries(com ?? {}) as [Commodity, number][]) {
+    if (n > 0) out.push({ kind: 'commodity', key: c, n });
+  }
+  return out;
+}
+
+function chipKeyStr(chip: TradeChip): string {
+  return `${chip.kind}-${chip.key}`;
+}
+function chipName(chip: TradeChip): string {
+  return chip.kind === 'resource'
+    ? RESOURCE_NAMES[chip.key]
+    : COMMODITY_NAMES[chip.key];
+}
+function chipNameLower(chip: TradeChip): string {
+  return chip.kind === 'resource'
+    ? RESOURCE_NAMES_LOWER[chip.key]
+    : COMMODITY_NAMES_LOWER[chip.key];
+}
+
+function ChipGlyph({ chip, size }: { chip: TradeChip; size: number }): JSX.Element {
+  return chip.kind === 'resource' ? (
+    <ResourceIcon resource={chip.key} size={size} />
+  ) : (
+    <CommodityGlyph commodity={chip.key} size={size} />
+  );
+}
 
 // Modal bloqueante para el receptor de una oferta. El emisor también lo ve, pero como "en espera".
 export function TradeIncomingModal(): JSX.Element | null {
@@ -47,12 +94,10 @@ export function TradeIncomingModal(): JSX.Element | null {
   const rejectedBy = trade.rejectedBy ?? [];
   if (iAmReceiver && rejectedBy.includes(me.id)) return null;
 
-  const giveEntries = (Object.entries(trade.give) as [Resource, number][]).filter(
-    ([, n]) => n > 0
-  );
-  const receiveEntries = (Object.entries(trade.receive) as [Resource, number][]).filter(
-    ([, n]) => n > 0
-  );
+  // Recursos + mercancías ofrecidos / pedidos. Fuera de C&K las mercancías
+  // vienen vacías y la lista es idéntica a la de antes (solo recursos).
+  const giveChips = buildChips(trade.give, trade.giveCommodities);
+  const receiveChips = buildChips(trade.receive, trade.receiveCommodities);
 
   if (iAmSender) {
     const eligibleCount = trade.toId ? 1 : state.players.length - 1;
@@ -65,8 +110,8 @@ export function TradeIncomingModal(): JSX.Element | null {
         }
         rejectedCount={rejectedBy.length}
         eligibleCount={eligibleCount}
-        giveEntries={giveEntries}
-        receiveEntries={receiveEntries}
+        giveChips={giveChips}
+        receiveChips={receiveChips}
         onCancel={() => cancel()}
       />
     );
@@ -75,26 +120,31 @@ export function TradeIncomingModal(): JSX.Element | null {
   return (
     <ReceiverDialog
       fromName={from.name}
-      giveEntries={giveEntries}
-      receiveEntries={receiveEntries}
+      giveChips={giveChips}
+      receiveChips={receiveChips}
       hand={me.hand}
+      commodities={me.commodities}
       onAccept={() => respond(true)}
       onReject={() => respond(false)}
     />
   );
 }
 
-// Recursos de `receive` que el receptor NO puede cubrir con su mano, con el
-// faltante exacto. Se recalcula en cada render desde `hand`, así el botón se
-// habilita/deshabilita en vivo cuando cambian las cartas.
-function missingResources(
-  receiveEntries: [Resource, number][],
-  hand: Hand
-): { r: Resource; missing: number }[] {
-  const out: { r: Resource; missing: number }[] = [];
-  for (const [r, n] of receiveEntries) {
-    const have = hand[r] ?? 0;
-    if (have < n) out.push({ r, missing: n - have });
+// Ítems del lado `receive` que el receptor NO puede cubrir con su mano (recursos
+// + mercancías), con el faltante exacto. Se recalcula en cada render desde la
+// mano, así el botón se habilita/deshabilita en vivo cuando cambian las cartas.
+function missingChips(
+  receiveChips: TradeChip[],
+  hand: Hand,
+  commodities: CommodityHand
+): { chip: TradeChip; missing: number }[] {
+  const out: { chip: TradeChip; missing: number }[] = [];
+  for (const chip of receiveChips) {
+    const have =
+      chip.kind === 'resource'
+        ? (hand[chip.key] ?? 0)
+        : (commodities[chip.key] ?? 0);
+    if (have < chip.n) out.push({ chip, missing: chip.n - have });
   }
   return out;
 }
@@ -103,15 +153,15 @@ function SenderPanel({
   toName,
   rejectedCount,
   eligibleCount,
-  giveEntries,
-  receiveEntries,
+  giveChips,
+  receiveChips,
   onCancel,
 }: {
   toName: string | null;
   rejectedCount: number;
   eligibleCount: number;
-  giveEntries: [Resource, number][];
-  receiveEntries: [Resource, number][];
+  giveChips: TradeChip[];
+  receiveChips: TradeChip[];
   onCancel: () => void;
 }): JSX.Element {
   // Es un panel sticky, no un modal: no atrapa foco. Pero es un live region
@@ -133,8 +183,8 @@ function SenderPanel({
               {rejectedCount === 1 ? 'rechazó' : 'rechazaron'} la oferta.
             </p>
           ) : null}
-          <ResourceLine label="Doy" entries={giveEntries} />
-          <ResourceLine label="Recibo" entries={receiveEntries} />
+          <ChipLine label="Doy" chips={giveChips} />
+          <ChipLine label="Recibo" chips={receiveChips} />
         </div>
         <button
           type="button"
@@ -150,16 +200,18 @@ function SenderPanel({
 
 function ReceiverDialog({
   fromName,
-  giveEntries,
-  receiveEntries,
+  giveChips,
+  receiveChips,
   hand,
+  commodities,
   onAccept,
   onReject,
 }: {
   fromName: string;
-  giveEntries: [Resource, number][];
-  receiveEntries: [Resource, number][];
+  giveChips: TradeChip[];
+  receiveChips: TradeChip[];
   hand: Hand;
+  commodities: CommodityHand;
   onAccept: () => void;
   onReject: () => void;
 }): JSX.Element {
@@ -169,12 +221,12 @@ function ReceiverDialog({
   useModalA11y(ref, onReject);
 
   // Quien acepta entrega el lado `receive` de la oferta. Se recalcula en cada
-  // render desde `hand`: si el receptor pierde/gana cartas con el modal abierto,
-  // el botón "Aceptar" se habilita/deshabilita en vivo.
-  const missing = missingResources(receiveEntries, hand);
+  // render desde la mano: si el receptor pierde/gana cartas con el modal
+  // abierto, el botón "Aceptar" se habilita/deshabilita en vivo.
+  const missing = missingChips(receiveChips, hand, commodities);
   const canAfford = missing.length === 0;
   const missingText = joinList(
-    missing.map(({ r, missing: n }) => `${n} ${RESOURCE_NAMES_LOWER[r]}`)
+    missing.map(({ chip, missing: n }) => `${n} ${chipNameLower(chip)}`)
   );
 
   return (
@@ -194,13 +246,13 @@ function ReceiverDialog({
             <p className="text-[11px] uppercase tracking-wide text-neutral-400">
               Te da
             </p>
-            <ChipList entries={giveEntries} />
+            <ChipList chips={giveChips} />
           </div>
           <div className="rounded-lg border border-white/10 bg-surface-3 p-2.5">
             <p className="text-[11px] uppercase tracking-wide text-neutral-400">
               Te pide
             </p>
-            <ChipList entries={receiveEntries} hand={hand} />
+            <ChipList chips={receiveChips} hand={hand} commodities={commodities} />
           </div>
         </div>
         <p className="mt-2 text-[11px] text-neutral-400">
@@ -251,26 +303,26 @@ function ReceiverDialog({
   );
 }
 
-function ResourceLine({
+function ChipLine({
   label,
-  entries,
+  chips,
 }: {
   label: string;
-  entries: [Resource, number][];
+  chips: TradeChip[];
 }): JSX.Element {
   return (
-    <div className="mt-1 flex items-center gap-1.5 text-xs">
+    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
       <span className="text-neutral-400">{label}:</span>
-      {entries.length === 0 ? (
+      {chips.length === 0 ? (
         <span className="text-neutral-500">nada</span>
       ) : (
-        entries.map(([r, n]) => (
+        chips.map((chip) => (
           <span
-            key={r}
+            key={chipKeyStr(chip)}
             className="inline-flex items-center gap-0.5 rounded-md bg-surface-3 px-1 py-0.5"
           >
-            <ResourceIcon resource={r} size={16} />
-            <span className="font-semibold">{n}</span>
+            <ChipGlyph chip={chip} size={16} />
+            <span className="font-semibold">{chip.n}</span>
           </span>
         ))
       )}
@@ -279,24 +331,31 @@ function ResourceLine({
 }
 
 function ChipList({
-  entries,
+  chips,
   hand,
+  commodities,
 }: {
-  entries: [keyof Hand, number][];
-  // Si se pasa `hand`, los recursos que el receptor no puede cubrir se marcan
-  // en rojo con el faltante. Sin `hand` (lado "Te da") los chips son neutros.
+  chips: TradeChip[];
+  // Si se pasan `hand`/`commodities`, los ítems que el receptor no puede cubrir
+  // se marcan en rojo con el faltante. Sin ellos (lado "Te da") son neutros.
   hand?: Hand;
+  commodities?: CommodityHand;
 }): JSX.Element {
+  const checking = hand !== undefined || commodities !== undefined;
   return (
     <div className="mt-1 flex flex-wrap gap-1.5">
-      {entries.length === 0 ? (
+      {chips.length === 0 ? (
         <span className="text-xs text-neutral-500">nada</span>
       ) : (
-        entries.map(([r, n]) => {
-          const short = hand ? Math.max(0, n - (hand[r as Resource] ?? 0)) : 0;
+        chips.map((chip) => {
+          const have =
+            chip.kind === 'resource'
+              ? (hand?.[chip.key] ?? 0)
+              : (commodities?.[chip.key] ?? 0);
+          const short = checking ? Math.max(0, chip.n - have) : 0;
           return (
             <span
-              key={r}
+              key={chipKeyStr(chip)}
               className={
                 'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs ' +
                 (short > 0
@@ -304,14 +363,14 @@ function ChipList({
                   : 'bg-neutral-950')
               }
             >
-              <ResourceIcon resource={r} size={20} />
-              <span className="font-semibold">{n}</span>
+              <ChipGlyph chip={chip} size={20} />
+              <span className="font-semibold">{chip.n}</span>
               <span
                 className={
                   'text-[10px] ' + (short > 0 ? 'text-red-300' : 'text-neutral-400')
                 }
               >
-                {RESOURCE_NAMES[r as Resource]}
+                {chipName(chip)}
               </span>
               {short > 0 ? (
                 <span className="text-[10px] font-medium text-red-300">

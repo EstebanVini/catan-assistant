@@ -11,6 +11,7 @@ import {
   Commodity,
   CommodityHand,
   COMMODITIES,
+  TradeItemKind,
   Discipline,
   DISCIPLINES,
   EventDie,
@@ -50,9 +51,11 @@ import {
   recomputeVictoryPoints,
   shortfall,
   stealRandomResource,
+  stealRandomMixed,
   takeFromBank,
-  totalVictoryPoints,
+  playerVP,
   tradeWithBank,
+  tradeWithBankCK,
   validateTradeOffer,
 } from '../game/rules';
 import {
@@ -124,7 +127,7 @@ function trackPeaks(state: GameState): void {
   if (state.status === 'playing') {
     const active = activePlayer(state);
     if (active?.gameStats) {
-      const gain = totalVictoryPoints(active) - active.gameStats.turnStartVP;
+      const gain = playerVP(state, active) - active.gameStats.turnStartVP;
       if (gain > active.gameStats.maxVpGainInTurn) active.gameStats.maxVpGainInTurn = gain;
     }
   }
@@ -245,6 +248,11 @@ function nextTurn(state: GameState): void {
     // El registro pendiente es por turno: al rotar, ningún poblado queda
     // bloqueando (turn:end/specialBuild:done ya lo exigieron en su momento).
     if (p.pendingSettlementRegistration.length > 0) p.pendingSettlementRegistration = [];
+    // Flags de turno de Caballeros y Ciudades: Flota Mercante, descuento de
+    // Grúa y caminos gratis caducan al terminar el turno.
+    p.merchantFleet = null;
+    p.craneDiscount = false;
+    p.freeRoads = 0;
   }
   state.turnsPlayed += 1;
   state.currentTurnIndex = (state.currentTurnIndex + 1) % state.turnOrder.length;
@@ -268,7 +276,7 @@ function nextTurn(state: GameState): void {
     logAction(state, `Turno de ${next.name}.`, next.id);
     // Baseline de PV y contador de compras dev para el turno que inicia.
     if (next.gameStats) {
-      next.gameStats.turnStartVP = totalVictoryPoints(next);
+      next.gameStats.turnStartVP = playerVP(state, next);
       next.gameStats.devBoughtThisTurn = 0;
     }
   }
@@ -725,7 +733,13 @@ export function registerHandlers(io: Server, socket: Socket): void {
     // Derivar los hexes de producción y repartir los recursos de inicio:
     // 1 carta por cada ficha que tocan los poblados registrados (todos).
     // En el modo "sin fichas" no se reparte nada.
-    const setup = applyInitialSetup(state.players, state.bank, state.seedInitialResources, state.extension56 ? 2 : 1);
+    const setup = applyInitialSetup(
+      state.players,
+      state.bank,
+      state.seedInitialResources,
+      state.extension56 ? 2 : 1,
+      state.citiesKnights
+    );
     state.hexes = setup.hexes;
     for (const player of state.players) {
       const grant = setup.grants[player.id];
@@ -736,6 +750,16 @@ export function registerHandlers(io: Server, socket: Socket): void {
           player.hand[r] += n;
           return `${n} ${esResource(r)}`;
         });
+      // Mercancías de inicio de la ciudad de salida (solo C&K).
+      const cGrant = setup.commodityGrants[player.id];
+      if (cGrant) {
+        for (const [c, n] of Object.entries(cGrant) as [Commodity, number][]) {
+          if (n <= 0) continue;
+          player.commodities[c] += n;
+          drainCommodityBank(state.commodityBank, c, n);
+          parts.push(`${n} ${esCommodity(c)}`);
+        }
+      }
       if (parts.length > 0) logAction(state, `Recursos de inicio de ${player.name}: ${parts.join(', ')}.`, player.id);
     }
     for (const s of setup.shortages) {
@@ -750,7 +774,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
       player.newAchievementsThisGame = [];
     }
     const firstActive = activePlayer(state);
-    if (firstActive?.gameStats) firstActive.gameStats.turnStartVP = totalVictoryPoints(firstActive);
+    if (firstActive?.gameStats) firstActive.gameStats.turnStartVP = playerVP(state, firstActive);
     logAction(state, `Empieza la partida. Turno de ${activePlayer(state)?.name}.`);
     broadcastState(io, state);
   });
@@ -909,6 +933,8 @@ export function registerHandlers(io: Server, socket: Socket): void {
 
       // 2) Resolver la PRODUCCIÓN (igual que turn:rollNumber, con el ladrón
       //    condicionado a que ya haya habido un ataque bárbaro).
+      // Jugadores que recibieron algo con esta tirada (para el Acueducto).
+      const receivedAny = new Set<string>();
       if (production === 7) {
         const firstRound = state.turnsPlayed < state.turnOrder.length;
         const skipDiscard = state.extraRules.robberNoStealFirstRound && firstRound;
@@ -938,6 +964,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
           ...Object.keys(result.perPlayer),
           ...Object.keys(result.perPlayerCommodities),
         ]);
+        allIds.forEach((id) => receivedAny.add(id));
         for (const pid of allIds) {
           const p = findPlayer(state, pid);
           if (!p) continue;
@@ -951,6 +978,23 @@ export function registerHandlers(io: Server, socket: Socket): void {
         }
         logAction(state, `Salió ${production}. ${lines.join('; ') || 'Nadie recibió recursos.'}`);
         state.phase = 'main';
+      }
+
+      // Acueducto (Ciencia nivel 3): quien NO recibió ningún recurso/mercancía
+      // con esta tirada —incluido el 7, que bloquea la producción— puede tomar
+      // 1 recurso del banco a su elección (aqueduct:pick). Se recalcula en cada
+      // tirada (los pendientes viejos se reemplazan).
+      const aqueductPending: string[] = [];
+      for (const p of state.players) {
+        if (p.improvements.science >= 3 && !receivedAny.has(p.id)) aqueductPending.push(p.id);
+      }
+      state.pendingAqueductPick = aqueductPending;
+      if (aqueductPending.length > 0) {
+        const names = aqueductPending
+          .map((id) => findPlayer(state, id)?.name)
+          .filter(Boolean)
+          .join(', ');
+        logAction(state, `Acueducto: ${names} no produjeron; pueden tomar 1 recurso del banco.`);
       }
       broadcastState(io, state);
     }
@@ -986,7 +1030,24 @@ export function registerHandlers(io: Server, socket: Socket): void {
   // recibirán automatización plena en las fases D/E.
   socket.on(
     'progress:play',
-    ({ card, resource, commodity }: { card: ProgressCardType; resource?: Resource; commodity?: Commodity }) => {
+    ({
+      card,
+      resource,
+      commodity,
+      targetPlayerId,
+      knightIds,
+      settlementId,
+    }: {
+      card: ProgressCardType;
+      resource?: Resource;
+      commodity?: Commodity;
+      // Objetivo (Espía, Maestro Mercader, Desertor).
+      targetPlayerId?: string;
+      // Caballeros a promover (Fragua) o a quitar (Desertor, knightIds[0]).
+      knightIds?: string[];
+      // Poblado a convertir en ciudad (Medicina).
+      settlementId?: string;
+    }) => {
       const state = getRoom(socket.data.code ?? '');
       if (!state || !state.citiesKnights) return;
       const player = findPlayer(state, socket.data.playerId ?? '');
@@ -1066,6 +1127,193 @@ export function registerHandlers(io: Server, socket: Socket): void {
         drainBank(state.bank, res, gained);
         logAction(state, `${player.name} jugó ${name}: ganó ${gained} ${esResource(res)} (${spots} fichas de ${esResource(res)}).`, player.id);
         io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó ${name} (+${gained} ${esResource(res)}).` });
+      } else if (card === 'merchant') {
+        // Comerciante (Mercader): se coloca sobre una ficha de un recurso
+        // adyacente a una construcción tuya. Mientras lo controles puedes
+        // intercambiar ESE recurso 2:1 con el banco y vale +1 PV. Al jugarlo, su
+        // dueño anterior pierde la ventaja y el PV (los gana el nuevo dueño). Sin
+        // geometría de tablero (decisión §13): la "ficha adyacente" se decide en
+        // la mesa; aquí se registra el recurso para habilitar el 2:1.
+        if (!resource || !RESOURCES.includes(resource)) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige el recurso de la ficha donde colocas el comerciante.' });
+          return;
+        }
+        const prevOwner =
+          state.merchant && state.merchant.ownerId !== player.id
+            ? findPlayer(state, state.merchant.ownerId)
+            : null;
+        state.merchant = { ownerId: player.id, resource };
+        logAction(
+          state,
+          `${player.name} jugó Mercader: coloca el comerciante en ${esResource(resource)} (2:1 y +1 PV).`,
+          player.id
+        );
+        io.to(state.code).emit('notice', {
+          level: 'success',
+          text: prevOwner
+            ? `${player.name} le quitó el comerciante a ${prevOwner.name}: 2:1 de ${esResource(resource)} y +1 PV.`
+            : `${player.name} tomó el comerciante: 2:1 de ${esResource(resource)} y +1 PV.`,
+        });
+      } else if (card === 'warlord') {
+        // Estratega: activa TODOS tus caballeros gratis (sin cereal).
+        let activated = 0;
+        for (const k of player.knights) if (!k.active) { k.active = true; activated += 1; }
+        logAction(state, `${player.name} jugó Estratega: activó ${activated} caballero(s) gratis.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Estratega (activó todos sus caballeros).` });
+      } else if (card === 'crane') {
+        // Grúa: la próxima mejora de ciudad de este turno cuesta 1 mercancía menos.
+        player.craneDiscount = true;
+        logAction(state, `${player.name} jugó Grúa: su próxima mejora de ciudad cuesta 1 mercancía menos este turno.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Grúa (descuento en la próxima mejora de ciudad).` });
+      } else if (card === 'roadBuildingP') {
+        // Construcción de carreteras: 2 caminos gratis (los consume build('road')).
+        player.freeRoads = (player.freeRoads ?? 0) + 2;
+        logAction(state, `${player.name} jugó Construcción de carreteras: 2 caminos gratis.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Construcción de carreteras (2 caminos gratis).` });
+      } else if (card === 'merchantFleet') {
+        // Flota Mercante: 2:1 con el banco de UN tipo (recurso o mercancía) hasta
+        // el final del turno.
+        if (resource && RESOURCES.includes(resource)) {
+          player.merchantFleet = { kind: 'resource', type: resource };
+        } else if (commodity && COMMODITIES.includes(commodity)) {
+          player.merchantFleet = { kind: 'commodity', type: commodity };
+        } else {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige el recurso o la mercancía para el 2:1.' });
+          return;
+        }
+        const label = resource ? esResource(resource) : esCommodity(commodity!);
+        logAction(state, `${player.name} jugó Flota Mercante: 2:1 de ${label} este turno.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Flota Mercante (2:1 de ${label}).` });
+      } else if (card === 'spy') {
+        // Espía: roba 1 carta de progreso (al azar, por privacidad) a un oponente.
+        const target = targetPlayerId ? findPlayer(state, targetPlayerId) : null;
+        if (!target || target.id === player.id) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige a un oponente para espiar.' });
+          return;
+        }
+        if (target.progressCards.length === 0) {
+          popSnapshot(state);
+          socket.emit('error', { message: `${target.name} no tiene cartas de progreso.` });
+          return;
+        }
+        const i = Math.floor(Math.random() * target.progressCards.length);
+        const stolen = target.progressCards.splice(i, 1)[0];
+        player.progressCards.push(stolen);
+        if (player.progressCards.length > PROGRESS_HAND_LIMIT) {
+          state.pendingProgressDiscard[player.id] = player.progressCards.length - PROGRESS_HAND_LIMIT;
+        }
+        logAction(state, `${player.name} jugó Espía y robó una carta de progreso a ${target.name}.`, player.id);
+        io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} jugó Espía contra ${target.name} (le robó una carta de progreso).` });
+      } else if (card === 'masterMerchant') {
+        // Maestro Mercader: roba 2 cartas (recursos/mercancías) a un oponente con
+        // MÁS PV que tú.
+        const target = targetPlayerId ? findPlayer(state, targetPlayerId) : null;
+        if (!target || target.id === player.id) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige a un oponente.' });
+          return;
+        }
+        if (playerVP(state, target) <= playerVP(state, player)) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Solo puedes robar a un jugador con más puntos que tú.' });
+          return;
+        }
+        const stole = stealRandomMixed(target, player, 2);
+        logAction(state, `${player.name} jugó Maestro Mercader y robó ${stole} carta(s) a ${target.name}.`, player.id);
+        io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} jugó Maestro Mercader contra ${target.name} (le robó ${stole}).` });
+      } else if (card === 'medicine') {
+        // Medicina: sube un poblado a ciudad por 2 mineral + 1 trigo.
+        const target = settlementId
+          ? player.buildings.find((b) => b.id === settlementId && b.type === 'settlement')
+          : null;
+        if (!target) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige un poblado para convertir en ciudad.' });
+          return;
+        }
+        const medCost: Partial<Hand> = { ore: 2, grain: 1 };
+        if (!canAfford(player.hand, medCost)) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Necesitas 2 mineral y 1 trigo (Medicina ahorra 1 de cada uno).' });
+          return;
+        }
+        payToBank(player.hand, state.bank, medCost);
+        target.type = 'city';
+        state.hexes = rebuildHexes(state.players, state.hexes, state.extension56 ? 2 : 1);
+        recomputeVictoryPoints(state);
+        logAction(state, `${player.name} jugó Medicina: subió un poblado a ciudad por 2 mineral + 1 trigo.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Medicina (poblado → ciudad).` });
+      } else if (card === 'smith') {
+        // Fragua: promueve gratis hasta 2 caballeros (sin promover dos veces el
+        // mismo; rango 3 requiere Fortaleza; respeta el máx de 2 por rango).
+        const ids = Array.isArray(knightIds) ? [...new Set(knightIds)].slice(0, 2) : [];
+        if (ids.length === 0) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige 1 o 2 caballeros para promover.' });
+          return;
+        }
+        for (const id of ids) {
+          const k = player.knights.find((kk) => kk.id === id);
+          if (!k) {
+            popSnapshot(state);
+            socket.emit('error', { message: 'Caballero inválido.' });
+            return;
+          }
+          if (k.rank >= 3) {
+            popSnapshot(state);
+            socket.emit('error', { message: 'No puedes promover a un caballero que ya es poderoso.' });
+            return;
+          }
+          if (k.rank === 2 && player.improvements.politics < 3) {
+            popSnapshot(state);
+            socket.emit('error', { message: 'Necesitas la Fortaleza (Política nivel 3) para promover a poderoso.' });
+            return;
+          }
+        }
+        let promoted = 0;
+        for (const id of ids) {
+          const k = player.knights.find((kk) => kk.id === id)!;
+          const targetRank = k.rank + 1;
+          if (player.knights.filter((x) => x.rank === targetRank).length >= MAX_KNIGHTS_PER_RANK) continue;
+          k.rank = targetRank as 1 | 2 | 3;
+          promoted += 1;
+        }
+        logAction(state, `${player.name} jugó Fragua: promovió ${promoted} caballero(s) gratis.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Fragua (promovió ${promoted} caballero(s)).` });
+      } else if (card === 'deserter') {
+        // Desertor: un oponente pierde un caballero (knightIds[0] o el primero) y
+        // tú colocas uno del mismo rango y estado (rango 3 permitido aunque no
+        // tengas Fortaleza; respeta el máx de 2 por rango).
+        const target = targetPlayerId ? findPlayer(state, targetPlayerId) : null;
+        if (!target || target.id === player.id) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige a un oponente.' });
+          return;
+        }
+        const wantId = Array.isArray(knightIds) ? knightIds[0] : undefined;
+        const victimKnight = wantId ? target.knights.find((k) => k.id === wantId) : target.knights[0];
+        if (!victimKnight) {
+          popSnapshot(state);
+          socket.emit('error', { message: `${target.name} no tiene caballeros.` });
+          return;
+        }
+        const rank = victimKnight.rank;
+        const wasActive = victimKnight.active;
+        target.knights = target.knights.filter((k) => k.id !== victimKnight.id);
+        let placed = false;
+        if (player.knights.filter((k) => k.rank === rank).length < MAX_KNIGHTS_PER_RANK) {
+          player.knights.push({ id: nanoid(8), rank, active: wasActive });
+          placed = true;
+        }
+        logAction(
+          state,
+          `${player.name} jugó Desertor: ${target.name} pierde un caballero (fuerza ${rank})${placed ? ' y tú colocas uno igual' : ''}.`,
+          player.id
+        );
+        io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} jugó Desertor contra ${target.name}.` });
       } else {
         // Registro asistido: la carta se retira y la mesa la resuelve.
         handled = false;
@@ -1319,7 +1567,10 @@ export function registerHandlers(io: Server, socket: Socket): void {
         socket.emit('error', { message: 'Elige qué poblado se convierte en ciudad.' });
         return;
       }
-      const cost = BUILD_COSTS[type];
+      // Construcción de carreteras (carta de progreso C&K): si hay caminos
+      // gratis pendientes, este camino no cuesta recursos.
+      const useFreeRoad = type === 'road' && (player.freeRoads ?? 0) > 0;
+      const cost = useFreeRoad ? {} : BUILD_COSTS[type];
       if (!canAfford(player.hand, cost)) {
         const lack = shortfall(player.hand, cost);
         const parts = (Object.entries(lack) as [Resource, number][]).map(([r, n]) => `${n} ${esResource(r)}`);
@@ -1328,6 +1579,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
       }
       pushSnapshot(state);
       payToBank(player.hand, state.bank, cost);
+      if (useFreeRoad) player.freeRoads = (player.freeRoads ?? 0) - 1;
       if (type === 'devcard') {
         const card = state.devDeck.pop();
         if (!card) {
@@ -1475,25 +1727,64 @@ export function registerHandlers(io: Server, socket: Socket): void {
   });
 
   // === Intercambio con banco/puertos ===
-  socket.on('trade:bank', ({ give, receive }: { give: Resource; receive: Resource }) => {
-    const state = getRoom(socket.data.code ?? '');
-    if (!state) return;
-    const player = findPlayer(state, socket.data.playerId ?? '');
-    if (!player) return;
-    if (!ensureActive(state, player.id) || state.phase !== 'main') {
-      socket.emit('error', { message: 'Solo puedes intercambiar en tu turno, después de tirar.' });
-      return;
+  // Intercambio con el banco/puertos. En Caballeros y Ciudades el ítem dado o
+  // recibido puede ser una MERCANCÍA (giveKind/receiveKind). En el base solo
+  // recursos (kinds ausentes → 'resource'). El ratio aplica los modificadores
+  // C&K (Guilda, comerciante, Flota Mercante, puertos) vía tradeWithBankCK.
+  socket.on(
+    'trade:bank',
+    ({
+      give,
+      receive,
+      giveKind = 'resource',
+      receiveKind = 'resource',
+    }: {
+      give: Resource | Commodity;
+      receive: Resource | Commodity;
+      giveKind?: TradeItemKind;
+      receiveKind?: TradeItemKind;
+    }) => {
+      const state = getRoom(socket.data.code ?? '');
+      if (!state) return;
+      const player = findPlayer(state, socket.data.playerId ?? '');
+      if (!player) return;
+      if (!ensureActive(state, player.id) || state.phase !== 'main') {
+        socket.emit('error', { message: 'Solo puedes intercambiar en tu turno, después de tirar.' });
+        return;
+      }
+      // Validación de tipos según el "kind".
+      const validItem = (kind: TradeItemKind, item: Resource | Commodity) =>
+        kind === 'resource'
+          ? RESOURCES.includes(item as Resource)
+          : COMMODITIES.includes(item as Commodity);
+      if (!validItem(giveKind, give) || !validItem(receiveKind, receive)) {
+        socket.emit('error', { message: 'Intercambio inválido.' });
+        return;
+      }
+      // Las mercancías solo existen en C&K.
+      if (!state.citiesKnights && (giveKind === 'commodity' || receiveKind === 'commodity')) {
+        socket.emit('error', { message: 'Las mercancías solo existen en Caballeros y Ciudades.' });
+        return;
+      }
+      pushSnapshot(state);
+      const r = state.citiesKnights
+        ? tradeWithBankCK(state, player, giveKind, give, receiveKind, receive)
+        : tradeWithBank(state, player, give as Resource, receive as Resource);
+      if (!r.ok) {
+        popSnapshot(state); // revertir
+        socket.emit('error', { message: r.reason ?? 'No pudimos hacer el intercambio.' });
+        return;
+      }
+      const esItem = (kind: TradeItemKind, item: Resource | Commodity) =>
+        kind === 'resource' ? esResource(item as Resource) : esCommodity(item as Commodity);
+      logAction(
+        state,
+        `${player.name} intercambió con el banco ${r.ratio}:1: dio ${esItem(giveKind, give)}, recibió ${esItem(receiveKind, receive)}.`,
+        player.id
+      );
+      broadcastState(io, state);
     }
-    pushSnapshot(state);
-    const r = tradeWithBank(state, player, give, receive);
-    if (!r.ok) {
-      popSnapshot(state); // revertir
-      socket.emit('error', { message: r.reason ?? 'No pudimos hacer el intercambio.' });
-      return;
-    }
-    logAction(state, `${player.name} intercambió con el banco ${r.ratio}:1: dio ${esResource(give)}, recibió ${esResource(receive)}.`, player.id);
-    broadcastState(io, state);
-  });
+  );
 
   // === Mejora de ciudad (Caballeros y Ciudades) ===
   socket.on('city:upgrade', ({ discipline }: { discipline: Discipline }) => {
@@ -1511,12 +1802,16 @@ export function registerHandlers(io: Server, socket: Socket): void {
     }
     if (!DISCIPLINES.includes(discipline)) return;
     pushSnapshot(state);
-    const r = upgradeCityImprovement(state, player, discipline);
+    // Descuento de la Grúa (1 mercancía menos), si está activo este turno.
+    const craneOn = !!player.craneDiscount;
+    const r = upgradeCityImprovement(state, player, discipline, craneOn ? 1 : 0);
     if (!r.ok) {
       popSnapshot(state);
       socket.emit('error', { message: r.reason ?? 'No pudimos mejorar la ciudad.' });
       return;
     }
+    // La Grúa se consume con la mejora.
+    if (craneOn) player.craneDiscount = false;
     const discName = DISCIPLINE_NAMES[discipline];
     logAction(state, `${player.name} mejoró ${discName} al nivel ${r.level}.`, player.id);
     if (r.abilityUnlocked) {
@@ -1569,6 +1864,28 @@ export function registerHandlers(io: Server, socket: Socket): void {
     payToBank(player.hand, state.bank, WALL_COST);
     player.walls += 1;
     logAction(state, `${player.name} construyó un muro de ciudad (${player.walls}/${MAX_WALLS}).`, player.id);
+    broadcastState(io, state);
+  });
+
+  // === Acueducto (Ciencia nivel 3, Caballeros y Ciudades) ===
+  // El jugador marcado en pendingAqueductPick (no produjo en la última tirada)
+  // toma 1 recurso del banco a su elección. No bloquea el turno del activo;
+  // cualquiera de los marcados resuelve el suyo de forma independiente.
+  socket.on('aqueduct:pick', ({ resource }: { resource: Resource }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    if (!state.pendingAqueductPick || !state.pendingAqueductPick.includes(player.id)) return;
+    if (!RESOURCES.includes(resource)) {
+      socket.emit('error', { message: 'Elige un recurso válido.' });
+      return;
+    }
+    pushSnapshot(state);
+    player.hand[resource] += 1;
+    drainBank(state.bank, resource, 1);
+    state.pendingAqueductPick = state.pendingAqueductPick.filter((id) => id !== player.id);
+    logAction(state, `${player.name} tomó 1 ${esResource(resource)} con el Acueducto.`, player.id);
     broadcastState(io, state);
   });
 
@@ -1733,7 +2050,20 @@ export function registerHandlers(io: Server, socket: Socket): void {
   // === Intercambio entre jugadores ===
   socket.on(
     'trade:offer',
-    ({ toId, give, receive }: { toId: string | null; give: Partial<Hand>; receive: Partial<Hand> }) => {
+    ({
+      toId,
+      give,
+      receive,
+      giveCommodities = {},
+      receiveCommodities = {},
+    }: {
+      toId: string | null;
+      give: Partial<Hand>;
+      receive: Partial<Hand>;
+      // Mercancías ofrecidas/pedidas (solo C&K). Aditivo.
+      giveCommodities?: Partial<CommodityHand>;
+      receiveCommodities?: Partial<CommodityHand>;
+    }) => {
       const state = getRoom(socket.data.code ?? '');
       if (!state) return;
       const player = findPlayer(state, socket.data.playerId ?? '');
@@ -1742,8 +2072,13 @@ export function registerHandlers(io: Server, socket: Socket): void {
         socket.emit('error', { message: 'Solo puedes ofrecer intercambios en tu turno, después de tirar.' });
         return;
       }
-      const giveTotal = Object.values(give).reduce((a, b) => a + (b ?? 0), 0);
-      const recvTotal = Object.values(receive).reduce((a, b) => a + (b ?? 0), 0);
+      // Fuera de C&K no hay mercancías que ofrecer.
+      const gC = state.citiesKnights ? giveCommodities : {};
+      const rC = state.citiesKnights ? receiveCommodities : {};
+      const sum = (o: Partial<Record<string, number>>) =>
+        Object.values(o).reduce<number>((a, b) => a + (b ?? 0), 0);
+      const giveTotal = sum(give) + sum(gC);
+      const recvTotal = sum(receive) + sum(rC);
       if (giveTotal === 0 && recvTotal === 0) {
         socket.emit('error', { message: 'Tu oferta no tiene cartas.' });
         return;
@@ -1752,12 +2087,28 @@ export function registerHandlers(io: Server, socket: Socket): void {
         socket.emit('error', { message: 'Tu oferta necesita cartas en ambos lados.' });
         return;
       }
+      // El ofertante debe tener lo que ofrece (recursos + mercancías).
+      const offer = validateTradeOffer(
+        player,
+        player,
+        give,
+        {},
+        true,
+        gC,
+        {}
+      );
+      if (!offer.ok) {
+        socket.emit('error', { message: 'No tienes las cartas que ofreces.' });
+        return;
+      }
       state.activeTrade = {
         id: nanoid(8),
         fromId: player.id,
         toId,
         give,
         receive,
+        giveCommodities: gC,
+        receiveCommodities: rC,
         rejectedBy: [],
       };
       logAction(state, `${player.name} ofreció un intercambio.`, player.id);
@@ -1792,11 +2143,13 @@ export function registerHandlers(io: Server, socket: Socket): void {
     }
     const from = findPlayer(state, offer.fromId);
     if (!from) return;
-    // Si el OFERTANTE ya no tiene las cartas que ofrece, la oferta está muerta
-    // para todos: se retira.
-    const offererCanPay = (Object.entries(offer.give) as [Resource, number][]).every(
-      ([res, n]) => from.hand[res] >= n
-    );
+    // Si el OFERTANTE ya no tiene las cartas que ofrece (recursos + mercancías),
+    // la oferta está muerta para todos: se retira.
+    const offererCanPay =
+      (Object.entries(offer.give) as [Resource, number][]).every(([res, n]) => from.hand[res] >= n) &&
+      (Object.entries(offer.giveCommodities ?? {}) as [Commodity, number][]).every(
+        ([c, n]) => from.commodities[c] >= n
+      );
     if (!offererCanPay) {
       socket.emit('error', { message: `${from.name} ya no tiene las cartas que ofrecía.` });
       state.activeTrade = undefined;
@@ -1804,12 +2157,14 @@ export function registerHandlers(io: Server, socket: Socket): void {
       broadcastState(io, state);
       return;
     }
-    // Si quien acepta NO tiene las cartas necesarias (lado `receive`), es un
-    // fallo INDIVIDUAL: la oferta sigue activa para los demás y a esta persona
-    // se le marca como rechazada (no debe poder bloquear a nadie).
-    const responderCanPay = (Object.entries(offer.receive) as [Resource, number][]).every(
-      ([res, n]) => responder.hand[res] >= n
-    );
+    // Si quien acepta NO tiene las cartas necesarias (lado `receive`, recursos +
+    // mercancías), es un fallo INDIVIDUAL: la oferta sigue activa para los demás
+    // y a esta persona se le marca como rechazada (no debe poder bloquear a nadie).
+    const responderCanPay =
+      (Object.entries(offer.receive) as [Resource, number][]).every(([res, n]) => responder.hand[res] >= n) &&
+      (Object.entries(offer.receiveCommodities ?? {}) as [Commodity, number][]).every(
+        ([c, n]) => responder.commodities[c] >= n
+      );
     if (!responderCanPay) {
       socket.emit('error', { message: 'No tienes las cartas necesarias para aceptar este intercambio.' });
       offer.rejectedBy.push(responder.id);
@@ -1824,7 +2179,14 @@ export function registerHandlers(io: Server, socket: Socket): void {
       return;
     }
     pushSnapshot(state);
-    executeTrade(from, responder, offer.give, offer.receive);
+    executeTrade(
+      from,
+      responder,
+      offer.give,
+      offer.receive,
+      offer.giveCommodities ?? {},
+      offer.receiveCommodities ?? {}
+    );
     logAction(state, `${responder.name} aceptó el intercambio con ${from.name}.`, responder.id);
     state.activeTrade = undefined;
     broadcastState(io, state);
@@ -2059,13 +2421,13 @@ export function registerHandlers(io: Server, socket: Socket): void {
       return;
     }
     const target = victoryTargetFor(state);
-    if (totalVictoryPoints(player) < target) {
+    if (playerVP(state, player) < target) {
       socket.emit('error', { message: `Necesitas ${target} puntos para declarar victoria.` });
       return;
     }
     state.status = 'ended';
     state.winnerId = player.id;
-    logAction(state, `${player.name} declaró victoria con ${totalVictoryPoints(player)} puntos.`, player.id);
+    logAction(state, `${player.name} declaró victoria con ${playerVP(state, player)} puntos.`, player.id);
     broadcastState(io, state);
     // Persistir resultado y stats en MongoDB (no bloquea la partida si falla)
     void persistMatchResult(state);
@@ -2244,6 +2606,14 @@ export function registerHandlers(io: Server, socket: Socket): void {
     delete state.pendingProgressDiscard[playerId];
     state.specialBuildQueue = state.specialBuildQueue.filter((id) => id !== playerId);
     state.pendingBarbarianLoss = state.pendingBarbarianLoss.filter((id) => id !== playerId);
+    if (state.pendingAqueductPick) {
+      state.pendingAqueductPick = state.pendingAqueductPick.filter((id) => id !== playerId);
+    }
+    // Si el que se va controlaba el comerciante, vuelve a la reserva (nadie lo
+    // tiene): el +1 PV y el 2:1 dejan de aplicarse.
+    if (state.merchant && state.merchant.ownerId === playerId) {
+      state.merchant = null;
+    }
     if (state.activeTrade && (state.activeTrade.fromId === playerId || state.activeTrade.toId === playerId)) {
       state.activeTrade = undefined;
     }
@@ -2278,7 +2648,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
         if (next) {
           logAction(state, `Turno de ${next.name}.`, next.id);
           if (next.gameStats) {
-            next.gameStats.turnStartVP = totalVictoryPoints(next);
+            next.gameStats.turnStartVP = playerVP(state, next);
             next.gameStats.devBoughtThisTurn = 0;
           }
         }
@@ -2435,7 +2805,7 @@ function resolveBarbarianAttackCK(io: Server, state: GameState): void {
 
 function checkVictory(io: Server, state: GameState, player: Player): void {
   recomputeVictoryPoints(state);
-  if (totalVictoryPoints(player) >= victoryTargetFor(state) && state.status === 'playing') {
+  if (playerVP(state, player) >= victoryTargetFor(state) && state.status === 'playing') {
     // No declarar automáticamente; pero notificar al jugador con un mensaje en el log silencioso
     // El jugador debe tocar "Declarar victoria".
   }

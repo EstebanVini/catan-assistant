@@ -1,5 +1,17 @@
 import { nanoid } from 'nanoid';
-import { Building, BuildingSpot, Hand, Hex, Player, Resource, RESOURCES, emptyHand } from './state';
+import {
+  Building,
+  BuildingSpot,
+  CommodityHand,
+  Hand,
+  Hex,
+  Player,
+  Resource,
+  RESOURCES,
+  RESOURCE_COMMODITY,
+  emptyCommodities,
+  emptyHand,
+} from './state';
 
 // Lógica pura de la tabla de construcción: validación del registro de cada
 // jugador, derivación de los hexes de producción y reparto de recursos de
@@ -147,6 +159,10 @@ export interface SetupResult {
   hexes: Hex[];
   // Recursos de inicio entregados a cada jugador (banco ilimitado: completos)
   grants: Record<string, Hand>;
+  // Mercancías de inicio (solo Caballeros y Ciudades): cada CIUDAD de salida
+  // sobre montaña/bosque/pastura (ore/lumber/wool) da 1 mercancía por ficha,
+  // igual que su producción (1 recurso + 1 mercancía). Vacío en el modo base.
+  commodityGrants: Record<string, CommodityHand>;
   // Siempre vacío desde que el banco es ilimitado; se conserva por la firma.
   shortages: Array<{ playerId: string; resource: Resource; wanted: number; given: number }>;
 }
@@ -163,22 +179,33 @@ export function applyInitialSetup(
   players: Array<Pick<Player, 'id' | 'buildings'>>,
   bank: Hand,
   seedResources = true,
-  desertCount = 1
+  desertCount = 1,
+  // En Caballeros y Ciudades la 2ª colocación es una CIUDAD: además del recurso,
+  // cada ficha de montaña/bosque/pastura (ore/lumber/wool) entrega su mercancía
+  // (coin/paper/cloth), igual que la producción. En el base queda en false.
+  citiesKnights = false
 ): SetupResult {
   const hexes = rebuildHexes(players, [], desertCount);
 
   const grants: Record<string, Hand> = {};
+  const commodityGrants: Record<string, CommodityHand> = {};
 
   for (const player of players) {
     grants[player.id] = emptyHand();
+    commodityGrants[player.id] = emptyCommodities();
     if (!seedResources) continue;
     for (const building of player.buildings) {
       for (const spot of building.spots) {
         bank[spot.resource] = Math.max(0, bank[spot.resource] - 1);
         grants[player.id][spot.resource] += 1;
+        // Mercancía inicial de la ciudad de salida (solo C&K).
+        const commodity = citiesKnights ? RESOURCE_COMMODITY[spot.resource] : undefined;
+        if (building.type === 'city' && commodity) {
+          commodityGrants[player.id][commodity] += 1;
+        }
       }
     }
   }
 
-  return { hexes, grants, shortages: [] };
+  return { hexes, grants, commodityGrants, shortages: [] };
 }

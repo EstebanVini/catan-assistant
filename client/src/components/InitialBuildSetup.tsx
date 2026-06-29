@@ -4,6 +4,7 @@ import { Building, Hex, PlayerColor, RESOURCES, Resource } from '../types';
 import { RESOURCE_NAMES, RESOURCE_NAMES_LOWER } from '../lib/spanish';
 import { ResourceIcon } from './ResourceIcon';
 import { ColorChip } from './ColorChip';
+import { BuildingGlyph } from '../assets/icons';
 import { useModalA11y } from '../lib/useModalA11y';
 import { safeVibrate } from '../lib/motion';
 
@@ -106,6 +107,37 @@ export function InitialBuildSetup(): JSX.Element | null {
 
   if (!view || !me) return null;
 
+  // Caballeros y Ciudades (BUG #2): en C&K cada jugador empieza con 1 poblado +
+  // 1 ciudad (el server sube automáticamente el 2º registro a ciudad al iniciar
+  // la partida). Por eso, en C&K, la 1ª card es el POBLADO de salida y la 2ª la
+  // CIUDAD de salida. En base, ambas son poblados idénticos ("Poblado 1/2").
+  const citiesKnights = !!view.state.citiesKnights;
+
+  // Rótulo, tipo de construcción (para el ícono) y sustantivo de cada card,
+  // según su índice y el modo de la partida.
+  function cardMeta(idx: 0 | 1): {
+    label: string;
+    type: 'settlement' | 'city';
+    noun: string;
+  } {
+    if (citiesKnights) {
+      return idx === 0
+        ? { label: 'Poblado de salida', type: 'settlement', noun: 'poblado' }
+        : { label: 'Ciudad de salida', type: 'city', noun: 'ciudad' };
+    }
+    return { label: `Poblado ${idx + 1}`, type: 'settlement', noun: 'poblado' };
+  }
+
+  // Texto del estado "Te falta: …" por card (lee distinto en C&K).
+  function missingLabel(idx: 0 | 1): string {
+    if (citiesKnights) {
+      return idx === 0
+        ? 'fichas de tu poblado de salida'
+        : 'fichas de tu ciudad de salida';
+    }
+    return `fichas del Poblado ${idx + 1}`;
+  }
+
   function commit(next: Building[]): void {
     lastMutationAtRef.current = Date.now();
     setBuilds(next);
@@ -156,7 +188,7 @@ export function InitialBuildSetup(): JSX.Element | null {
 
   const localComplete = builds.every((b) => b.spots.length >= 1);
   const missing = builds
-    .map((b, i) => (b.spots.length === 0 ? `fichas del Poblado ${i + 1}` : null))
+    .map((b, i) => (b.spots.length === 0 ? missingLabel(i as 0 | 1) : null))
     .filter((m): m is string => m !== null);
 
   return (
@@ -171,7 +203,7 @@ export function InitialBuildSetup(): JSX.Element | null {
     >
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
-          Tus poblados de salida
+          {citiesKnights ? 'Tu poblado y tu ciudad de salida' : 'Tus poblados de salida'}
         </h2>
         {serverComplete ? (
           <span aria-hidden>
@@ -181,9 +213,23 @@ export function InitialBuildSetup(): JSX.Element | null {
       </div>
       <p className="mt-1 text-[11px] leading-snug text-neutral-400">
         {seedOn ? (
+          citiesKnights ? (
+            <>
+              Registra las fichas con número que tocan tu poblado y tu ciudad de
+              salida. La 2ª colocación es una ciudad: produce 1 recurso por ficha
+              y, además, 1 mercancía en cada bosque, pastura o montaña.
+            </>
+          ) : (
+            <>
+              Mira el tablero y registra las fichas con número que tocan tus 2
+              poblados. Al iniciar recibes 1 carta por cada ficha registrada.
+            </>
+          )
+        ) : citiesKnights ? (
           <>
-            Mira el tablero y registra las fichas con número que tocan tus 2
-            poblados. Al iniciar recibes 1 carta por cada ficha registrada.
+            En este modo empiezas sin recursos: registrar las fichas de tu
+            poblado y tu ciudad de salida es opcional y solo sirve para ver tu
+            producción.
           </>
         ) : (
           <>
@@ -196,14 +242,20 @@ export function InitialBuildSetup(): JSX.Element | null {
       <div className="mt-3 space-y-2.5">
         {builds.map((b, rawIdx) => {
           const idx = rawIdx as 0 | 1;
+          const meta = cardMeta(idx);
           return (
             <div
               key={b.id}
               className="rounded-xl border border-white/10 bg-neutral-900/50 p-2.5"
             >
-              <p className="text-xs font-semibold text-neutral-100">
-                Poblado {idx + 1}
-              </p>
+              <div className="flex items-center gap-1.5">
+                {citiesKnights ? (
+                  <BuildingGlyph type={meta.type} size={20} />
+                ) : null}
+                <p className="text-xs font-semibold text-neutral-100">
+                  {meta.label}
+                </p>
+              </div>
               {b.spots.length === 0 ? (
                 <p className="mt-1.5 rounded-md border border-dashed border-white/15 px-2.5 py-2.5 text-center text-[11px] text-neutral-400">
                   Sin fichas todavía
@@ -307,7 +359,8 @@ export function InitialBuildSetup(): JSX.Element | null {
       {sheet ? (
         <SpotPickerSheet
           key={`${sheet.buildIdx}-${sheet.spotIdx ?? 'new'}`}
-          buildLabel={`Poblado ${sheet.buildIdx + 1}`}
+          buildLabel={cardMeta(sheet.buildIdx).label}
+          targetNoun={cardMeta(sheet.buildIdx).noun}
           editing={sheet.spotIdx !== null}
           initialNumber={
             sheet.spotIdx !== null
@@ -353,6 +406,7 @@ type IdentityDecision =
 // cero fricción: se crea hexId nuevo y se confirma directo.
 export function SpotPickerSheet({
   buildLabel,
+  targetNoun = 'poblado',
   editing,
   initialNumber,
   initialResource,
@@ -363,6 +417,9 @@ export function SpotPickerSheet({
   onConfirm,
 }: {
   buildLabel: string;
+  // Sustantivo de la construcción que recibe la ficha ("poblado" | "ciudad").
+  // En C&K la 2ª colocación es una ciudad; en base siempre es un poblado.
+  targetNoun?: string;
   editing: boolean;
   initialNumber: number | null;
   initialResource: Resource | null;
@@ -471,7 +528,7 @@ export function SpotPickerSheet({
               id="spot-picker-title"
               className="text-base font-semibold tracking-tight text-neutral-50"
             >
-              Ficha que toca tu poblado
+              Ficha que toca tu {targetNoun}
             </h3>
             <p className="mt-0.5 text-[11px] text-neutral-400">
               {buildLabel} · El desierto y el mar no se registran.

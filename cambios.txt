@@ -1,14 +1,21 @@
-Cambios:
+Cambios Ciudades y caballeros.
+(estos cambios únicamente cubren la extensión de Caballeros y Ciudades)
+Para todas las implementaciones que necesiten un ícono, recicla los íconos que ya tenemos pero genera una descripción de cómo debería ser el ícono para crearlo y agregarlo después. Las descripciónes tienen que venir detalladamente escritas en missing-icons.md (si ya existe la descripción de ese ícono, simplemente ignóralo)
 
-Agregar toggle para ocultar tus recursos 
+Bugs encontrados:
 
-También agregar toggle para ver/ocultar las cartas de desarrollo de tu mano 
+Las cartas de progreso no funcionan correctamente. El juego si las asigna bien cuando le toca a cualquier jugador pero hay muchas cartas que no tienen ninguna funcionalidad (únicamente dicen "Resolver en el tablero") cuando si deberían hacer varias otras cosas. Lee El documentos docs/Progress-Cards-CC.md para implementar correctamente las cartas de probreso y también limitar la cantidad de cada una a la que dice el documento, así como eliminar por completo las cartas de progreso que son del catán base y no deberían existir jugando con esta extensión.
 
-Agregar la opción para mover el ladrón a una ficha vacía (independiente del deseirto, que haya una opción que diga simplemente "mover a ficha vacía") y que únicamente si está activada la regla extra de obtener carta aleatoria si mueves el ladrón a ficha vacía, que te dé una carta.
+El el lobby, cuando se registran el primer poblado y la primer ciudad, no hay nada que diferencie cuál es la ciudad y cuál es el poblado. 
 
-Cambia el xp de estos logros:
+Cuándo inicia la partida se reparten correctamente los recursos pero no las mercancías que debería recibir cada jugador por tener una ciudad en fichas de recursos específicas
 
-Desarrollado: 15xp -> 40XP
+No se pueden intercambiar mercancías entre jugadores (si se debería poder)
 
-Victoria demoledora: 25XP -> 40XP
+No se pueden intercambiar recursos por mercancías y viceversa en el banco y/o con los puertos marítimos (si se debería poder)
 
+Las mejoras de las ciudades a nivel 3 no funcionan, ninguna da los "Beneficios" descritos en docs/cities_updates.md 
+
+Cuando utilizas al comerciante, además de que debería ser posible seleccionar una ficha de recurso en dónde ponerla para poder hacer intercambios 2:1 de ese recurso, también el jugador que lo tenga recibe 1 punto de victoria
+
+En la vista de tableta y de computadora, lo que son los caballeros, mejoras de ciudades y todo lo que se agregó visualmente debe quedar en la tercera columna, arriba de las estadísticas de los dados para que de un solo vistazo se puedan hacer todas las acciones sin necesidad de hacer scrolldown

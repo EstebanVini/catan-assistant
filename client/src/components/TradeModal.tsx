@@ -1,15 +1,20 @@
 import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../store';
-import { RESOURCES, Resource, PortType, Hand } from '../types';
-import type { PublicPlayer, PortUseRequest } from '../types';
-import { RESOURCE_NAMES, portLabel } from '../lib/spanish';
+import { RESOURCES, COMMODITIES, Resource, Commodity, PortType, Hand } from '../types';
+import type { PublicPlayer, PortUseRequest, CommodityHand, TradeItemKind } from '../types';
+import { RESOURCE_NAMES, RESOURCE_NAMES_LOWER, COMMODITY_NAMES, portLabel } from '../lib/spanish';
 import { ColorChip } from './ColorChip';
 import { ResourceIcon } from './ResourceIcon';
+import { CommodityGlyph } from '../assets/icons';
 import { useModalA11y } from '../lib/useModalA11y';
 
 // Modal de intercambio. Tabs: Banco / Puertos | Jugadores | Puerto de otro.
 type TradeTab = 'bank' | 'players' | 'sharedPort';
+
+// Un ítem comerciable con el banco: un recurso o, en Caballeros y Ciudades, una
+// mercancía (moneda / papel / tela). El `kind` viaja al servidor en tradeBank.
+type BankItem = { kind: TradeItemKind; item: Resource | Commodity };
 
 export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | null {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -29,21 +34,65 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
 
   const unequalAllowed = state.extraRules.unequalTrades;
   const sharedPortsAllowed = state.extraRules.sharedPorts;
+  const citiesKnights = state.citiesKnights;
+  // Las mejoras de ciudad viven en el jugador público (no en `me`). El nivel de
+  // Comercio determina la Guilda (nivel 3 → 2:1 de mercancías).
+  const miTrade =
+    state.players.find((p) => p.id === me.id)?.improvements.trade ?? 0;
 
-  // Lógica de proporción local para mostrar (servidor también valida)
-  function ratio(give: Resource): number {
-    if (ports.has(give)) return 2;
-    if (ports.has('3:1')) return 3;
-    return 4;
+  // Proporción de banco/puertos para un ítem (recurso o mercancía). Espejo de
+  // `bankTradeRatioCK` del servidor; el servidor revalida. Devuelve también el
+  // motivo de un 2:1/3:1 (puerto / Guilda / comerciante / Flota Mercante).
+  function bankRatioInfo(
+    kind: TradeItemKind,
+    item: Resource | Commodity
+  ): { ratio: number; reason: string | null } {
+    const mf = me.merchantFleet;
+    if (mf && mf.kind === kind && mf.type === item)
+      return { ratio: 2, reason: 'Flota Mercante' };
+    if (kind === 'resource') {
+      const r = item as Resource;
+      if (
+        state.merchant &&
+        state.merchant.ownerId === me.id &&
+        state.merchant.resource === r
+      )
+        return { ratio: 2, reason: `comerciante de ${RESOURCE_NAMES_LOWER[r]}` };
+      if (ports.has(r)) return { ratio: 2, reason: `puerto 2:1 de ${RESOURCE_NAMES[r]}` };
+      if (ports.has('3:1')) return { ratio: 3, reason: 'puerto 3:1' };
+      return { ratio: 4, reason: null };
+    }
+    // Mercancía: la Guilda (Comercio nivel 3) da 2:1; el puerto 3:1 genérico
+    // también aplica. Los puertos 2:1 de recurso NO cuentan para mercancías.
+    if (miTrade >= 3) return { ratio: 2, reason: 'Guilda (Comercio nivel 3)' };
+    if (ports.has('3:1')) return { ratio: 3, reason: 'puerto 3:1' };
+    return { ratio: 4, reason: null };
+  }
+
+  function itemHave(b: BankItem): number {
+    return b.kind === 'resource'
+      ? me.hand[b.item as Resource]
+      : me.commodities[b.item as Commodity];
+  }
+  function itemName(b: BankItem): string {
+    return b.kind === 'resource'
+      ? RESOURCE_NAMES[b.item as Resource]
+      : COMMODITY_NAMES[b.item as Commodity];
+  }
+  function sameItem(a: BankItem, b: BankItem): boolean {
+    return a.kind === b.kind && a.item === b.item;
   }
 
   // Estado del tab Banco
-  const [bankGive, setBankGive] = useState<Resource | null>(null);
-  const [bankReceive, setBankReceive] = useState<Resource | null>(null);
+  const [bankGive, setBankGive] = useState<BankItem | null>(null);
+  const [bankReceive, setBankReceive] = useState<BankItem | null>(null);
 
   // Estado del tab Jugadores
   const [give, setGive] = useState<Partial<Record<Resource, number>>>({});
   const [receive, setReceive] = useState<Partial<Record<Resource, number>>>({});
+  // Mercancías ofrecidas/pedidas (solo C&K). Estados separados de los recursos.
+  const [giveC, setGiveC] = useState<Partial<Record<Commodity, number>>>({});
+  const [receiveC, setReceiveC] = useState<Partial<Record<Commodity, number>>>({});
   const [toId, setToId] = useState<string | null>(null);
 
   // Estado del tab "Puerto de otro"
@@ -73,28 +122,38 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
 
   function submitBank() {
     if (!bankGive || !bankReceive) return;
-    if (bankGive === bankReceive) {
-      pushToast('error', 'Elige dos recursos distintos.');
+    if (sameItem(bankGive, bankReceive)) {
+      pushToast(
+        'error',
+        bankGive.kind === 'commodity'
+          ? 'Elige dos mercancías distintas.'
+          : 'Elige dos recursos distintos.'
+      );
       return;
     }
-    const r = ratio(bankGive);
-    if (me!.hand[bankGive] < r) {
-      pushToast('error', `Te faltan ${r} ${RESOURCE_NAMES[bankGive]} para esa proporción.`);
+    const { ratio } = bankRatioInfo(bankGive.kind, bankGive.item);
+    if (itemHave(bankGive) < ratio) {
+      pushToast('error', `Te faltan ${ratio} ${itemName(bankGive)} para esa proporción.`);
       return;
     }
-    if (state.bank[bankReceive] < 1) {
-      pushToast('error', `El banco se quedó sin ${RESOURCE_NAMES[bankReceive]}.`);
+    // El banco de mercancías no se expone en la vista pública (sin tope que
+    // mostrar); el servidor lo valida. Para recursos sí avisamos si se agotó.
+    if (
+      bankReceive.kind === 'resource' &&
+      state.bank[bankReceive.item as Resource] < 1
+    ) {
+      pushToast('error', `El banco se quedó sin ${RESOURCE_NAMES[bankReceive.item as Resource]}.`);
       return;
     }
-    tradeBank(bankGive, bankReceive);
+    tradeBank(bankGive.item, bankReceive.item, bankGive.kind, bankReceive.kind);
     onClose();
   }
 
-  const giveTotal = (Object.values(give) as number[]).reduce((a, b) => a + b, 0);
-  const receiveTotal = (Object.values(receive) as number[]).reduce(
-    (a, b) => a + b,
-    0
-  );
+  const sumCounts = (o: Partial<Record<string, number>>) =>
+    (Object.values(o) as number[]).reduce((a, b) => a + b, 0);
+  // El conteo de "oferta vacía / ambos lados" suma recursos + mercancías.
+  const giveTotal = sumCounts(give) + sumCounts(giveC);
+  const receiveTotal = sumCounts(receive) + sumCounts(receiveC);
 
   function submitOffer() {
     if (unequalAllowed) {
@@ -108,7 +167,7 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
       pushToast('error', 'Tu oferta necesita cartas en ambos lados.');
       return;
     }
-    offerTrade(toId, give, receive);
+    offerTrade(toId, give, receive, giveC, receiveC);
     onClose();
   }
 
@@ -159,6 +218,22 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
     setReceive((prev) => {
       const cur = prev[r] ?? 0;
       return { ...prev, [r]: Math.max(0, cur + delta) };
+    });
+  }
+
+  function adjustGiveC(c: Commodity, delta: number) {
+    setGiveC((prev) => {
+      const cur = prev[c] ?? 0;
+      const max = me!.commodities[c];
+      return { ...prev, [c]: Math.max(0, Math.min(max, cur + delta)) };
+    });
+  }
+
+  function adjustReceiveC(c: Commodity, delta: number) {
+    setReceiveC((prev) => {
+      const cur = prev[c] ?? 0;
+      // Tope del banco de mercancías por tipo (Caballeros y Ciudades): 12.
+      return { ...prev, [c]: Math.max(0, Math.min(12, cur + delta)) };
     });
   }
 
@@ -213,12 +288,13 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
               <div className="mt-1.5 grid grid-cols-5 gap-1.5">
                 {RESOURCES.map((r) => {
                   const have = me.hand[r];
-                  const selected = bankGive === r;
+                  const selected =
+                    bankGive?.kind === 'resource' && bankGive.item === r;
                   return (
                     <button
                       key={r}
                       type="button"
-                      onClick={() => setBankGive(r)}
+                      onClick={() => setBankGive({ kind: 'resource', item: r })}
                       aria-pressed={selected}
                       aria-label={`Doy ${RESOURCE_NAMES[r]} (tengo ${have})`}
                       className={
@@ -236,15 +312,16 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
                   );
                 })}
               </div>
+              {citiesKnights ? (
+                <BankCommodityRow
+                  mode="give"
+                  commodities={me.commodities}
+                  selected={bankGive}
+                  onSelect={setBankGive}
+                />
+              ) : null}
               {bankGive ? (
-                <p className="mt-1 text-[11px] text-neutral-400">
-                  Proporción {ratio(bankGive)}:1
-                  {ratio(bankGive) === 2
-                    ? ` (puerto 2:1 de ${RESOURCE_NAMES[bankGive]})`
-                    : ratio(bankGive) === 3
-                      ? ' (puerto 3:1)'
-                      : ''}
-                </p>
+                <BankRatioNote info={bankRatioInfo(bankGive.kind, bankGive.item)} />
               ) : null}
             </div>
             <div>
@@ -254,14 +331,15 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
               <div className="mt-1.5 grid grid-cols-5 gap-1.5">
                 {RESOURCES.map((r) => {
                   const inBank = state.bank[r];
-                  const selected = bankReceive === r;
+                  const selected =
+                    bankReceive?.kind === 'resource' && bankReceive.item === r;
                   const disabled = inBank < 1;
                   return (
                     <button
                       key={r}
                       type="button"
                       disabled={disabled}
-                      onClick={() => setBankReceive(r)}
+                      onClick={() => setBankReceive({ kind: 'resource', item: r })}
                       aria-pressed={selected}
                       aria-label={`Recibo ${RESOURCE_NAMES[r]} (banco tiene ${inBank})`}
                       className={
@@ -280,15 +358,25 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
                   );
                 })}
               </div>
+              {citiesKnights ? (
+                <BankCommodityRow
+                  mode="receive"
+                  commodities={me.commodities}
+                  selected={bankReceive}
+                  onSelect={setBankReceive}
+                />
+              ) : null}
             </div>
             <button
               type="button"
               disabled={
                 !bankGive ||
                 !bankReceive ||
-                bankGive === bankReceive ||
-                me.hand[bankGive] < ratio(bankGive) ||
-                state.bank[bankReceive] < 1
+                sameItem(bankGive, bankReceive) ||
+                itemHave(bankGive) <
+                  bankRatioInfo(bankGive.kind, bankGive.item).ratio ||
+                (bankReceive.kind === 'resource' &&
+                  state.bank[bankReceive.item as Resource] < 1)
               }
               onClick={submitBank}
               className="min-h-[48px] w-full rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
@@ -319,6 +407,13 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
                 onChange={adjustGive}
                 maxFn={(r) => me.hand[r]}
               />
+              {citiesKnights ? (
+                <CommoditySteppers
+                  value={giveC}
+                  onChange={adjustGiveC}
+                  maxFn={(c) => me.commodities[c]}
+                />
+              ) : null}
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
@@ -329,6 +424,13 @@ export function TradeModal({ onClose }: { onClose: () => void }): JSX.Element | 
                 onChange={adjustReceive}
                 maxFn={() => 19}
               />
+              {citiesKnights ? (
+                <CommoditySteppers
+                  value={receiveC}
+                  onChange={adjustReceiveC}
+                  maxFn={() => 12}
+                />
+              ) : null}
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
@@ -496,6 +598,139 @@ function ResourceSteppers({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Nota de proporción del banco/puertos. Refleja `bankRatioInfo` (espejo de
+// `bankTradeRatioCK` del servidor) y, cuando es 2:1/3:1, dice por qué.
+function BankRatioNote({
+  info,
+}: {
+  info: { ratio: number; reason: string | null };
+}): JSX.Element {
+  return (
+    <p className="mt-1.5 text-[11px] text-neutral-400">
+      Proporción {info.ratio}:1{info.reason ? ` (${info.reason})` : ''}
+    </p>
+  );
+}
+
+// Fila de mercancías (moneda / papel / tela) para el tab Banco / Puertos en
+// Caballeros y Ciudades. Se muestra debajo de los 5 recursos, con anillo dorado
+// heráldico (`CommodityGlyph`) y nombre, porque el arte de mercancía se recicla
+// del de un recurso: el nombre evita confundir cuál es cuál. La selección es
+// mutuamente exclusiva con la fila de recursos (mismo estado `BankItem`).
+function BankCommodityRow({
+  mode,
+  commodities,
+  selected,
+  onSelect,
+}: {
+  mode: 'give' | 'receive';
+  commodities: CommodityHand;
+  selected: BankItem | null;
+  onSelect: (item: BankItem) => void;
+}): JSX.Element {
+  return (
+    <div className="mt-2 rounded-lg border border-commodity-coin/20 bg-commodity-coin/[0.04] p-1.5">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-commodity-coin/90">
+        Mercancías
+      </p>
+      <div className="grid grid-cols-3 gap-1.5">
+        {COMMODITIES.map((c) => {
+          const isSel = selected?.kind === 'commodity' && selected.item === c;
+          const have = commodities[c];
+          return (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onSelect({ kind: 'commodity', item: c })}
+              aria-pressed={isSel}
+              aria-label={
+                mode === 'give'
+                  ? `Doy ${COMMODITY_NAMES[c]} (tengo ${have})`
+                  : `Recibo ${COMMODITY_NAMES[c]}`
+              }
+              className={
+                'flex min-h-[44px] flex-col items-center rounded-md border px-1 py-2 ' +
+                (isSel
+                  ? 'border-commodity-coin bg-commodity-coin/15'
+                  : 'border-commodity-coin/25 bg-surface-3')
+              }
+            >
+              <CommodityGlyph commodity={c} size={22} />
+              <span className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-neutral-400">
+                {COMMODITY_NAMES[c]}
+              </span>
+              {mode === 'give' ? (
+                <span className="nums text-xs font-semibold">{have}</span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Steppers de mercancías para el tab Jugadores (Caballeros y Ciudades). Mismo
+// patrón que `ResourceSteppers` pero con `CommodityGlyph` y acento dorado, bajo
+// su propio encabezado para separarlas de los recursos.
+function CommoditySteppers({
+  value,
+  onChange,
+  maxFn,
+}: {
+  value: Partial<Record<Commodity, number>>;
+  onChange: (c: Commodity, delta: number) => void;
+  maxFn: (c: Commodity) => number;
+}): JSX.Element {
+  return (
+    <div className="mt-2">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-commodity-coin/90">
+        Mercancías
+      </p>
+      <div className="space-y-1.5">
+        {COMMODITIES.map((c) => {
+          const cur = value[c] ?? 0;
+          const max = maxFn(c);
+          return (
+            <div
+              key={c}
+              className="flex items-center gap-2 rounded-md border border-commodity-coin/25 bg-neutral-950 p-1.5"
+            >
+              <CommodityGlyph commodity={c} size={24} />
+              <span className="flex-1 text-xs">{COMMODITY_NAMES[c]}</span>
+              <span className="text-[10px] text-neutral-500">máx {max}</span>
+              <button
+                type="button"
+                onClick={() => onChange(c, -1)}
+                disabled={cur === 0}
+                aria-label={`Quitar 1 ${COMMODITY_NAMES[c]}`}
+                className="h-11 w-11 rounded-md border border-white/10 bg-surface-3 text-base disabled:opacity-40"
+              >
+                <span aria-hidden>−</span>
+              </button>
+              <span
+                className="w-6 text-center text-sm font-semibold nums"
+                aria-label={`${cur} ${COMMODITY_NAMES[c]}`}
+              >
+                {cur}
+              </span>
+              <button
+                type="button"
+                onClick={() => onChange(c, +1)}
+                disabled={cur >= max}
+                aria-label={`Agregar 1 ${COMMODITY_NAMES[c]}`}
+                className="h-11 w-11 rounded-md border border-white/10 bg-surface-3 text-base disabled:opacity-40"
+              >
+                <span aria-hidden>+</span>
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -45,7 +45,7 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
       return false;
     const mp = s.players.find((p) => p.id === meId);
     if (!mp) return false;
-    return playerVictoryPoints(mp) >= victoryTarget(s);
+    return playerVictoryPoints(mp, s.merchant?.ownerId) >= victoryTarget(s);
   })();
 
   useEffect(() => {
@@ -68,7 +68,7 @@ export function ActionGrid({ onPlayDev }: Props): JSX.Element | null {
   const inSpecial =
     state.phase === 'specialBuild' && state.specialBuildQueue[0] === me.id;
   const myPublic = state.players.find((p) => p.id === me.id);
-  const myVP = myPublic ? playerVictoryPoints(myPublic) : 0;
+  const myVP = myPublic ? playerVictoryPoints(myPublic, state.merchant?.ownerId) : 0;
   const canDeclare = inMain && myVP >= victoryTarget(state);
 
   // Cambio A: poblados comprados este turno sin fichas registradas. El servidor

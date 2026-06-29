@@ -9,6 +9,7 @@ import {
   RESOURCES,
   Resource,
   Commodity,
+  COMMODITIES,
   CommodityHand,
   RESOURCE_COMMODITY,
   Discipline,
@@ -18,6 +19,7 @@ import {
   ProgressCardType,
   ProgressDecks,
   PROGRESS_DECK_COUNTS,
+  TradeItemKind,
   emptyProgressDecks,
   knightDefenseStrength,
   handLimitForSeven,
@@ -199,6 +201,29 @@ export function stealRandomResource(victim: Player, thief: Player): Resource | n
   return picked;
 }
 
+// Roba hasta `n` cartas al azar de la mano de la víctima incluyendo MERCANCÍAS
+// (recursos + mercancías; las cartas de progreso no se roban así). Usado por
+// Maestro Mercader (Caballeros y Ciudades). Devuelve cuántas robó.
+export function stealRandomMixed(victim: Player, thief: Player, n: number): number {
+  let stolen = 0;
+  for (let k = 0; k < n; k++) {
+    const pool: Array<{ kind: TradeItemKind; type: Resource | Commodity }> = [];
+    for (const r of RESOURCES) for (let i = 0; i < victim.hand[r]; i++) pool.push({ kind: 'resource', type: r });
+    for (const c of COMMODITIES) for (let i = 0; i < victim.commodities[c]; i++) pool.push({ kind: 'commodity', type: c });
+    if (pool.length === 0) break;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    if (pick.kind === 'resource') {
+      victim.hand[pick.type as Resource] -= 1;
+      thief.hand[pick.type as Resource] += 1;
+    } else {
+      victim.commodities[pick.type as Commodity] -= 1;
+      thief.commodities[pick.type as Commodity] += 1;
+    }
+    stolen += 1;
+  }
+  return stolen;
+}
+
 // === Intercambio con banco / puertos ===
 export function bestBankRatio(player: Player, give: Resource): number {
   if (player.ports.includes(give as PortType)) return 2;
@@ -231,7 +256,81 @@ export function tradeWithBank(
   return { ok: true, ratio };
 }
 
+// Proporción del banco para DAR `give` (recurso o mercancía) en Caballeros y
+// Ciudades, con todos los modificadores de la expansión:
+//  - Flota Mercante (carta): 2:1 del tipo elegido este turno (recurso o mercancía).
+//  - Comerciante (Mercader): 2:1 del recurso donde está, si lo controlas.
+//  - Guilda / Casa de Comercio (Comercio nivel 3): 2:1 para MERCANCÍAS.
+//  - Puertos: 2:1 del recurso del puerto; 3:1 con puerto genérico (también
+//    aplica a mercancías). Por defecto 4:1.
+export function bankTradeRatioCK(
+  state: Pick<GameState, 'merchant'>,
+  player: Player,
+  giveKind: TradeItemKind,
+  give: Resource | Commodity
+): number {
+  const mf = player.merchantFleet;
+  if (mf && mf.kind === giveKind && mf.type === give) return 2;
+  if (giveKind === 'resource') {
+    const r = give as Resource;
+    if (state.merchant && state.merchant.ownerId === player.id && state.merchant.resource === r) return 2;
+    if (player.ports.includes(r as PortType)) return 2;
+    if (player.ports.includes('3:1')) return 3;
+    return 4;
+  }
+  // Mercancía: la Guilda (Comercio nivel 3) cambia 2 mercancías del mismo tipo
+  // por 1 recurso o 1 mercancía distinta (2:1). Los puertos 2:1 de recurso NO
+  // aplican a mercancías; el genérico 3:1 sí.
+  if (player.improvements.trade >= 3) return 2;
+  if (player.ports.includes('3:1')) return 3;
+  return 4;
+}
+
+export interface BankTradeResult {
+  ok: boolean;
+  ratio?: number;
+  reason?: string;
+}
+
+// Intercambio con el banco/puertos en C&K: da `ratio` de un ítem (recurso o
+// mercancía) y recibe 1 de otro. Generaliza tradeWithBank con los modificadores
+// de la expansión. El banco de recursos/mercancías es ilimitado (informativo).
+export function tradeWithBankCK(
+  state: GameState,
+  player: Player,
+  giveKind: TradeItemKind,
+  give: Resource | Commodity,
+  receiveKind: TradeItemKind,
+  receive: Resource | Commodity
+): BankTradeResult {
+  if (giveKind === receiveKind && give === receive) {
+    return { ok: false, reason: 'No puedes intercambiar el mismo tipo de carta.' };
+  }
+  const ratio = bankTradeRatioCK(state, player, giveKind, give);
+  const have = giveKind === 'resource' ? player.hand[give as Resource] : player.commodities[give as Commodity];
+  if (have < ratio) {
+    return { ok: false, reason: `Necesitas ${ratio} para esta proporción.` };
+  }
+  if (giveKind === 'resource') {
+    player.hand[give as Resource] -= ratio;
+    state.bank[give as Resource] += ratio;
+  } else {
+    player.commodities[give as Commodity] -= ratio;
+    state.commodityBank[give as Commodity] = Math.min(12, state.commodityBank[give as Commodity] + ratio);
+  }
+  if (receiveKind === 'resource') {
+    player.hand[receive as Resource] += 1;
+    drainBank(state.bank, receive as Resource, 1);
+  } else {
+    player.commodities[receive as Commodity] += 1;
+    drainCommodityBank(state.commodityBank, receive as Commodity, 1);
+  }
+  return { ok: true, ratio };
+}
+
 // === Validación de oferta de trade entre jugadores ===
+// `give`/`receive` son recursos; `giveC`/`receiveC` son mercancías (C&K). Las
+// cartas de progreso NO se comercian.
 export function validateTradeOffer(
   from: Player,
   to: Player,
@@ -239,10 +338,14 @@ export function validateTradeOffer(
   receive: Partial<Hand>,
   // Regla extra: permite ofertas desiguales (un lado en 0). Aun así se exige
   // que la oferta tenga AL MENOS una carta en algún lado.
-  allowUnequal = false
+  allowUnequal = false,
+  giveC: Partial<CommodityHand> = {},
+  receiveC: Partial<CommodityHand> = {}
 ): { ok: boolean; reason?: string } {
-  const giveTotal = Object.values(give).reduce((a, b) => a + (b ?? 0), 0);
-  const recvTotal = Object.values(receive).reduce((a, b) => a + (b ?? 0), 0);
+  const sum = (o: Partial<Record<string, number>>) =>
+    Object.values(o).reduce<number>((a, b) => a + (b ?? 0), 0);
+  const giveTotal = sum(give) + sum(giveC);
+  const recvTotal = sum(receive) + sum(receiveC);
   if (allowUnequal) {
     if (giveTotal === 0 && recvTotal === 0) return { ok: false, reason: 'La oferta no tiene cartas.' };
   } else if (giveTotal === 0 || recvTotal === 0) {
@@ -251,20 +354,41 @@ export function validateTradeOffer(
   for (const [res, n] of Object.entries(give) as [Resource, number][]) {
     if (from.hand[res] < n) return { ok: false, reason: `${from.name} ya no tiene esos recursos.` };
   }
+  for (const [c, n] of Object.entries(giveC) as [Commodity, number][]) {
+    if (from.commodities[c] < n) return { ok: false, reason: `${from.name} ya no tiene esas mercancías.` };
+  }
   for (const [res, n] of Object.entries(receive) as [Resource, number][]) {
     if (to.hand[res] < n) return { ok: false, reason: `${to.name} ya no tiene esos recursos.` };
+  }
+  for (const [c, n] of Object.entries(receiveC) as [Commodity, number][]) {
+    if (to.commodities[c] < n) return { ok: false, reason: `${to.name} ya no tiene esas mercancías.` };
   }
   return { ok: true };
 }
 
-export function executeTrade(from: Player, to: Player, give: Partial<Hand>, receive: Partial<Hand>): void {
+export function executeTrade(
+  from: Player,
+  to: Player,
+  give: Partial<Hand>,
+  receive: Partial<Hand>,
+  giveC: Partial<CommodityHand> = {},
+  receiveC: Partial<CommodityHand> = {}
+): void {
   for (const [res, n] of Object.entries(give) as [Resource, number][]) {
     from.hand[res] -= n;
     to.hand[res] += n;
   }
+  for (const [c, n] of Object.entries(giveC) as [Commodity, number][]) {
+    from.commodities[c] -= n;
+    to.commodities[c] += n;
+  }
   for (const [res, n] of Object.entries(receive) as [Resource, number][]) {
     to.hand[res] -= n;
     from.hand[res] += n;
+  }
+  for (const [c, n] of Object.entries(receiveC) as [Commodity, number][]) {
+    to.commodities[c] -= n;
+    from.commodities[c] += n;
   }
 }
 
@@ -293,14 +417,16 @@ const LEVEL3_ABILITY: Record<Discipline, 'tradingHouse' | 'fortress' | 'aqueduct
 export function upgradeCityImprovement(
   state: GameState,
   player: Player,
-  discipline: Discipline
+  discipline: Discipline,
+  // Descuento en mercancía (carta de progreso "Grúa": 1 menos). Piso en 0.
+  discount = 0
 ): CityUpgradeResult {
   const current = player.improvements[discipline];
   const target = current + 1;
   if (target > MAX_IMPROVEMENT_LEVEL) {
     return { ok: false, reason: 'Esa disciplina ya está al nivel máximo.' };
   }
-  const cost = improvementUpgradeCost(target);
+  const cost = Math.max(0, improvementUpgradeCost(target) - discount);
   const commodity = DISCIPLINE_COMMODITY[discipline];
   if (player.commodities[commodity] < cost) {
     return {
@@ -388,6 +514,18 @@ export function publicVictoryPoints(p: Player): number {
 // una vez USADAS (mientras están en la mano son una carta de desarrollo más).
 export function totalVictoryPoints(p: Player): number {
   return publicVictoryPoints(p);
+}
+
+// +1 PV si el jugador CONTROLA el comerciante (carta de progreso "Mercader").
+// Solo C&K; en el base no hay comerciante (state.merchant null/ausente).
+export function merchantVP(state: Pick<GameState, 'merchant'>, playerId: string): number {
+  return state.merchant?.ownerId === playerId ? 1 : 0;
+}
+
+// PV TOTALES de un jugador INCLUYENDO el comerciante. Úsalo en todo lo que
+// decida ganar o el marcador (checkVictory, declareWin, gameStats, persistencia).
+export function playerVP(state: Pick<GameState, 'merchant'>, p: Player): number {
+  return publicVictoryPoints(p) + merchantVP(state, p.id);
 }
 
 // === Resolución del ataque bárbaro (Caballeros y Ciudades) ===

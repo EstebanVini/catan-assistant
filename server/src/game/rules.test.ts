@@ -6,9 +6,15 @@ import {
   computePendingDiscards,
   shortfall,
   tradeWithBank,
+  tradeWithBankCK,
+  bankTradeRatioCK,
   bestBankRatio,
+  validateTradeOffer,
+  executeTrade,
+  stealRandomMixed,
   upgradeCityImprovement,
   publicVictoryPoints,
+  playerVP,
   buildProgressDecks,
   drawsProgressCard,
   resolveBarbarianAttack,
@@ -417,5 +423,166 @@ describe('tradeWithBank', () => {
     expect(r.ok).toBe(true);
     expect(s.players[0].hand.brick).toBe(2);
     expect(s.bank.brick).toBe(0);
+  });
+});
+
+describe('bankTradeRatioCK (Caballeros y Ciudades)', () => {
+  it('recurso sin puerto: 4:1; con puerto del recurso: 2:1; con 3:1 genérico: 3:1', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    const p = s.players[0];
+    expect(bankTradeRatioCK(s, p, 'resource', 'wool')).toBe(4);
+    p.ports = ['wool'];
+    expect(bankTradeRatioCK(s, p, 'resource', 'wool')).toBe(2);
+    p.ports = ['3:1'];
+    expect(bankTradeRatioCK(s, p, 'resource', 'wool')).toBe(3);
+  });
+
+  it('mercancía: 4:1 normal; con Guilda (Comercio nivel 3): 2:1', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    const p = s.players[0];
+    expect(bankTradeRatioCK(s, p, 'commodity', 'coin')).toBe(4);
+    p.improvements.trade = 3;
+    expect(bankTradeRatioCK(s, p, 'commodity', 'coin')).toBe(2);
+  });
+
+  it('comerciante: 2:1 del recurso donde está, solo para su dueño', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    s.merchant = { ownerId: 'p1', resource: 'ore' };
+    expect(bankTradeRatioCK(s, s.players[0], 'resource', 'ore')).toBe(2);
+    expect(bankTradeRatioCK(s, s.players[0], 'resource', 'wool')).toBe(4); // otro recurso
+    expect(bankTradeRatioCK(s, s.players[1], 'resource', 'ore')).toBe(4); // no es el dueño
+  });
+
+  it('Flota Mercante: 2:1 del tipo elegido (recurso o mercancía)', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    const p = s.players[0];
+    p.merchantFleet = { kind: 'commodity', type: 'paper' };
+    expect(bankTradeRatioCK(s, p, 'commodity', 'paper')).toBe(2);
+    expect(bankTradeRatioCK(s, p, 'commodity', 'coin')).toBe(4);
+  });
+});
+
+describe('tradeWithBankCK (recurso ↔ mercancía)', () => {
+  it('da recursos y recibe una mercancía', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    const p = s.players[0];
+    p.hand.wool = 4;
+    const r = tradeWithBankCK(s, p, 'resource', 'wool', 'commodity', 'coin');
+    expect(r.ok).toBe(true);
+    expect(r.ratio).toBe(4);
+    expect(p.hand.wool).toBe(0);
+    expect(p.commodities.coin).toBe(1);
+  });
+
+  it('Guilda: da 2 mercancías y recibe 1 recurso', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    const p = s.players[0];
+    p.improvements.trade = 3;
+    p.commodities.coin = 2;
+    const r = tradeWithBankCK(s, p, 'commodity', 'coin', 'resource', 'grain');
+    expect(r.ok).toBe(true);
+    expect(r.ratio).toBe(2);
+    expect(p.commodities.coin).toBe(0);
+    expect(p.hand.grain).toBe(1);
+  });
+
+  it('falla si no alcanza para la proporción', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    const p = s.players[0];
+    p.commodities.coin = 1; // sin Guilda, ratio 4
+    const r = tradeWithBankCK(s, p, 'commodity', 'coin', 'resource', 'grain');
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe('intercambio entre jugadores con mercancías', () => {
+  it('valida y ejecuta una oferta que mezcla recursos y mercancías', () => {
+    const s = makeState();
+    const from = s.players[0];
+    const to = s.players[1];
+    from.hand.brick = 1;
+    from.commodities.cloth = 1;
+    to.hand.grain = 2;
+    to.commodities.coin = 1;
+    const v = validateTradeOffer(
+      from, to,
+      { brick: 1 }, { grain: 2 },
+      false,
+      { cloth: 1 }, { coin: 1 }
+    );
+    expect(v.ok).toBe(true);
+    executeTrade(from, to, { brick: 1 }, { grain: 2 }, { cloth: 1 }, { coin: 1 });
+    expect(from.hand.brick).toBe(0);
+    expect(from.hand.grain).toBe(2);
+    expect(from.commodities.cloth).toBe(0);
+    expect(from.commodities.coin).toBe(1);
+    expect(to.hand.grain).toBe(0);
+    expect(to.commodities.coin).toBe(0);
+    expect(to.commodities.cloth).toBe(1);
+  });
+
+  it('rechaza si al ofertante le faltan mercancías', () => {
+    const s = makeState();
+    const from = s.players[0];
+    const to = s.players[1];
+    const v = validateTradeOffer(from, to, {}, {}, false, { cloth: 2 }, { coin: 1 });
+    expect(v.ok).toBe(false);
+  });
+});
+
+describe('playerVP incluye el comerciante (+1)', () => {
+  it('suma 1 PV al dueño del comerciante', () => {
+    const s = makeState();
+    const before = playerVP(s, s.players[0]);
+    s.merchant = { ownerId: 'p1', resource: 'ore' };
+    expect(playerVP(s, s.players[0])).toBe(before + 1);
+    expect(playerVP(s, s.players[1])).toBe(before); // el otro no
+  });
+});
+
+describe('stealRandomMixed (Maestro Mercader)', () => {
+  it('roba recursos y/o mercancías, hasta el máximo disponible', () => {
+    const s = makeState();
+    const victim = s.players[1];
+    const thief = s.players[0];
+    victim.hand = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 1 };
+    victim.commodities = { coin: 1, paper: 0, cloth: 0 };
+    const n = stealRandomMixed(victim, thief, 2);
+    expect(n).toBe(2);
+    expect(victim.hand.ore + victim.commodities.coin).toBe(0);
+    expect(thief.hand.ore + thief.commodities.coin).toBe(2);
+  });
+
+  it('no roba más de lo que tiene la víctima', () => {
+    const s = makeState();
+    const victim = s.players[1];
+    const thief = s.players[0];
+    victim.hand = emptyHand();
+    victim.commodities = { coin: 1, paper: 0, cloth: 0 };
+    const n = stealRandomMixed(victim, thief, 2);
+    expect(n).toBe(1);
+    expect(thief.commodities.coin).toBe(1);
+  });
+});
+
+describe('upgradeCityImprovement con descuento de la Grúa', () => {
+  it('reduce el costo en 1 mercancía (nivel 3 cuesta 2 en vez de 3)', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    const p = s.players[0];
+    p.improvements.science = 2; // siguiente nivel es 3 (costo normal 3)
+    p.commodities.paper = 2; // solo alcanza con el descuento
+    p.buildings = [{ id: 'c1', type: 'city', spots: [] }];
+    const r = upgradeCityImprovement(s, p, 'science', 1);
+    expect(r.ok).toBe(true);
+    expect(r.level).toBe(3);
+    expect(p.commodities.paper).toBe(0); // pagó 2 (3 - 1 de Grúa)
   });
 });

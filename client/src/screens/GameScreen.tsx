@@ -22,6 +22,7 @@ import { CityCalendarPanel } from '../components/CityCalendarPanel';
 import { ProgressHand } from '../components/ProgressHand';
 import { BarbarianTrack } from '../components/BarbarianTrack';
 import { BarbarianLossModal } from '../components/BarbarianLossModal';
+import { AqueductPickModal } from '../components/AqueductPickModal';
 import { KnightsPanel } from '../components/KnightsPanel';
 import { WallControl } from '../components/WallControl';
 import { CollapsibleSection } from '../components/CollapsibleSection';
@@ -77,7 +78,7 @@ export function GameScreen(): JSX.Element | null {
     }
     const { state, me } = view;
     const myPublic = state.players.find((p) => p.id === me.id);
-    const myVP = myPublic ? playerVictoryPoints(myPublic) : 0;
+    const myVP = myPublic ? playerVictoryPoints(myPublic, state.merchant?.ownerId) : 0;
     const canDeclareNow =
       state.turnOrder[state.currentTurnIndex] === me.id &&
       state.phase === 'main' &&
@@ -127,10 +128,14 @@ export function GameScreen(): JSX.Element | null {
       {/* Layout responsivo (sólo md+/lg+; en móvil estos wrappers son <div>
           neutros que no cambian el flujo en columna):
            - md (tablet): 2 columnas — izquierda: banners + mano + acciones y
-             debajo jugadores + dados + log; derecha: banco + construcción
-             (row-span-2 para que la columna izquierda fluya sin huecos).
+             debajo jugadores + acciones C&K + dados + log; derecha: banco +
+             construcción (row-span-2 para que la columna izquierda fluya sin
+             huecos).
            - lg (laptop/desktop): 3 columnas — (1) banners + mano + acciones,
-             (2) banco + construcción, (3) jugadores + dados + log.
+             (2) banco + construcción, (3) jugadores + acciones C&K
+             (calendario / defensa / cartas de progreso, sólo C&K) + dados + log.
+             En C&K los paneles de acción van ARRIBA de los dados para tenerlos
+             todos a la vista sin scroll.
           Los componentes internos conservan sus mx-3/mt-3 propios: el canal
           visual entre columnas queda en 24px, igual al ritmo móvil. */}
       <div className="md:grid md:grid-cols-2 md:items-start lg:grid-cols-3">
@@ -148,6 +153,12 @@ export function GameScreen(): JSX.Element | null {
         <div className="min-w-0 md:row-span-2 lg:row-span-1">
           <BankPanel />
           <ConstructionTable />
+          {/* En Caballeros y Ciudades no existen las cartas de desarrollo
+              (se reemplazan por las cartas de progreso). Ocultamos su panel. */}
+          {!state.citiesKnights ? <DevCardsPanel /> : null}
+        </div>
+        <div className="min-w-0">
+          <PublicPlayersPanel />
           {/* Calendario de la ciudad (Caballeros y Ciudades): subir las tres
               disciplinas, ver habilidades de nivel 3 y metrópolis. Solo C&K.
               Colapsable y por defecto abierto: es una acción de turno
@@ -177,9 +188,6 @@ export function GameScreen(): JSX.Element | null {
               <KnightsPanel />
             </CollapsibleSection>
           ) : null}
-          {/* En Caballeros y Ciudades no existen las cartas de desarrollo
-              (se reemplazan por las cartas de progreso). Ocultamos su panel. */}
-          {!state.citiesKnights ? <DevCardsPanel /> : null}
           {/* Mano de cartas de progreso (Caballeros y Ciudades): privada del
               dueño. Solo C&K. Colapsable junto a la mano / dev cards. Cuando hay
               excedente (>4) el panel pide soltar cartas; lo dejamos por defecto
@@ -198,9 +206,6 @@ export function GameScreen(): JSX.Element | null {
               <ProgressHand />
             </CollapsibleSection>
           ) : null}
-        </div>
-        <div className="min-w-0">
-          <PublicPlayersPanel />
           <DiceStatsCollapsible
             stats={state.diceStats}
             lastNumber={state.lastRolledNumber}
@@ -212,6 +217,14 @@ export function GameScreen(): JSX.Element | null {
       </div>
       <DiscardModal />
       <BarbarianLossModal />
+      {/* Acueducto (Ciencia nivel 3): toma forzosa de 1 recurso del banco
+          cuando al tirar no produjiste nada. Es un beneficio. El modal se
+          auto-protege, pero lo condicionamos aquí para no montar su focus trap
+          hasta que aplique a este jugador. */}
+      {state.citiesKnights &&
+      state.pendingAqueductPick?.includes(view.me.id) ? (
+        <AqueductPickModal />
+      ) : null}
       <RobberFlow />
       <PortIncomingModal />
       <PortFeeConfirmModal />

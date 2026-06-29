@@ -116,6 +116,56 @@ describe('applyInitialSetup', () => {
     expect(result.shortages).toEqual([]);
     expect(bank.grain).toBe(0);
   });
+
+  it('Caballeros y Ciudades: la ciudad de salida reparte mercancías por ficha de ore/lumber/wool', () => {
+    const bank = fullBank(false);
+    // p1: poblado (no da mercancía) + ciudad sobre ore(→coin), lumber(→paper),
+    // wool(→cloth) y grain (sin mercancía).
+    const result = applyInitialSetup(
+      [
+        {
+          id: 'p1',
+          buildings: [
+            building([[6, 'brick']]),
+            building([[8, 'ore'], [9, 'lumber'], [10, 'wool'], [4, 'grain']], 'city'),
+          ],
+        },
+      ],
+      bank,
+      true,
+      1,
+      true // citiesKnights
+    );
+    // Recursos: 1 por ficha (sin cambio respecto al base).
+    expect(result.grants.p1).toMatchObject({ brick: 1, ore: 1, lumber: 1, wool: 1, grain: 1 });
+    // Mercancías: solo de las fichas de la CIUDAD sobre ore/lumber/wool.
+    expect(result.commodityGrants.p1).toEqual({ coin: 1, paper: 1, cloth: 1 });
+  });
+
+  it('Caballeros y Ciudades: un POBLADO no reparte mercancías', () => {
+    const bank = fullBank(false);
+    const result = applyInitialSetup(
+      [{ id: 'p1', buildings: [building([[8, 'ore'], [9, 'wool']]), building([[4, 'grain']], 'city')] }],
+      bank,
+      true,
+      1,
+      true
+    );
+    // El poblado sobre ore/wool no da mercancía; la ciudad sobre grain tampoco.
+    expect(result.commodityGrants.p1).toEqual({ coin: 0, paper: 0, cloth: 0 });
+  });
+
+  it('modo base: nunca reparte mercancías aunque haya ciudades', () => {
+    const bank = fullBank(false);
+    const result = applyInitialSetup(
+      [{ id: 'p1', buildings: [building([[8, 'ore']]), building([[9, 'wool']], 'city')] }],
+      bank,
+      true,
+      1,
+      false // base
+    );
+    expect(result.commodityGrants.p1).toEqual({ coin: 0, paper: 0, cloth: 0 });
+  });
 });
 
 describe('agrupación por hexId (desambiguación del ladrón)', () => {
