@@ -128,14 +128,16 @@ export function GameScreen(): JSX.Element | null {
       {/* Layout responsivo (sólo md+/lg+; en móvil estos wrappers son <div>
           neutros que no cambian el flujo en columna):
            - md (tablet): 2 columnas — izquierda: banners + mano + acciones y
-             debajo jugadores + acciones C&K + dados + log; derecha: banco +
-             construcción (row-span-2 para que la columna izquierda fluya sin
-             huecos).
+             debajo defensa + calendario + jugadores + dados + log; derecha:
+             banco + cartas de progreso (C&K) + construcción (row-span-2 para
+             que la columna izquierda fluya sin huecos).
            - lg (laptop/desktop): 3 columnas — (1) banners + mano + acciones,
-             (2) banco + construcción, (3) jugadores + acciones C&K
-             (calendario / defensa / cartas de progreso, sólo C&K) + dados + log.
-             En C&K los paneles de acción van ARRIBA de los dados para tenerlos
-             todos a la vista sin scroll.
+             (2) banco + cartas de progreso (sólo C&K) + construcción,
+             (3) defensa + calendario (sólo C&K, ARRIBA del marcador) +
+             jugadores + dados + log.
+             En C&K las acciones de defensa/calendario van ARRIBA del marcador
+             de jugadores y las cartas de progreso ARRIBA de la construcción,
+             para tenerlas todas a la vista sin scroll.
           Los componentes internos conservan sus mx-3/mt-3 propios: el canal
           visual entre columnas queda en 24px, igual al ritmo móvil. */}
       <div className="md:grid md:grid-cols-2 md:items-start lg:grid-cols-3">
@@ -152,42 +154,6 @@ export function GameScreen(): JSX.Element | null {
         </div>
         <div className="min-w-0 md:row-span-2 lg:row-span-1">
           <BankPanel />
-          <ConstructionTable />
-          {/* En Caballeros y Ciudades no existen las cartas de desarrollo
-              (se reemplazan por las cartas de progreso). Ocultamos su panel. */}
-          {!state.citiesKnights ? <DevCardsPanel /> : null}
-        </div>
-        <div className="min-w-0">
-          <PublicPlayersPanel />
-          {/* Calendario de la ciudad (Caballeros y Ciudades): subir las tres
-              disciplinas, ver habilidades de nivel 3 y metrópolis. Solo C&K.
-              Colapsable y por defecto abierto: es una acción de turno
-              recurrente en C&K, junto a la construcción. */}
-          {state.citiesKnights ? (
-            <CollapsibleSection
-              id="cityCalendar"
-              title="Calendario de la ciudad"
-              defaultCollapsed={false}
-            >
-              <CityCalendarPanel />
-            </CollapsibleSection>
-          ) : null}
-          {/* Defensa (Caballeros y Ciudades): agrupa Muros de ciudad (§2.9) y
-              Caballeros (§2.6). Los muros suben el límite de mano del 7; los
-              caballeros se contratan / activan / promueven y registran acciones.
-              Solo C&K. Colapsable junto a la construcción; por defecto abierto:
-              son acciones de turno recurrentes en C&K. */}
-          {state.citiesKnights ? (
-            <CollapsibleSection
-              id="defense"
-              title="Defensa"
-              defaultCollapsed={false}
-            >
-              <WallControl />
-              <div className="border-t border-white/10" />
-              <KnightsPanel />
-            </CollapsibleSection>
-          ) : null}
           {/* Mano de cartas de progreso (Caballeros y Ciudades): privada del
               dueño. Solo C&K. Colapsable junto a la mano / dev cards. Cuando hay
               excedente (>4) el panel pide soltar cartas; lo dejamos por defecto
@@ -206,6 +172,42 @@ export function GameScreen(): JSX.Element | null {
               <ProgressHand />
             </CollapsibleSection>
           ) : null}
+          <ConstructionTable />
+          {/* En Caballeros y Ciudades no existen las cartas de desarrollo
+              (se reemplazan por las cartas de progreso). Ocultamos su panel. */}
+          {!state.citiesKnights ? <DevCardsPanel /> : null}
+        </div>
+        <div className="min-w-0">
+          {/* Defensa (Caballeros y Ciudades): agrupa Muros de ciudad (§2.9) y
+              Caballeros (§2.6). Los muros suben el límite de mano del 7; los
+              caballeros se contratan / activan / promueven y registran acciones.
+              Solo C&K. Colapsable junto a la construcción; por defecto abierto:
+              son acciones de turno recurrentes en C&K. */}
+          {state.citiesKnights ? (
+            <CollapsibleSection
+              id="defense"
+              title="Defensa"
+              defaultCollapsed={false}
+            >
+              <WallControl />
+              <div className="border-t border-white/10" />
+              <KnightsPanel />
+            </CollapsibleSection>
+          ) : null}
+          {/* Calendario de la ciudad (Caballeros y Ciudades): subir las tres
+              disciplinas, ver habilidades de nivel 3 y metrópolis. Solo C&K.
+              Colapsable y por defecto abierto: es una acción de turno
+              recurrente en C&K, junto a la construcción. */}
+          {state.citiesKnights ? (
+            <CollapsibleSection
+              id="cityCalendar"
+              title="Calendario de la ciudad"
+              defaultCollapsed={false}
+            >
+              <CityCalendarPanel />
+            </CollapsibleSection>
+          ) : null}
+          <PublicPlayersPanel />
           <DiceStatsCollapsible
             stats={state.diceStats}
             lastNumber={state.lastRolledNumber}
