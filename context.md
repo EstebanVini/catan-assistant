@@ -176,6 +176,8 @@ Aditiva: con el toggle apagado el juego se comporta EXACTAMENTE como el base. Co
 - `pending-phase3.md` — ganchos futuros (foto del tablero, paired players, subida de avatar).
 - `logrosandxp.md` — plan de implementación de logros + XP y del resto de `cambios.txt` (bugs y features), con tareas por agente.
 - `cambios-plan.md` — plan de la tanda de `cambios.txt` de junio 2026 (toggles de privacidad, ladrón a ficha vacía, ajuste de XP), con tareas por agente.
+- `cambios-CC-plan.md` — plan de la tanda de **bugs de Caballeros y Ciudades** de `cambios.txt` (cartas de progreso, reparto de mercancías, mejoras nivel 3, comerciante, comercio de mercancías, lobby poblado/ciudad, layout 3ª columna), con tareas por agente.
+- `Progress-Cards-CC.md` — texto oficial de las 54 cartas de progreso C&K (referencia para implementar sus efectos). `cities_updates.md` — beneficios de las mejoras de ciudad nivel 3.
 - En la raíz: `caballeros-plan.md` (plan completo de la expansión C&K) y `missing-icons.md` (arte pendiente / reciclado).
 
 ## 9. Cómo correr y verificar
@@ -200,5 +202,7 @@ La app es jugable de extremo a extremo: auth, lobby, MVP completo, cartas de des
 **Entregado de `cambios.txt`** (planes en `docs/logrosandxp.md` y `docs/cambios-plan.md`): bugs corregidos (2 desiertos en 5–6; semántica de `robberNoStealFirstRound` = solo omite descarte, sí roba; reset de contadores en modales de descarte/puerto) y features (salir de partida devolviendo cartas al banco; ícono de racha 🔥 en avatares; ver perfil completo de amigos; **sistema de logros + XP** con 20 logros, nivel y `AchievementsPanel`). Detalle en §5c.
 
 **Última tanda (`docs/cambios-plan.md`, junio 2026):** ajuste de XP (`Desarrollado` 40, `Victoria demoledora` 40); **acción "Mover a ficha vacía"** del ladrón independiente del desierto (`robber:moveEmpty` + `robberOnEmpty`; recurso del banco solo con `robberEmptyGivesResource`); y **toggles de privacidad** en `HandView` para ocultar tus recursos y tus cartas de desarrollo. Verificado: 65 tests de servidor en verde + build de cliente; frontend diseñado/auditado por el equipo de agentes (ux-architect, ux-writer, ui-engineer, visual-designer, motion-engineer, qa-auditor).
+
+**Batch en progreso (`docs/cambios-CC-plan.md`, junio 2026):** corrección de bugs de Caballeros y Ciudades pedidos en `cambios.txt` — (1) automatizar los efectos de las cartas de progreso (hoy muchas solo dicen "Resolver en el tablero") y confirmar conteos/limpieza de dev cards base; (3) repartir las **mercancías** de la ciudad inicial al empezar; (6) habilidades de mejora de ciudad **nivel 3** (Guilda 2:1 mercancías, Fortaleza, Acueducto); (7) **comerciante** (colocar en ficha, 2:1, +1 PV); (4/5) **comercio de mercancías** entre jugadores y con banco/puertos; (2) distinguir **poblado vs ciudad** inicial en el lobby; (8) reacomodo de los paneles C&K a la **3ª columna** en tablet/desktop. Se trabaja en la rama `Fix]caballeros-Ciudades`, con commit por bug verificado.
 
 **Pendiente / futuro:** celebración de logros y XP en `WinnerScreen` al terminar la partida (hoy se ven en el perfil); y los ganchos de `docs/pending-phase3.md` (foto del tablero, paired players, subida de avatar).
