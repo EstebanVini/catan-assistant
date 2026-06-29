@@ -33,6 +33,7 @@ import {
 import {
   BUILD_COSTS,
   activePlayer,
+  aqueductBeneficiaries,
   bestBankRatio,
   buildDevDeck,
   canAfford,
@@ -984,10 +985,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
       // con esta tirada —incluido el 7, que bloquea la producción— puede tomar
       // 1 recurso del banco a su elección (aqueduct:pick). Se recalcula en cada
       // tirada (los pendientes viejos se reemplazan).
-      const aqueductPending: string[] = [];
-      for (const p of state.players) {
-        if (p.improvements.science >= 3 && !receivedAny.has(p.id)) aqueductPending.push(p.id);
-      }
+      const aqueductPending = aqueductBeneficiaries(state.players, receivedAny);
       state.pendingAqueductPick = aqueductPending;
       if (aqueductPending.length > 0) {
         const names = aqueductPending

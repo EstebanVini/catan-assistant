@@ -11,6 +11,7 @@ import {
   bestBankRatio,
   validateTradeOffer,
   executeTrade,
+  aqueductBeneficiaries,
   stealRandomMixed,
   upgradeCityImprovement,
   publicVictoryPoints,
@@ -544,6 +545,29 @@ describe('playerVP incluye el comerciante (+1)', () => {
     s.merchant = { ownerId: 'p1', resource: 'ore' };
     expect(playerVP(s, s.players[0])).toBe(before + 1);
     expect(playerVP(s, s.players[1])).toBe(before); // el otro no
+  });
+});
+
+describe('aqueductBeneficiaries (Acueducto, incluido el 7)', () => {
+  it('en un 7 (nadie recibió) todos los de Ciencia >=3 son beneficiarios', () => {
+    const s = makeState();
+    s.players[0].improvements.science = 3;
+    s.players[1].improvements.science = 2;
+    // receivedAny vacío = nadie produjo (caso del 7).
+    expect(aqueductBeneficiaries(s.players, new Set())).toEqual(['p1']);
+  });
+
+  it('quien recibió algo en la tirada no es beneficiario', () => {
+    const s = makeState();
+    s.players[0].improvements.science = 3;
+    s.players[1].improvements.science = 3;
+    expect(aqueductBeneficiaries(s.players, new Set(['p1']))).toEqual(['p2']);
+  });
+
+  it('Ciencia <3 nunca es beneficiario', () => {
+    const s = makeState();
+    s.players[0].improvements.science = 2;
+    expect(aqueductBeneficiaries(s.players, new Set())).toEqual([]);
   });
 });
 

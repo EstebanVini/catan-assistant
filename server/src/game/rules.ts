@@ -172,6 +172,20 @@ export function distributeForRoll(state: GameState, number: number): Distributio
   return { perPlayer, perPlayerCommodities, shortages: [], partials: [] };
 }
 
+// === Acueducto (Ciencia nivel 3, Caballeros y Ciudades) ===
+// Tras una tirada de producción, los jugadores con Ciencia ≥3 que NO recibieron
+// ningún recurso/mercancía pueden tomar 1 recurso del banco a su elección. Esto
+// incluye el 7 (que bloquea la producción): en ese caso `receivedAny` está
+// vacío, así que todos los de Ciencia ≥3 son beneficiarios.
+export function aqueductBeneficiaries(
+  players: Array<Pick<Player, 'id' | 'improvements'>>,
+  receivedAny: Set<string>
+): string[] {
+  return players
+    .filter((p) => p.improvements.science >= 3 && !receivedAny.has(p.id))
+    .map((p) => p.id);
+}
+
 // === Cálculo de descartes tras 7 ===
 // Base: descarta si tienes >7 cartas (recursos). En Caballeros y Ciudades el
 // total incluye mercancías y el límite es 7 + 2·muros (los muros protegen tu
