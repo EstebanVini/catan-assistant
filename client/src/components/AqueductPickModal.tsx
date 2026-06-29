@@ -48,7 +48,9 @@ export function AqueductPickModal(): JSX.Element | null {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 sm:items-center">
+    // z-[70]: por encima del flujo del 7 (descarte z-50, ladrón z-[60]) para que
+    // el Acueducto sea lo PRIMERO que se resuelve en un 7 y no quede tapado.
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/70 p-3 sm:items-center">
       <div
         ref={dialogRef}
         role="alertdialog"
