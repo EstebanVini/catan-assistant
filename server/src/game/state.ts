@@ -240,6 +240,16 @@ export interface Player {
   defenderCards: number;
   // Muros de ciudad (0..3). Cada uno sube el límite de mano del 7 en +2. Público.
   walls: number;
+  // === Flags de turno de Caballeros y Ciudades (PRIVADOS; se reinician al rotar) ===
+  // Flota Mercante (carta de progreso): 2:1 con el banco de UN tipo a elección
+  // (recurso o mercancía) hasta el final del turno. null = inactiva.
+  merchantFleet?: { kind: TradeItemKind; type: Resource | Commodity } | null;
+  // Grúa (carta de progreso): la próxima mejora de ciudad cuesta 1 mercancía
+  // menos, una sola vez este turno.
+  craneDiscount?: boolean;
+  // Construcción de carreteras (carta de progreso): caminos gratis pendientes
+  // que consume `build('road')` sin cobrar recursos.
+  freeRoads?: number;
   ports: PortType[];
   devCards: DevCardCounts; // PRIVADO en tipos; conteo total + caballeros jugados es público
   devCardsBoughtThisTurn: DevCardType[]; // no jugables el mismo turno
@@ -270,12 +280,20 @@ export interface Hex {
   owners: Array<{ playerId: string; type: 'settlement' | 'city'; buildingId?: string }>;
 }
 
+// Un "ítem comerciable" es un recurso o una mercancía (Caballeros y Ciudades).
+// Las cartas de progreso NO se comercian (decisión de mesa).
+export type TradeItemKind = 'resource' | 'commodity';
+
 export interface TradeOffer {
   id: string;
   fromId: string;
   toId: string | null; // null = a cualquiera (broadcast)
   give: Partial<Hand>;
   receive: Partial<Hand>;
+  // Mercancías ofrecidas/pedidas (solo Caballeros y Ciudades; ausentes en base).
+  // Aditivo: el lado de recursos sigue funcionando igual que siempre.
+  giveCommodities?: Partial<CommodityHand>;
+  receiveCommodities?: Partial<CommodityHand>;
   // Jugadores que ya rechazaron: la oferta se les oculta solo a ellos. Cuando
   // todos los elegibles rechazan, la oferta se retira para todos.
   rejectedBy: string[];
@@ -380,6 +398,16 @@ export interface GameState {
   commodityBank: CommodityHand;
   // Dueño actual de cada metrópolis (playerId o null). Solo C&K.
   metropolisOwners: Record<Discipline, string | null>;
+  // Comerciante (carta de progreso "Mercader"): se coloca sobre una ficha de un
+  // recurso adyacente a una construcción del dueño. Mientras lo controle puede
+  // intercambiar ese recurso 2:1 con el banco y vale +1 PV. Al jugar otra carta
+  // Mercader, el comerciante (ventaja + PV) pasa al nuevo dueño. null = en
+  // reserva (nadie lo controla). Público. Solo C&K.
+  merchant?: { ownerId: string; resource: Resource } | null;
+  // Acueducto (Ciencia nivel 3): jugadores que al tirar no recibieron ningún
+  // recurso y pueden tomar 1 recurso del banco a su elección. Se vacía al
+  // resolver (aqueduct:pick). Público (el cliente afectado muestra el picker).
+  pendingAqueductPick?: string[];
   // Mazos de cartas de progreso barajados (servidor; ocultos). Solo C&K.
   progressDecks: ProgressDecks;
   // Último dado rojo (1-6) y dado de evento ingresados (para la UI y el calendario).

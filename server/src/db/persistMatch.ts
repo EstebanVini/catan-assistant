@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { GameState, emptyGameStats } from '../game/state';
-import { totalVictoryPoints } from '../game/rules';
+import { playerVP } from '../game/rules';
 import { Match } from './models/Match';
 import { User } from './models/User';
 import { isDbConnected } from './connection';
@@ -31,7 +31,7 @@ export async function persistMatchResult(state: GameState): Promise<void> {
         userId: p.userId ? new mongoose.Types.ObjectId(p.userId) : undefined,
         name: p.name,
         color: p.color ?? undefined,
-        victoryPoints: totalVictoryPoints(p),
+        victoryPoints: playerVP(state, p),
         longestRoad: p.victoryPoints.longestRoad,
         largestArmy: p.victoryPoints.largestArmy,
         knightsPlayed: p.knightsPlayed,
@@ -45,7 +45,7 @@ export async function persistMatchResult(state: GameState): Promise<void> {
           const user = await User.findById(p.userId);
           if (!user) return;
           const won = p.id === state.winnerId;
-          const finalVP = totalVictoryPoints(p);
+          const finalVP = playerVP(state, p);
           const s = user.stats ?? ({} as NonNullable<typeof user.stats>);
 
           // Stats acumuladas base ($ifNull para usuarios viejos).
@@ -66,7 +66,7 @@ export async function persistMatchResult(state: GameState): Promise<void> {
             finalVP,
             opponentsVP: state.players
               .filter((o) => o.id !== p.id)
-              .map((o) => totalVictoryPoints(o)),
+              .map((o) => playerVP(state, o)),
             hasLongestRoad: p.victoryPoints.longestRoad,
             hasLargestArmy: p.victoryPoints.largestArmy,
             citiesAtEnd: p.victoryPoints.cities,
