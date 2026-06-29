@@ -317,6 +317,9 @@ export interface ExtraRules {
   // Si mueves el ladrón a una ficha sin dueños o al desierto, el banco te da
   // 1 recurso aleatorio.
   robberEmptyGivesResource: boolean;
+  // Caballeros y Ciudades: sin límite de mano para las cartas de progreso (cada
+  // jugador puede tener las que sean; no se fuerza descarte al pasar de 4).
+  unlimitedProgressCards: boolean;
 }
 
 export function defaultExtraRules(): ExtraRules {
@@ -326,6 +329,7 @@ export function defaultExtraRules(): ExtraRules {
     noSpecialBuild: false,
     robberNoStealFirstRound: false,
     robberEmptyGivesResource: false,
+    unlimitedProgressCards: false,
   };
 }
 

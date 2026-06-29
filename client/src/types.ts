@@ -174,6 +174,7 @@ export interface ExtraRules {
   noSpecialBuild: boolean; // desactiva la construcción especial (modo 5-6)
   robberNoStealFirstRound: boolean; // el ladrón no roba en la primera ronda
   robberEmptyGivesResource: boolean; // ladrón en ficha vacía/desierto → recurso del banco
+  unlimitedProgressCards: boolean; // C&K: sin límite de mano para cartas de progreso
 }
 
 // Solicitud en curso para usar el puerto de otro jugador (regla sharedPorts).

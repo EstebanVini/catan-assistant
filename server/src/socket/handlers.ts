@@ -555,6 +555,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
         'noSpecialBuild',
         'robberNoStealFirstRound',
         'robberEmptyGivesResource',
+        'unlimitedProgressCards',
       ];
       for (const key of keys) {
         if (typeof rules[key] === 'boolean') state.extraRules[key] = rules[key] as boolean;
@@ -919,7 +920,10 @@ export function registerHandlers(io: Server, socket: Socket): void {
           const card = drawProgressCard(state.progressDecks, state.progressDiscards, eventDie);
           if (!card) continue;
           p.progressCards.push(card);
-          if (p.progressCards.length > PROGRESS_HAND_LIMIT) {
+          if (
+            !state.extraRules.unlimitedProgressCards &&
+            p.progressCards.length > PROGRESS_HAND_LIMIT
+          ) {
             state.pendingProgressDiscard[p.id] =
               p.progressCards.length - PROGRESS_HAND_LIMIT;
           }
@@ -1204,7 +1208,10 @@ export function registerHandlers(io: Server, socket: Socket): void {
         const i = Math.floor(Math.random() * target.progressCards.length);
         const stolen = target.progressCards.splice(i, 1)[0];
         player.progressCards.push(stolen);
-        if (player.progressCards.length > PROGRESS_HAND_LIMIT) {
+        if (
+          !state.extraRules.unlimitedProgressCards &&
+          player.progressCards.length > PROGRESS_HAND_LIMIT
+        ) {
           state.pendingProgressDiscard[player.id] = player.progressCards.length - PROGRESS_HAND_LIMIT;
         }
         logAction(state, `${player.name} jugó Espía y robó una carta de progreso a ${target.name}.`, player.id);

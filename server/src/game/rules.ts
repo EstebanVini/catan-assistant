@@ -616,7 +616,7 @@ export function resolveBarbarianAttack(state: GameState): BarbarianResult {
           const card = drawProgressCard(state.progressDecks, state.progressDiscards, disc);
           if (!card) continue;
           p.progressCards.push(card);
-          if (p.progressCards.length > 4) {
+          if (!state.extraRules.unlimitedProgressCards && p.progressCards.length > 4) {
             state.pendingProgressDiscard[p.id] = p.progressCards.length - 4;
           }
           result.tieRewardDraws.push({ playerId: id, card, discipline: disc });
