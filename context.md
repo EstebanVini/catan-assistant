@@ -29,7 +29,7 @@ Todo lo siguiente está **implementado y funcionando** salvo lo marcado como fut
 
 **Partida (motor de juego)**
 - **Tirada**: el encargado del banco ingresa el número (base) o los 3 dados (C&K); reparte producción a poblados/ciudades y lleva **estadísticas de dados**.
-- **Secuencia del 7**: descarte forzado (>7 cartas) → mover ladrón (incl. **ficha vacía/desierto**) → robo aleatorio. Reglas extra del ladrón (no roba 1ª ronda: solo omite descarte; ficha vacía da recurso del banco).
+- **Secuencia del 7**: descarte forzado (>7 cartas) → mover ladrón → robo aleatorio. El ladrón puede ir a un hex de la mesa, al **desierto**, o a una **ficha vacía genérica** (opción "Mover a ficha vacía", independiente del desierto: no queda sobre ningún hex → `robberOnEmpty`, no bloquea producción ni roba). Reglas extra del ladrón (no roba 1ª ronda: solo omite descarte; ficha vacía/desierto da recurso del banco si `robberEmptyGivesResource`).
 - **Construir**: caminos, poblados, ciudades, cartas de desarrollo; **Tabla de construcción** editable que deriva los hexes de producción; registro de fichas pendientes tras comprar un poblado.
 - **Cartas de desarrollo**: Caballero (+ Ejército más grande), Año de la abundancia, Monopolio, Construcción de caminos, Punto de victoria (privadas hasta usarse). No se juegan el turno en que se compran.
 - **Intercambios**: con el banco/puertos (proporciones 4:1/3:1/2:1), **entre jugadores** (ofertas dirigidas o abiertas, rechazo individual), y **uso de puerto ajeno** con comisión opcional (regla `sharedPorts`, flujo de 3 pasos).
@@ -41,6 +41,7 @@ Todo lo siguiente está **implementado y funcionando** salvo lo marcado como fut
 
 **Tiempo real, privacidad y feedback**
 - Estado compartido vía Socket.IO con **vista personalizada** (las manos/cartas ajenas nunca se envían; solo conteos públicos).
+- **Privacidad de tu propia mano:** en `HandView` hay dos toggles **locales** (no tocan el estado compartido) para **ocultar tus recursos** (y mercancías en C&K) y **ocultar tus cartas de desarrollo**, útiles en partidas presenciales. El Total queda visible; se enmascara la composición. La preferencia persiste por dispositivo.
 - **Notices** públicos prominentes (anti-trampas), **toasts**, **log** de la partida, banner de desconexión/reconexión, **invitaciones** de amigos.
 - **PWA instalable** (offline shell; nunca cachea `/socket.io/` ni `/api/`).
 - Tema Catán, **accesibilidad** (WCAG AA, focus trap en modales, `prefers-reduced-motion`), animaciones y micro-interacciones.
@@ -110,7 +111,7 @@ catan-assistant/
 - `Building { id, type: 'settlement'|'city', spots: BuildingSpot[], port? }`. Cada **spot** es una ficha que toca la construcción: `{ number, resource, hexId? }`. Un poblado toca 0–3 fichas (0–2 si tiene puerto). Los `hexes` de producción se **derivan** de los `buildings` de todos (`rebuildHexes`).
 - `Player`: `id, userId?, sessionToken, name, avatarUrl?, color, connected, winStreak (racha activa cargada al unirse, pública), buildings[], hand (privado), ports[], devCards (privado), devCardsBoughtThisTurn[], knightsPlayed, victoryPoints {settlements, cities, longestRoad, largestArmy, vpCards}`, campos C&K (`commodities`, `improvements`, `metropolises`, `progressCards`, `knights`, `defenderCards`, `walls`), y `gameStats?` (acumulador por partida para logros: picos de recursos/puertos, PV por turno, caminos, compras dev/turno, ronda seca — **no se envía a la vista**).
 - `Hex { id, number, resource, robber, owners[] }`. El robo y la producción dependen de esto.
-- `GameState`: `code, hostId, bankManagerId, status ('lobby'|'playing'|'ended'), extension56, seedInitialResources, extraRules, players[], turnOrder[], currentTurnIndex, phase ('roll'|'discard'|'robber'|'main'|'specialBuild'), specialBuildQueue[], hexes[], bank, devDeck[], diceStats, log[], pendingDiscards, pendingRobberMove/Steal, activeTrade?, activePortUse?, winnerId?, ...`.
+- `GameState`: `code, hostId, bankManagerId, status ('lobby'|'playing'|'ended'), extension56, seedInitialResources, extraRules, players[], turnOrder[], currentTurnIndex, phase ('roll'|'discard'|'robber'|'main'|'specialBuild'), specialBuildQueue[], hexes[], bank, devDeck[], diceStats, log[], pendingDiscards, pendingRobberMove/Steal, robberOnEmpty (ladrón en ficha vacía, sobre ningún hex), activeTrade?, activePortUse?, winnerId?, ...`.
 - **ExtraRules** (toggles del host en el lobby): `unequalTrades, sharedPorts, noSpecialBuild, robberNoStealFirstRound, robberEmptyGivesResource`.
 
 ## 5. Reglas que el servidor hace cumplir (todo en `rules.ts` / `handlers.ts`)
@@ -148,7 +149,7 @@ Aditiva: con el toggle apagado el juego se comporta EXACTAMENTE como el base. Co
 ## 6. Frontend — pantallas y componentes clave
 
 - **Pantallas:** `LoginScreen` (registro/login/invitado), `HomeScreen` (crear/unirse/reconectar), `LobbyScreen` (código, colores, orden de turnos, bank manager, registro de construcciones iniciales, toggles de reglas), `GameScreen` (la principal), `ProfileScreen` (avatar, displayName, color, **stats + XP/logros**).
-- **Componentes notables:** `HandView`, `ConstructionTable` (incluye el selector de mover ladrón `RobberHexList`, con "ficha vacía"), `ActionGrid`, `BankPanel` (+ `NumericKeypad`, `GiveCardModal`), `DiceStats`, `Log`, `InitialBuildSetup`, `RobberFlow`, `DiscardModal`, `TradeModal`/`TradeIncomingModal`, `DevCardsPanel` (+ pickers Monopoly/YearOfPlenty/RoadBuilding), `PortFeeConfirmModal`/`PortIncomingModal`, `SpecialBuildBanner`, `PublicPlayersPanel` (marcador + racha 🔥), `NoticeBanner`, `WinnerScreen`, `CollapsibleSection`, `Avatar` (con badge de racha opcional), `BadgeIcon`, `EndGameButton`, `LeaveGameButton` (salir de partida), `FriendsPanel`, `FriendProfileModal` (perfil de amigo), `AchievementsPanel` (logros + XP, reutilizable).
+- **Componentes notables:** `HandView` (mano propia + **toggles para ocultar recursos/cartas de desarrollo**), `ConstructionTable` (incluye el selector de mover ladrón `RobberHexList`, con el desierto y la acción "Mover a ficha vacía" genérica), `ActionGrid`, `BankPanel` (+ `NumericKeypad`, `GiveCardModal`), `DiceStats`, `Log`, `InitialBuildSetup`, `RobberFlow`, `DiscardModal`, `TradeModal`/`TradeIncomingModal`, `DevCardsPanel` (+ pickers Monopoly/YearOfPlenty/RoadBuilding), `PortFeeConfirmModal`/`PortIncomingModal`, `SpecialBuildBanner`, `PublicPlayersPanel` (marcador + racha 🔥), `NoticeBanner`, `WinnerScreen`, `CollapsibleSection`, `Avatar` (con badge de racha opcional), `BadgeIcon`, `EndGameButton`, `LeaveGameButton` (salir de partida), `FriendsPanel`, `FriendProfileModal` (perfil de amigo), `AchievementsPanel` (logros + XP, reutilizable).
 - **Componentes Caballeros y Ciudades:** `DiceInputCK` (3 dados), `KnightsPanel`, `BarbarianTrack`, `BarbarianLossModal`, `CityCalendarPanel`, `WallControl`, `ProgressHand`, `DevCardPreview`, `CommodityMonopolyPickerModal`, `ResourceMonopolyPickerModal`, `RoadBuildingConfirmModal`, `ContextBanner`, `TopBar`. Íconos C&K (mercancías, caballeros, disciplinas) en `assets/icons.tsx`, varios reciclados (ver `missing-icons.md`). Hay un `FireGlyph` ya disponible en `icons.tsx`.
 - **Estado:** Zustand en `store.ts`; el socket actualiza la vista; `types.ts` espeja `views.ts`.
 - **Tema visual:** fondo océano + superficies pergamino/madera (contraste WCAG AA); íconos centralizados en `assets/icons.tsx` con fallback emoji. Respeta `prefers-reduced-motion` (`lib/motion.ts`).
@@ -157,7 +158,7 @@ Aditiva: con el toggle apagado el juego se comporta EXACTAMENTE como el base. Co
 
 - **Cliente→Servidor (handlers.ts):**
   - *Sesión/lobby:* `game:create/join/reconnect`, `lobby:setColor/setTurnOrder/setBankManager/setExtension56/setCitiesKnights/setSeedResources/setExtraRules`, `lobby:rollOrderByDice`, `lobby:kick`, `lobby:leave`, `game:start`.
-  - *Construcción/turno:* `player:setBuildings`, `player:setPorts`, `building:ackNoResources`, `turn:rollNumber`, `turn:rollCK` (C&K), `discard:submit`, `discard:forceRandom`, `robber:move/steal`, `build {type, settlementId?}`, `dev:play`, `turn:end`, `specialBuild:done/skip`.
+  - *Construcción/turno:* `player:setBuildings`, `player:setPorts`, `building:ackNoResources`, `turn:rollNumber`, `turn:rollCK` (C&K), `discard:submit`, `discard:forceRandom`, `robber:move`, `robber:moveEmpty` (ficha vacía genérica), `robber:steal`, `build {type, settlementId?}`, `dev:play`, `turn:end`, `specialBuild:done/skip`.
   - *Comercio:* `trade:bank/offer/respond/cancel`, `port:request/respond/confirm/cancel` (regla `sharedPorts`).
   - *Caballeros y Ciudades:* `progress:discard/play`, `city:upgrade/buildWall`, `knight:build/activate/promote/action`, `barbarian:downgradeCity`.
   - *Banco/victoria/salida:* `vp:setLongestRoad`, `admin:giveCard`, `action:undo`, `game:declareWin`, `game:end`, `game:leave` (salir de partida en curso → devuelve cartas).
@@ -174,6 +175,7 @@ Aditiva: con el toggle apagado el juego se comporta EXACTAMENTE como el base. Co
 - `qa-caballeros.md` — reporte QA de la expansión Caballeros y Ciudades.
 - `pending-phase3.md` — ganchos futuros (foto del tablero, paired players, subida de avatar).
 - `logrosandxp.md` — plan de implementación de logros + XP y del resto de `cambios.txt` (bugs y features), con tareas por agente.
+- `cambios-plan.md` — plan de la tanda de `cambios.txt` de junio 2026 (toggles de privacidad, ladrón a ficha vacía, ajuste de XP), con tareas por agente.
 - En la raíz: `caballeros-plan.md` (plan completo de la expansión C&K) y `missing-icons.md` (arte pendiente / reciclado).
 
 ## 9. Cómo correr y verificar
@@ -195,6 +197,8 @@ Aditiva: con el toggle apagado el juego se comporta EXACTAMENTE como el base. Co
 
 La app es jugable de extremo a extremo: auth, lobby, MVP completo, cartas de desarrollo, insignias, victoria, persistencia, extensión 5–6, dice stats, tema visual, amigos y **expansión Caballeros y Ciudades** (ver §5b). Catálogo completo de funcionalidades en §1b.
 
-**Entregado de `cambios.txt`** (plan en `docs/logrosandxp.md`): bugs corregidos (2 desiertos en 5–6; semántica de `robberNoStealFirstRound` = solo omite descarte, sí roba; reset de contadores en modales de descarte/puerto) y features (salir de partida devolviendo cartas al banco; ícono de racha 🔥 en avatares; ver perfil completo de amigos; mover ladrón a ficha vacía; **sistema de logros + XP** con 19 logros, nivel y `AchievementsPanel`). Detalle en §5c. Verificado: 63 tests de servidor en verde + build de cliente; auditado por `qa-auditor`.
+**Entregado de `cambios.txt`** (planes en `docs/logrosandxp.md` y `docs/cambios-plan.md`): bugs corregidos (2 desiertos en 5–6; semántica de `robberNoStealFirstRound` = solo omite descarte, sí roba; reset de contadores en modales de descarte/puerto) y features (salir de partida devolviendo cartas al banco; ícono de racha 🔥 en avatares; ver perfil completo de amigos; **sistema de logros + XP** con 20 logros, nivel y `AchievementsPanel`). Detalle en §5c.
+
+**Última tanda (`docs/cambios-plan.md`, junio 2026):** ajuste de XP (`Desarrollado` 40, `Victoria demoledora` 40); **acción "Mover a ficha vacía"** del ladrón independiente del desierto (`robber:moveEmpty` + `robberOnEmpty`; recurso del banco solo con `robberEmptyGivesResource`); y **toggles de privacidad** en `HandView` para ocultar tus recursos y tus cartas de desarrollo. Verificado: 65 tests de servidor en verde + build de cliente; frontend diseñado/auditado por el equipo de agentes (ux-architect, ux-writer, ui-engineer, visual-designer, motion-engineer, qa-auditor).
 
 **Pendiente / futuro:** celebración de logros y XP en `WinnerScreen` al terminar la partida (hoy se ven en el perfil); y los ganchos de `docs/pending-phase3.md` (foto del tablero, paired players, subida de avatar).
