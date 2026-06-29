@@ -22,6 +22,7 @@ import { CityCalendarPanel } from '../components/CityCalendarPanel';
 import { ProgressHand } from '../components/ProgressHand';
 import { BarbarianTrack } from '../components/BarbarianTrack';
 import { BarbarianLossModal } from '../components/BarbarianLossModal';
+import { AqueductPickModal } from '../components/AqueductPickModal';
 import { KnightsPanel } from '../components/KnightsPanel';
 import { WallControl } from '../components/WallControl';
 import { CollapsibleSection } from '../components/CollapsibleSection';
@@ -216,6 +217,14 @@ export function GameScreen(): JSX.Element | null {
       </div>
       <DiscardModal />
       <BarbarianLossModal />
+      {/* Acueducto (Ciencia nivel 3): toma forzosa de 1 recurso del banco
+          cuando al tirar no produjiste nada. Es un beneficio. El modal se
+          auto-protege, pero lo condicionamos aquí para no montar su focus trap
+          hasta que aplique a este jugador. */}
+      {state.citiesKnights &&
+      state.pendingAqueductPick?.includes(view.me.id) ? (
+        <AqueductPickModal />
+      ) : null}
       <RobberFlow />
       <PortIncomingModal />
       <PortFeeConfirmModal />

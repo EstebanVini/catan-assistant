@@ -57,7 +57,7 @@ const DISCIPLINE_CLASSES: Record<Discipline, DisciplineClasses> = {
     ringMilestone: 'ring-1 ring-inset ring-discipline-trade/40',
     cardBorder: 'border-discipline-trade/35',
     abilityBox: 'border-discipline-trade/40 bg-discipline-trade/10',
-    abilityChip: 'bg-discipline-trade/20 text-discipline-trade',
+    abilityChip: 'bg-discipline-trade/20 text-neutral-100',
     upgradeBtn:
       'border border-discipline-trade/50 bg-discipline-trade/15 text-neutral-50 active:scale-[0.98] active:bg-discipline-trade/25',
   },
@@ -67,7 +67,7 @@ const DISCIPLINE_CLASSES: Record<Discipline, DisciplineClasses> = {
     ringMilestone: 'ring-1 ring-inset ring-discipline-politics/40',
     cardBorder: 'border-discipline-politics/35',
     abilityBox: 'border-discipline-politics/40 bg-discipline-politics/10',
-    abilityChip: 'bg-discipline-politics/20 text-discipline-politics',
+    abilityChip: 'bg-discipline-politics/20 text-neutral-100',
     upgradeBtn:
       'border border-discipline-politics/50 bg-discipline-politics/15 text-neutral-50 active:scale-[0.98] active:bg-discipline-politics/25',
   },
@@ -77,7 +77,7 @@ const DISCIPLINE_CLASSES: Record<Discipline, DisciplineClasses> = {
     ringMilestone: 'ring-1 ring-inset ring-discipline-science/40',
     cardBorder: 'border-discipline-science/35',
     abilityBox: 'border-discipline-science/40 bg-discipline-science/10',
-    abilityChip: 'bg-discipline-science/20 text-discipline-science',
+    abilityChip: 'bg-discipline-science/20 text-neutral-100',
     upgradeBtn:
       'border border-discipline-science/50 bg-discipline-science/15 text-neutral-50 active:scale-[0.98] active:bg-discipline-science/25',
   },
@@ -250,11 +250,17 @@ function DisciplineCard({
         <span className={level >= 5 ? 'text-gold' : ''}>Arrebatar</span>
       </div>
 
-      {/* Habilidad de nivel 3. */}
+      {/* Habilidad de nivel 3. Desbloqueada (nivel ≥ 3) se REFUERZA como
+          ACTIVA: caja con el tinte de la disciplina, anillo sutil y una
+          insignia "Activa" con un punto de estado encendido; el beneficio se
+          aclara un grado para que se lea de inmediato. Bloqueada queda inerte
+          ("Nivel 3") en gris. */}
       <div
         className={
-          'mt-2.5 rounded-lg border px-2.5 py-2 ' +
-          (abilityUnlocked ? cls.abilityBox : 'border-white/10 bg-surface-1')
+          'mt-2.5 rounded-lg border px-2.5 py-2 transition-colors ' +
+          (abilityUnlocked
+            ? cls.abilityBox + ' ' + cls.ringMilestone
+            : 'border-white/10 bg-surface-1')
         }
       >
         <div className="flex items-center justify-between gap-2">
@@ -267,17 +273,38 @@ function DisciplineCard({
             {DISCIPLINE_LEVEL3_ABILITY[discipline]}
           </span>
           <span
+            role="status"
+            aria-label={
+              abilityUnlocked
+                ? `${DISCIPLINE_LEVEL3_ABILITY[discipline]}: habilidad activa`
+                : `${DISCIPLINE_LEVEL3_ABILITY[discipline]}: se desbloquea en el nivel 3`
+            }
             className={
-              'flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] ' +
+              'inline-flex flex-shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] ' +
               (abilityUnlocked
                 ? cls.abilityChip
                 : 'bg-white/[0.06] text-neutral-500')
             }
           >
-            {abilityUnlocked ? 'Activa' : 'Nivel 3'}
+            {abilityUnlocked ? (
+              <>
+                <span
+                  className={'h-1.5 w-1.5 flex-shrink-0 rounded-full ' + cls.fill}
+                  aria-hidden
+                />
+                Activa
+              </>
+            ) : (
+              'Nivel 3'
+            )}
           </span>
         </div>
-        <p className="mt-1 text-[10px] leading-snug text-neutral-400">
+        <p
+          className={
+            'mt-1 text-[10px] leading-snug ' +
+            (abilityUnlocked ? 'text-neutral-300' : 'text-neutral-400')
+          }
+        >
           {DISCIPLINE_LEVEL3_ABILITY_DESC[discipline]}
         </p>
       </div>
