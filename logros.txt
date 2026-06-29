@@ -1,0 +1,21 @@
+Logros:
+
+    *El más pajero: Acumula 15 cartas de paja en tu mano. 15XP
+    *A mitad de camino: Haz 5 puntos en un solo turno 25XP
+    *El caminante: Construye 15 caminos en una sola partida 15XP
+    *YA SE LA SABEN!: Roba 10 recursos de tus oponentes en una partida. 15XP
+    *Perdedor: Termina una partida con 3 puntos de victoria o menos. 15XP
+    *Mala suerte: completa una ronda completa sin recibir un solo recurso  15XP
+    *Pacifista: termina la partida sin robar ni un solo recurso.  15XP
+    *Amateur: Acumula 20 puntos de victoria 20XP
+    *Jugador casual: Acumula 50 puntos de victoria 50XP
+    *Profesional: Acumula 200 puntos de victoria 200XP
+    *Condecorado: Consigue ambas insignias en una partida (camino más largo y ejército más grande) 15XP
+    *Panzazo: Gana una partida mientras alguno de tus oponentes tenga 9 puntos de victoria 15XP
+    *Adicto a la piedra: Acumula 15 piedras (minerales) en tu mano 15XP
+    *Comerciante marítimo: Obtén 4 puertos en una sola partida 25XP
+    *Crack!: consigue 6 puntos de victoria en un solo turno 40XP
+    *Desarrollado: Compra 5 cartas de desarrollo en un solo turno 15XP 
+    *Victoria demoledora: Gana una partida sin que ninguno de tus oponentes lleguen a 6 puntos o más 25XP
+    *Enrachado: Acumula una racha de 5 victorias seguidas 50XP
+    *Pueblerino: Gana una partida sin construir una ciudad 40XP
