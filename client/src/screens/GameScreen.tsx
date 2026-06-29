@@ -77,7 +77,7 @@ export function GameScreen(): JSX.Element | null {
     }
     const { state, me } = view;
     const myPublic = state.players.find((p) => p.id === me.id);
-    const myVP = myPublic ? playerVictoryPoints(myPublic) : 0;
+    const myVP = myPublic ? playerVictoryPoints(myPublic, state.merchant?.ownerId) : 0;
     const canDeclareNow =
       state.turnOrder[state.currentTurnIndex] === me.id &&
       state.phase === 'main' &&

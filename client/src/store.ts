@@ -20,6 +20,7 @@ import {
   PlayerView,
   PortType,
   Resource,
+  TradeItemKind,
   User,
 } from './types';
 import {
@@ -160,6 +161,12 @@ interface StoreState {
     card: ProgressCardType;
     resource?: Resource;
     commodity?: Commodity;
+    // Objetivo (Espía, Maestro Mercader, Desertor).
+    targetPlayerId?: string;
+    // Caballeros a promover (Fragua) o a quitar (Desertor, knightIds[0]).
+    knightIds?: string[];
+    // Poblado a convertir en ciudad (Medicina).
+    settlementId?: string;
   }) => void;
   buildKnight: () => void;
   activateKnight: (knightId: string) => void;
@@ -179,10 +186,26 @@ interface StoreState {
   // Acciones. Comprar una ciudad exige decir qué poblado se convierte.
   build: (type: BuildType, settlementId?: string) => void;
   playDevCard: (card: DevCardType, payload?: unknown) => void;
-  tradeBank: (give: Resource, receive: Resource) => void;
-  offerTrade: (toId: string | null, give: Partial<Hand>, receive: Partial<Hand>) => void;
+  // Comercio con banco/puertos: en C&K el ítem dado/recibido puede ser una
+  // mercancía (giveKind/receiveKind, 'resource' por defecto).
+  tradeBank: (
+    give: Resource | Commodity,
+    receive: Resource | Commodity,
+    giveKind?: TradeItemKind,
+    receiveKind?: TradeItemKind
+  ) => void;
+  // Oferta entre jugadores: recursos y, en C&K, también mercancías.
+  offerTrade: (
+    toId: string | null,
+    give: Partial<Hand>,
+    receive: Partial<Hand>,
+    giveCommodities?: Partial<CommodityHand>,
+    receiveCommodities?: Partial<CommodityHand>
+  ) => void;
   respondTrade: (accept: boolean) => void;
   cancelTrade: () => void;
+  // Acueducto (Ciencia nivel 3): tomar 1 recurso del banco cuando no produces.
+  aqueductPick: (resource: Resource) => void;
   // Uso de puerto ajeno (regla extra sharedPorts).
   requestPort: (ownerId: string, give: Resource, receive: Resource) => void;
   respondPort: (accept: boolean, commission?: Partial<Hand>) => void;
@@ -472,10 +495,11 @@ export const useStore = create<StoreState>((set, get) => ({
   build: (type, settlementId) => socket.emit('build', { type, settlementId }),
   playDevCard: (card, payload) =>
     socket.emit('dev:play', { card, payload }),
-  tradeBank: (give, receive) =>
-    socket.emit('trade:bank', { give, receive }),
-  offerTrade: (toId, give, receive) =>
-    socket.emit('trade:offer', { toId, give, receive }),
+  tradeBank: (give, receive, giveKind = 'resource', receiveKind = 'resource') =>
+    socket.emit('trade:bank', { give, receive, giveKind, receiveKind }),
+  offerTrade: (toId, give, receive, giveCommodities, receiveCommodities) =>
+    socket.emit('trade:offer', { toId, give, receive, giveCommodities, receiveCommodities }),
+  aqueductPick: (resource) => socket.emit('aqueduct:pick', { resource }),
   respondTrade: (accept) => socket.emit('trade:respond', { accept }),
   cancelTrade: () => socket.emit('trade:cancel'),
   requestPort: (ownerId, give, receive) =>

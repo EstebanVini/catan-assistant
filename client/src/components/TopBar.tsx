@@ -17,7 +17,7 @@ export function TopBar(): JSX.Element | null {
   const accent = active?.color ? PLAYER_HEX[active.color] : 'rgba(255,255,255,0.12)';
   // Mi marcador, siempre a la vista: nombre, color y puntos actuales.
   const myPublic = me ? state.players.find((p) => p.id === me.id) ?? null : null;
-  const myPts = myPublic ? playerVictoryPoints(myPublic) : 0;
+  const myPts = myPublic ? playerVictoryPoints(myPublic, state.merchant?.ownerId) : 0;
   return (
     <header
       className="sticky top-0 z-30 border-b border-white/10 bg-neutral-950/95 backdrop-blur supports-[backdrop-filter]:bg-neutral-950/80"
