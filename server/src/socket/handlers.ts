@@ -1089,6 +1089,34 @@ export function registerHandlers(io: Server, socket: Socket): void {
         drainBank(state.bank, res, gained);
         logAction(state, `${player.name} jugó ${name}: ganó ${gained} ${esResource(res)} (${spots} fichas de ${esResource(res)}).`, player.id);
         io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó ${name} (+${gained} ${esResource(res)}).` });
+      } else if (card === 'merchant') {
+        // Comerciante (Mercader): se coloca sobre una ficha de un recurso
+        // adyacente a una construcción tuya. Mientras lo controles puedes
+        // intercambiar ESE recurso 2:1 con el banco y vale +1 PV. Al jugarlo, su
+        // dueño anterior pierde la ventaja y el PV (los gana el nuevo dueño). Sin
+        // geometría de tablero (decisión §13): la "ficha adyacente" se decide en
+        // la mesa; aquí se registra el recurso para habilitar el 2:1.
+        if (!resource || !RESOURCES.includes(resource)) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige el recurso de la ficha donde colocas el comerciante.' });
+          return;
+        }
+        const prevOwner =
+          state.merchant && state.merchant.ownerId !== player.id
+            ? findPlayer(state, state.merchant.ownerId)
+            : null;
+        state.merchant = { ownerId: player.id, resource };
+        logAction(
+          state,
+          `${player.name} jugó Mercader: coloca el comerciante en ${esResource(resource)} (2:1 y +1 PV).`,
+          player.id
+        );
+        io.to(state.code).emit('notice', {
+          level: 'success',
+          text: prevOwner
+            ? `${player.name} le quitó el comerciante a ${prevOwner.name}: 2:1 de ${esResource(resource)} y +1 PV.`
+            : `${player.name} tomó el comerciante: 2:1 de ${esResource(resource)} y +1 PV.`,
+        });
       } else {
         // Registro asistido: la carta se retira y la mesa la resuelve.
         handled = false;
@@ -2351,6 +2379,14 @@ export function registerHandlers(io: Server, socket: Socket): void {
     delete state.pendingProgressDiscard[playerId];
     state.specialBuildQueue = state.specialBuildQueue.filter((id) => id !== playerId);
     state.pendingBarbarianLoss = state.pendingBarbarianLoss.filter((id) => id !== playerId);
+    if (state.pendingAqueductPick) {
+      state.pendingAqueductPick = state.pendingAqueductPick.filter((id) => id !== playerId);
+    }
+    // Si el que se va controlaba el comerciante, vuelve a la reserva (nadie lo
+    // tiene): el +1 PV y el 2:1 dejan de aplicarse.
+    if (state.merchant && state.merchant.ownerId === playerId) {
+      state.merchant = null;
+    }
     if (state.activeTrade && (state.activeTrade.fromId === playerId || state.activeTrade.toId === playerId)) {
       state.activeTrade = undefined;
     }
