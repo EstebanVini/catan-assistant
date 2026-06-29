@@ -725,7 +725,13 @@ export function registerHandlers(io: Server, socket: Socket): void {
     // Derivar los hexes de producción y repartir los recursos de inicio:
     // 1 carta por cada ficha que tocan los poblados registrados (todos).
     // En el modo "sin fichas" no se reparte nada.
-    const setup = applyInitialSetup(state.players, state.bank, state.seedInitialResources, state.extension56 ? 2 : 1);
+    const setup = applyInitialSetup(
+      state.players,
+      state.bank,
+      state.seedInitialResources,
+      state.extension56 ? 2 : 1,
+      state.citiesKnights
+    );
     state.hexes = setup.hexes;
     for (const player of state.players) {
       const grant = setup.grants[player.id];
@@ -736,6 +742,16 @@ export function registerHandlers(io: Server, socket: Socket): void {
           player.hand[r] += n;
           return `${n} ${esResource(r)}`;
         });
+      // Mercancías de inicio de la ciudad de salida (solo C&K).
+      const cGrant = setup.commodityGrants[player.id];
+      if (cGrant) {
+        for (const [c, n] of Object.entries(cGrant) as [Commodity, number][]) {
+          if (n <= 0) continue;
+          player.commodities[c] += n;
+          drainCommodityBank(state.commodityBank, c, n);
+          parts.push(`${n} ${esCommodity(c)}`);
+        }
+      }
       if (parts.length > 0) logAction(state, `Recursos de inicio de ${player.name}: ${parts.join(', ')}.`, player.id);
     }
     for (const s of setup.shortages) {
