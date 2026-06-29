@@ -755,7 +755,9 @@ export function LobbyScreen(): JSX.Element | null {
                   }
                   className="min-h-[56px] w-full rounded-xl border border-amber-500/40 bg-amber-500/[0.08] px-3 py-3 text-center text-sm font-semibold text-amber-200 transition-all active:scale-[0.99] active:bg-amber-500/[0.14]"
                 >
-                  Te falta registrar tus poblados ↓
+                  {state.citiesKnights
+                    ? 'Te falta registrar tu poblado y tu ciudad ↓'
+                    : 'Te falta registrar tus poblados ↓'}
                 </button>
               ) : (
                 <div className="rounded-xl border border-white/10 bg-surface-2 py-3.5 text-center text-sm font-medium text-neutral-300">
