@@ -173,6 +173,7 @@ interface StoreState {
   ) => void;
   forceRandomDiscard: (targetPlayerId: string) => void;
   moveRobber: (hexId: string) => void;
+  moveRobberEmpty: () => void;
   stealFrom: (targetPlayerId: string) => void;
 
   // Acciones. Comprar una ciudad exige decir qué poblado se convierte.
@@ -464,6 +465,7 @@ export const useStore = create<StoreState>((set, get) => ({
   forceRandomDiscard: (targetPlayerId) =>
     socket.emit('discard:forceRandom', { targetPlayerId }),
   moveRobber: (hexId) => socket.emit('robber:move', { hexId }),
+  moveRobberEmpty: () => socket.emit('robber:moveEmpty'),
   stealFrom: (targetPlayerId) =>
     socket.emit('robber:steal', { targetPlayerId }),
 

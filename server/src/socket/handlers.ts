@@ -1182,6 +1182,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
     pushSnapshot(state);
     for (const h of state.hexes) h.robber = false;
     targetHex.robber = true;
+    state.robberOnEmpty = false;
     state.pendingRobberMove = false;
     const active = activePlayer(state)!;
     logAction(state, `${active.name} movió el ladrón.`, active.id);
@@ -1209,6 +1210,40 @@ export function registerHandlers(io: Server, socket: Socket): void {
     } else {
       state.pendingRobberSteal = true;
     }
+    broadcastState(io, state);
+  });
+
+  // Mover el ladrón a una "ficha vacía" genérica, independiente del desierto: no
+  // queda sobre ningún hex modelado, así que no bloquea producción ni le roba a
+  // nadie. Solo entrega 1 recurso del banco si la regla extra
+  // robberEmptyGivesResource está activa.
+  socket.on('robber:moveEmpty', () => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state) return;
+    if (!ensureActive(state, socket.data.playerId)) {
+      socket.emit('error', { message: 'Solo el jugador en turno mueve el ladrón.' });
+      return;
+    }
+    if (state.phase !== 'robber' || !state.pendingRobberMove) return;
+    pushSnapshot(state);
+    for (const h of state.hexes) h.robber = false;
+    state.robberOnEmpty = true;
+    state.pendingRobberMove = false;
+    state.pendingRobberSteal = false;
+    const active = activePlayer(state)!;
+    logAction(state, `${active.name} movió el ladrón a una ficha vacía.`, active.id);
+    io.to(state.code).emit('notice', { level: 'warn', text: `${active.name} movió el ladrón a una ficha vacía (no le robó a nadie).` });
+
+    // Regla extra: ladrón a ficha vacía → el banco da 1 recurso al azar.
+    if (state.extraRules.robberEmptyGivesResource) {
+      const r = RESOURCES[Math.floor(Math.random() * RESOURCES.length)];
+      drainBank(state.bank, r, 1);
+      active.hand[r] += 1;
+      logAction(state, `El banco le dio 1 ${esResource(r)} a ${active.name} por mover el ladrón a una ficha vacía.`, active.id);
+      io.to(state.code).emit('notice', { level: 'info', text: `${active.name} recibió 1 recurso del banco (ladrón en ficha vacía).` });
+    }
+
+    state.phase = 'main';
     broadcastState(io, state);
   });
 

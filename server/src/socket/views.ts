@@ -78,6 +78,7 @@ export interface PlayerView {
     pendingDiscards: GameState['pendingDiscards'];
     pendingRobberMove: boolean;
     pendingRobberSteal: boolean;
+    robberOnEmpty: boolean;
     activeTrade?: GameState['activeTrade'];
     activePortUse?: GameState['activePortUse'];
     winnerId?: string;
@@ -135,6 +136,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
       pendingDiscards: state.pendingDiscards,
       pendingRobberMove: state.pendingRobberMove,
       pendingRobberSteal: state.pendingRobberSteal,
+      robberOnEmpty: state.robberOnEmpty,
       activeTrade: state.activeTrade,
       activePortUse: state.activePortUse,
       winnerId: state.winnerId,

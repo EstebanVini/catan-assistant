@@ -44,6 +44,7 @@ export function ConstructionTable(): JSX.Element | null {
   const setPorts = useStore((s) => s.setPorts);
   const ackNoResources = useStore((s) => s.ackNoResources);
   const moveRobber = useStore((s) => s.moveRobber);
+  const moveRobberEmpty = useStore((s) => s.moveRobberEmpty);
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [portSheet, setPortSheet] = useState<string | null>(null); // buildingId
   const [removeTarget, setRemoveTarget] = useState<RemoveTarget | null>(null);
@@ -62,12 +63,17 @@ export function ConstructionTable(): JSX.Element | null {
   const pendingIds = new Set(me?.pendingSettlementRegistration ?? []);
   const hasPending = pendingIds.size > 0;
 
+  // Cuando `robberOnEmpty` es true ningún hex tiene el ladrón (robberHex será
+  // null): el ladrón está fuera del tablero, en una ficha vacía. Etiqueta de
+  // estado en minúscula, igual que "ladrón en desierto".
   const robberHex = state.hexes.find((h) => h.robber) ?? null;
   const robberLabel = robberHex
     ? robberHex.number !== null && robberHex.resource
       ? `${robberHex.number} ${RESOURCE_NAMES_LOWER[robberHex.resource]}`
       : 'desierto'
-    : null;
+    : state.robberOnEmpty
+      ? 'ficha vacía'
+      : null;
 
   function confirmSheet(number: number, resource: Resource, hexId: string): void {
     if (!sheet) return;
@@ -174,6 +180,8 @@ export function ConstructionTable(): JSX.Element | null {
               hexes={state.hexes}
               canMove={isMyTurn}
               onPick={(hexId) => moveRobber(hexId)}
+              onPickEmpty={() => moveRobberEmpty()}
+              emptyGivesResource={state.extraRules.robberEmptyGivesResource}
             />
           ) : null}
 
@@ -658,10 +666,16 @@ function RobberHexList({
   hexes,
   canMove,
   onPick,
+  onPickEmpty,
+  emptyGivesResource,
 }: {
   hexes: Hex[];
   canMove: boolean;
   onPick: (hexId: string) => void;
+  // Acción destacada para mover el ladrón a una ficha vacía (fuera del
+  // tablero): no le roba a nadie. Según la regla, el banco puede dar 1 recurso.
+  onPickEmpty: () => void;
+  emptyGivesResource: boolean;
 }): JSX.Element {
   const view = useStore((s) => s.view);
   const players = view?.state.players ?? [];
@@ -729,7 +743,8 @@ function RobberHexList({
       </p>
       {canMove ? (
         <p className="mt-1 text-[10px] leading-snug text-red-200/70">
-          Mover el ladrón a una ficha vacía no le roba a nadie.
+          La lista son las fichas con poblados o ciudades y el desierto. Abajo
+          tienes la opción de moverlo a una ficha vacía.
         </p>
       ) : null}
       <ul className="mt-2 space-y-1.5">
@@ -739,7 +754,7 @@ function RobberHexList({
           const suffix = suffixes.get(h.id) ?? null;
           const baseName = h.resource
             ? RESOURCE_NAMES_LOWER[h.resource]
-            : 'ficha vacía (desierto)';
+            : 'desierto';
           const ariaName =
             (h.number !== null ? `${h.number} ` : '') +
             baseName +
@@ -825,6 +840,32 @@ function RobberHexList({
           );
         })}
       </ul>
+      {canMove ? (
+        // Acción destacada, separada de la lista de fichas: mover el ladrón a
+        // una ficha vacía (fuera del tablero). No le roba a nadie.
+        <div className="mt-3 border-t border-red-500/20 pt-2.5">
+          <button
+            type="button"
+            onClick={onPickEmpty}
+            aria-label={
+              emptyGivesResource
+                ? 'Mover el ladrón a una ficha vacía. No le roba a nadie; el banco te da 1 recurso al azar.'
+                : 'Mover el ladrón a una ficha vacía. No le roba a nadie.'
+            }
+            className="flex min-h-[44px] w-full items-center gap-2.5 rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-2.5 text-left text-sm font-semibold text-red-100 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/70 active:scale-[0.99] active:bg-red-500/25"
+          >
+            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-red-400/40 bg-red-500/10">
+              <DesertGlyph size={22} />
+            </span>
+            <span>Mover a ficha vacía</span>
+          </button>
+          <p className="mt-1.5 px-0.5 text-[11px] leading-snug text-red-200/70">
+            {emptyGivesResource
+              ? 'No le roba a nadie, pero el banco te da 1 recurso al azar.'
+              : 'No le roba a nadie ni recibes nada del banco.'}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

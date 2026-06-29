@@ -358,6 +358,11 @@ export interface GameState {
   // un 7 solo provoca descarte. false hasta el primer ataque. Solo en C&K; en
   // el modo base es true desde el inicio (el ladrón siempre se mueve).
   robberActive: boolean;
+  // El ladrón está sobre una "ficha vacía" no modelada (independiente del
+  // desierto): no queda sobre ningún hex, así que no bloquea producción ni roba.
+  // Se pone en false al moverlo a un hex real. Útil para la regla
+  // robberEmptyGivesResource cuando no se quiere usar el desierto.
+  robberOnEmpty: boolean;
   // Si es true (default), al iniciar se reparten los recursos de las fichas
   // registradas. Si es false, el registro de fichas es opcional y nadie
   // recibe recursos de inicio.

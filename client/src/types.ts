@@ -372,6 +372,7 @@ export interface PublicGameState {
   pendingDiscards: Record<string, number>;
   pendingRobberMove: boolean;
   pendingRobberSteal: boolean;
+  robberOnEmpty: boolean; // ladrón en una ficha vacía (no sobre ningún hex)
   activeTrade?: TradeOffer;
   activePortUse?: PortUseRequest;
   winnerId?: string;

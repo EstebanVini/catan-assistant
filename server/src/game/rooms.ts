@@ -127,6 +127,7 @@ export function createRoom(hostName: string, profile?: UserProfileInfo): { state
     pendingDiscards: {},
     pendingRobberMove: false,
     pendingRobberSteal: false,
+    robberOnEmpty: false,
   };
   rooms.set(code, state);
   undoStack.set(code, []);
@@ -193,6 +194,7 @@ export function pushSnapshot(state: GameState): void {
     pendingDiscards: state.pendingDiscards,
     pendingRobberMove: state.pendingRobberMove,
     pendingRobberSteal: state.pendingRobberSteal,
+    robberOnEmpty: state.robberOnEmpty,
     phase: state.phase,
     currentTurnIndex: state.currentTurnIndex,
     specialBuildQueue: state.specialBuildQueue,
