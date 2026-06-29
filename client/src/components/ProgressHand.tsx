@@ -126,8 +126,13 @@ export function ProgressHand(): JSX.Element | null {
 
   const cards = me.progressCards;
   const count = cards.length;
+  // F1 — Regla extra "Cartas de progreso ilimitadas": no hay límite de mano.
+  // El servidor nunca fija `pendingProgressDiscard` en este modo, pero además
+  // anclamos el excedente a `!unlimited` para que ningún copy de límite (el
+  // aviso rojo, el contador "/ 4") se muestre aunque llegara un valor residual.
+  const unlimited = state.extraRules.unlimitedProgressCards;
   const mustDiscard = state.pendingProgressDiscard[me.id] ?? 0;
-  const overLimit = mustDiscard > 0;
+  const overLimit = mustDiscard > 0 && !unlimited;
 
   // Mismo criterio de "mi turno en fase principal" que ActionGrid. Mientras hay
   // excedente bloqueamos el juego: primero hay que descartar hasta el límite.
@@ -217,24 +222,40 @@ export function ProgressHand(): JSX.Element | null {
 
   return (
     <div className="p-3">
-      {/* Contador X / 4. Cuando hay excedente, lo marcamos en carmesí. */}
+      {/* Contador. En modo normal "X / 4" (carmesí si hay excedente). En modo
+          ilimitado (F1) mostramos solo el número con una etiqueta sutil
+          "sin límite", sin implicar un tope que no existe. */}
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <span className="text-[11px] leading-tight text-neutral-400">
           Las robas con el calendario. No se pueden comerciar.
         </span>
-        <span
-          className={
-            'nums flex-shrink-0 text-sm font-bold tabular-nums ' +
-            (overLimit ? 'text-red-300' : 'text-neutral-100')
-          }
-          aria-label={`${count} de ${PROGRESS_HAND_LIMIT} cartas de progreso`}
-        >
-          {count}
-          <span className="text-[11px] font-medium text-neutral-500">
-            {' / '}
-            {PROGRESS_HAND_LIMIT}
+        {unlimited ? (
+          <span
+            className="nums flex-shrink-0 text-sm font-bold tabular-nums text-neutral-100"
+            aria-label={`${count} ${
+              count === 1 ? 'carta' : 'cartas'
+            } de progreso, sin límite de mano`}
+          >
+            {count}
+            <span className="ml-1 align-baseline text-[10px] font-medium uppercase tracking-[0.04em] text-neutral-500">
+              sin límite
+            </span>
           </span>
-        </span>
+        ) : (
+          <span
+            className={
+              'nums flex-shrink-0 text-sm font-bold tabular-nums ' +
+              (overLimit ? 'text-red-300' : 'text-neutral-100')
+            }
+            aria-label={`${count} de ${PROGRESS_HAND_LIMIT} cartas de progreso`}
+          >
+            {count}
+            <span className="text-[11px] font-medium text-neutral-500">
+              {' / '}
+              {PROGRESS_HAND_LIMIT}
+            </span>
+          </span>
+        )}
       </div>
 
       {/* Aviso prominente de excedente (>4). */}

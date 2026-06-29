@@ -137,6 +137,11 @@ export function LobbyScreen(): JSX.Element | null {
     extraRules.robberEmptyGivesResource
       ? 'Recurso por ladrón en ficha vacía'
       : null,
+    // F1 — regla específica de Caballeros y Ciudades; solo se lista cuando la
+    // expansión está activa (las cartas de progreso solo existen en C&K).
+    state.citiesKnights && extraRules.unlimitedProgressCards
+      ? 'Cartas de progreso ilimitadas'
+      : null,
   ].filter((r): r is string => r !== null);
   const ordered = state.turnOrder
     .map((id) => state.players.find((p) => p.id === id))
@@ -633,6 +638,18 @@ export function LobbyScreen(): JSX.Element | null {
               checked={extraRules.robberEmptyGivesResource}
               onChange={(v) => setExtraRules({ robberEmptyGivesResource: v })}
             />
+            {/* F1 — Las cartas de progreso solo existen en Caballeros y
+                Ciudades, así que este control solo se monta cuando la
+                expansión está activa (mismo criterio que la construcción
+                especial con la extensión 5–6). */}
+            {state.citiesKnights ? (
+              <ExtraRuleToggle
+                title="Cartas de progreso ilimitadas"
+                help="Cada jugador puede tener todas las cartas de progreso que quiera (sin el límite de 4)."
+                checked={extraRules.unlimitedProgressCards}
+                onChange={(v) => setExtraRules({ unlimitedProgressCards: v })}
+              />
+            ) : null}
           </div>
         </section>
       ) : null}
