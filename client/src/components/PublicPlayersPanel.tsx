@@ -6,7 +6,15 @@ import { ColorChip } from './ColorChip';
 import { DISCIPLINE_NAMES, RESOURCE_NAMES, RESOURCE_NAMES_LOWER, portLabel } from '../lib/spanish';
 import { playerHex } from '../lib/playerColors';
 import { BadgeChip, BadgeIcon } from './BadgeIcon';
-import { FireGlyph, KnightGlyph, ResourceGlyph } from '../assets/icons';
+import {
+  DefenderGlyph,
+  FireGlyph,
+  KnightGlyph,
+  MerchantGlyph,
+  MetropolisGlyph,
+  ResourceGlyph,
+  WallGlyph,
+} from '../assets/icons';
 import { CollapsibleSection } from './CollapsibleSection';
 
 // Estado público por jugador. Manos ajenas nunca se muestran (privacidad).
@@ -486,19 +494,15 @@ function Sep(): JSX.Element {
   return <span className="text-neutral-700" aria-hidden>·</span>;
 }
 
-// Chip de metrópolis (C&K): aro dorado heráldico (las metrópolis son uno de los
-// usos legítimos del dorado, como las insignias) con un punto del color
-// funcional de la disciplina y su nombre. Clases por disciplina como cadenas
-// literales (el JIT de Tailwind no detecta `text-discipline-${d}`).
+// Chip de metrópolis (C&K): medallón de metrópolis (`MetropolisGlyph`, arte
+// definitivo) + el nombre de la disciplina coloreado con su color funcional
+// (el arte de la metrópolis es genérico; el color del texto la distingue).
+// Clases por disciplina como cadenas literales (el JIT de Tailwind no detecta
+// `text-discipline-${d}`).
 const DISCIPLINE_CHIP_TEXT: Record<Discipline, string> = {
   trade: 'text-discipline-trade',
   politics: 'text-discipline-politics',
   science: 'text-discipline-science',
-};
-const DISCIPLINE_CHIP_DOT: Record<Discipline, string> = {
-  trade: 'bg-discipline-trade',
-  politics: 'bg-discipline-politics',
-  science: 'bg-discipline-science',
 };
 
 // Resumen público de caballeros de un jugador (C&K): chip con la fuerza de
@@ -548,9 +552,9 @@ function DefenderChip({ count }: { count: number }): JSX.Element {
       role="img"
       aria-label={label}
       title={label}
-      className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/[0.10] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-gold-light shadow-medal"
+      className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/[0.10] py-0.5 pl-1 pr-1.5 text-[10px] font-semibold leading-none text-gold-light shadow-medal"
     >
-      <DefenderShieldGlyph size={13} />
+      <DefenderGlyph size={16} />
       <span>
         Defensor
         {count > 1 ? (
@@ -567,8 +571,9 @@ function DefenderChip({ count }: { count: number }): JSX.Element {
 // Comerciante (Mercader, C&K): el jugador que lo controla obtiene 2:1 del
 // recurso de la ficha donde está colocado y +1 PV (ese punto ya va sumado en
 // `playerVictoryPoints` cuando se pasa `merchant.ownerId`; este chip es
-// informativo). Dorado heráldico (legítimo: otorga PV, como Defensor/metrópolis)
-// con el ícono del recurso controlado para que se lea de un vistazo CUÁL.
+// informativo). La ficha del comerciante (`MerchantGlyph`, arte definitivo) la
+// identifica; el medallón del recurso controlado deja ver de un vistazo CUÁL se
+// comercia 2:1 (el nombre del recurso queda además en el texto).
 function MerchantChip({ resource }: { resource: Resource }): JSX.Element {
   const label = `Comerciante: comercia 2:1 de ${RESOURCE_NAMES_LOWER[resource]} y suma 1 punto de victoria.`;
   return (
@@ -576,43 +581,15 @@ function MerchantChip({ resource }: { resource: Resource }): JSX.Element {
       role="img"
       aria-label={label}
       title={label}
-      className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/[0.10] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-gold-light shadow-medal"
+      className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/[0.10] py-0.5 pl-1 pr-1.5 text-[10px] font-semibold leading-none text-gold-light shadow-medal"
     >
-      <ResourceGlyph resource={resource} size={13} />
+      <MerchantGlyph size={16} />
+      <ResourceGlyph resource={resource} size={12} />
       <span>
         Comerciante
         <span className="font-medium text-gold-light/90"> · {RESOURCE_NAMES[resource]} 2:1</span>
       </span>
     </span>
-  );
-}
-
-// Glifo de escudo (Defensor de Catán) en dorado heráldico. Decorativo: el
-// `aria-label` del chip que lo contiene lo describe.
-function DefenderShieldGlyph({ size = 13 }: { size?: number }): JSX.Element {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      aria-hidden
-      className="flex-shrink-0"
-    >
-      <path
-        d="M12 3 L19 5.5 V11 C 19 16, 15.5 19.5, 12 21 C 8.5 19.5, 5 16, 5 11 V5.5 Z"
-        fill="#caa24a"
-        stroke="#1a130c"
-        strokeWidth="1"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 6.5 V17.5 M7.8 8 H16.2"
-        stroke="#1a130c"
-        strokeWidth="1.1"
-        strokeLinecap="round"
-        opacity="0.6"
-      />
-    </svg>
   );
 }
 
@@ -627,9 +604,9 @@ function WallsChip({ walls }: { walls: number }): JSX.Element {
       role="img"
       aria-label={label}
       title={label}
-      className="inline-flex items-center gap-1 rounded-full border border-ck-steel/40 bg-ck-steel/[0.12] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-ck-steel-light"
+      className="inline-flex items-center gap-1 rounded-full border border-ck-steel/40 bg-ck-steel/[0.12] py-0.5 pl-1 pr-1.5 text-[10px] font-semibold leading-none text-ck-steel-light"
     >
-      <WallGlyph size={13} />
+      <WallGlyph filled size={15} />
       <span>
         Muros{' '}
         <span className="nums text-neutral-100">{walls}</span>
@@ -639,60 +616,16 @@ function WallsChip({ walls }: { walls: number }): JSX.Element {
   );
 }
 
-// Glifo de muralla (SVG inline) en acero. Decorativo: el `aria-label` del chip
-// que lo contiene lo describe. No hay arte propio de muro (missing-icons.md);
-// dibujamos una almena de piedra en el lenguaje del set (trazo nogal cálido).
-function WallGlyph({ size = 13 }: { size?: number }): JSX.Element {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      aria-hidden
-      className="flex-shrink-0"
-    >
-      <path
-        d="M3 8 H6 V6 H9 V8 H12 V6 H15 V8 H18 V6 H21 V8 H3 Z"
-        fill="#8b919b"
-        stroke="#1a130c"
-        strokeWidth="1"
-        strokeLinejoin="round"
-      />
-      <rect
-        x="3"
-        y="8"
-        width="18"
-        height="11"
-        fill="#8b919b"
-        stroke="#1a130c"
-        strokeWidth="1"
-        strokeLinejoin="round"
-      />
-      <g stroke="#6b7079" strokeWidth="0.9" strokeLinecap="round">
-        <path d="M3 12.5 H21" />
-        <path d="M3 15.5 H21" />
-        <path d="M8.5 8 V12.5 M15.5 8 V12.5" />
-        <path d="M5.5 12.5 V15.5 M12 12.5 V15.5 M18.5 12.5 V15.5" />
-        <path d="M8.5 15.5 V19 M15.5 15.5 V19" />
-      </g>
-    </svg>
-  );
-}
-
 function MetropolisChip({ discipline }: { discipline: Discipline }): JSX.Element {
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/[0.10] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-gold-light"
+      className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/[0.10] py-0.5 pl-1 pr-1.5 text-[10px] font-semibold leading-none text-gold-light"
       aria-label={`Metrópolis de ${DISCIPLINE_NAMES[discipline]} (4 puntos)`}
       title={`Metrópolis de ${DISCIPLINE_NAMES[discipline]} · 4 PV`}
     >
-      <span
-        className={
-          'h-2 w-2 flex-shrink-0 rounded-full ring-1 ring-inset ring-black/30 ' +
-          DISCIPLINE_CHIP_DOT[discipline]
-        }
-        aria-hidden
-      />
+      <MetropolisGlyph size={16} />
+      {/* La metrópolis es genérica en el arte; el color del texto identifica la
+          disciplina (Comercio amarillo / Política azul / Ciencia verde). */}
       <span className={DISCIPLINE_CHIP_TEXT[discipline]}>
         Metrópolis · {DISCIPLINE_NAMES[discipline]}
       </span>

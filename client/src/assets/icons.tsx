@@ -21,6 +21,25 @@ import vpUrl from './icons/punto_de_victoria.png';
 import monopolyUrl from './icons/monopolio.png';
 import yearOfPlentyUrl from './icons/ano_abundancia.png';
 import roadBuildingUrl from './icons/construccion_carreteras.png';
+// Arte DEFINITIVO de Caballeros y Ciudades (Esteban): medallones completos con
+// su propio marco de cobre/madera y el color/rango ya integrado en el dibujo.
+// Por eso se renderizan DIRECTO (como `ResourceGlyph`/`ImgGlyph`), sin los
+// tratamientos CSS (anillos, galones) que envolvían el arte reciclado anterior.
+import coinUrl from './icons/moneda.png';
+import paperUrl from './icons/papel.png';
+import clothUrl from './icons/tela.png';
+import tradeUrl from './icons/comercio.png';
+import politicsUrl from './icons/politica.png';
+import scienceUrl from './icons/ciencia.png';
+import knight1Url from './icons/caballero_nivel1.png';
+import knight2Url from './icons/caballero_nivel2.png';
+import knight3Url from './icons/caballero_nivel3.png';
+import merchantUrl from './icons/comerciante.png';
+import metropolisUrl from './icons/metropolis.png';
+import wallUrl from './icons/muralla.png';
+import barbarianShipUrl from './icons/barco_barbaro.png';
+import barbarianAttackUrl from './icons/barbaros_atacan.png';
+import defenderUrl from './icons/defensor_catan_1vp.png';
 
 // ─── Íconos temáticos de Catán — MÓDULO ÚNICO de mapeo asset → recurso/carta ─
 //
@@ -161,26 +180,16 @@ export function ResourceGlyph({
 
 // ─── Mercancías (commodities) ─────────────────────────────────────────────────
 //
-// Arte RECICLADO provisionalmente (missing-icons.md §1): coin→mineral,
-// paper→madera, cloth→obeja. Para que se distingan de los recursos a simple
-// vista, el `CommodityGlyph` NO dibuja el medallón a secas: lo envuelve en un
-// anillo dorado heráldico (heraldic gold ring) con un punto de sello arriba.
-// El distintivo es CONSISTENTE entre las tres mercancías y se resuelve aquí, en
-// el componente, sin arte nuevo. Cuando llegue el arte definitivo de Esteban,
-// basta cambiar `COMMODITY_ICON_URL` (y opcionalmente retirar el anillo).
+// Arte DEFINITIVO de Esteban: moneda.png / papel.png / tela.png. Cada medallón
+// ya trae su propio marco de cobre y la mercancía integrada con su color, así
+// que se renderiza DIRECTO —igual que `ResourceGlyph`— sin el anillo dorado
+// heráldico ni el sello que antes envolvían el arte reciclado (serían un doble
+// marco). El propio dibujo del medallón es lo que la separa de un recurso.
 
 export const COMMODITY_ICON_URL: Record<Commodity, string> = {
-  coin: oreUrl, // montañas/mineral → moneda
-  paper: lumberUrl, // bosque/madera → papel
-  cloth: woolUrl, // pastura/lana → tela
-};
-
-// Tono del medallón interior por mercancía (tinte cálido sutil, sin tapar el
-// arte): coordina con los tokens --commodity-* del reskin C&K.
-const COMMODITY_TINT: Record<Commodity, string> = {
-  coin: '#d9a93e',
-  cloth: '#e8e0cf',
-  paper: '#cdbb95',
+  coin: coinUrl,
+  paper: paperUrl,
+  cloth: clothUrl,
 };
 
 export function CommodityGlyph({
@@ -198,80 +207,31 @@ export function CommodityGlyph({
       />
     );
   }
-  // Medallón reciclado + anillo dorado heráldico. El anillo (borde dorado con
-  // sombra interior cálida) es el distintivo "mercancía" que la separa del
-  // recurso. El arte ocupa ~74% del área para dejar ver el aro completo.
-  const inner = Math.round(size * 0.74);
-  const gold = COMMODITY_TINT[commodity];
   return (
-    <span
-      aria-hidden
-      className={className}
-      style={{
-        position: 'relative',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: size,
-        height: size,
-        flexShrink: 0,
-        borderRadius: '9999px',
-        // Anillo dorado heráldico: doble borde (dorado vivo + nogal) con un
-        // halo cálido interior para que el medallón "flote" sobre el aro.
-        background:
-          'radial-gradient(closest-side, rgba(217,169,62,0.18), rgba(217,169,62,0.05) 70%, transparent)',
-        border: `1.5px solid ${gold}`,
-        boxShadow: `inset 0 0 0 1px ${STROKE}33, 0 0 0 1px ${STROKE}22`,
-      }}
-    >
-      <img
-        src={COMMODITY_ICON_URL[commodity]}
-        width={inner}
-        height={inner}
-        alt=""
-        aria-hidden
-        draggable={false}
-        style={{ display: 'block', objectFit: 'contain' }}
-      />
-      {/* Sello heráldico: punto dorado arriba que remata el aro y refuerza el
-          lenguaje "carta de mercancía" (no recurso). */}
-      <span
-        aria-hidden
-        style={{
-          position: 'absolute',
-          top: -Math.max(1, Math.round(size * 0.06)),
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: Math.max(3, Math.round(size * 0.2)),
-          height: Math.max(3, Math.round(size * 0.2)),
-          borderRadius: '9999px',
-          background: gold,
-          border: `1px solid ${STROKE}`,
-        }}
-      />
-    </span>
+    <ImgGlyph src={COMMODITY_ICON_URL[commodity]} size={size} className={className} />
   );
 }
 
 // ─── Disciplinas de mejora de ciudad (calendario C&K) ─────────────────────────
 //
-// Arte RECICLADO provisionalmente (missing-icons.md §4): comercio→obeja (lana),
-// politica→mineral (ore), ciencia→madera (lumber). Para que NO se confundan con
-// recursos y se lean como "disciplina", el `DisciplineGlyph` envuelve el
-// medallón en un anillo del color funcional de la disciplina (los tokens
-// --discipline-* del reskin C&K): Comercio amarillo, Política azul, Ciencia
-// verde. El color del anillo es el distintivo. Cuando llegue el arte definitivo
-// (comercio/politica/ciencia.png), basta cambiar `DISCIPLINE_ICON_URL`.
+// Arte DEFINITIVO de Esteban: comercio.png / politica.png / ciencia.png. Cada
+// medallón trae su propio marco y el símbolo de la disciplina (balanza dorada,
+// sello político, ciencia) ya integrado con su color, así que se renderiza
+// DIRECTO —igual que `ResourceGlyph`— sin el anillo de color CSS que antes
+// envolvía el arte reciclado (sería un doble marco). El propio medallón
+// identifica la disciplina.
 
 export const DISCIPLINE_ICON_URL: Record<Discipline, string> = {
-  trade: woolUrl, // pastura/lana → Comercio
-  politics: oreUrl, // montañas/mineral → Política
-  science: lumberUrl, // bosque/madera → Ciencia
+  trade: tradeUrl, // Comercio
+  politics: politicsUrl, // Política
+  science: scienceUrl, // Ciencia
 };
 
 // Color del anillo por disciplina (espejo de --discipline-* / tailwind
-// `discipline.*`). Se usa aquí como hex literal porque el glifo dibuja con
-// estilos inline, igual que `CommodityGlyph`.
+// `discipline.*`). `DisciplineGlyph` ya NO lo usa (su arte trae el color), pero
+// `ProgressCardGlyph` SÍ: las 25 cartas de progreso siguen con arte reciclado de
+// dev cards y se distinguen por el anillo del color de su disciplina. Por eso la
+// constante se conserva.
 const DISCIPLINE_RING: Record<Discipline, string> = {
   trade: '#d9a93e', // amarillo/dorado
   politics: '#5b86d6', // azul
@@ -283,40 +243,8 @@ export function DisciplineGlyph({
   size = 20,
   className,
 }: GlyphProps & { discipline: Discipline }): JSX.Element {
-  // Medallón reciclado + anillo del color de la disciplina. El arte ocupa
-  // ~74% del área para dejar ver el aro completo (mismo lenguaje que
-  // `CommodityGlyph`, pero el color identifica la disciplina, no el dorado
-  // heráldico de mercancía).
-  const inner = Math.round(size * 0.74);
-  const ring = DISCIPLINE_RING[discipline];
   return (
-    <span
-      aria-hidden
-      className={className}
-      style={{
-        position: 'relative',
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: size,
-        height: size,
-        flexShrink: 0,
-        borderRadius: '9999px',
-        background: `radial-gradient(closest-side, ${ring}22, ${ring}0d 70%, transparent)`,
-        border: `1.5px solid ${ring}`,
-        boxShadow: `inset 0 0 0 1px ${STROKE}33, 0 0 0 1px ${STROKE}22`,
-      }}
-    >
-      <img
-        src={DISCIPLINE_ICON_URL[discipline]}
-        width={inner}
-        height={inner}
-        alt=""
-        aria-hidden
-        draggable={false}
-        style={{ display: 'block', objectFit: 'contain' }}
-      />
-    </span>
+    <ImgGlyph src={DISCIPLINE_ICON_URL[discipline]} size={size} className={className} />
   );
 }
 
@@ -459,20 +387,21 @@ export function ProgressCardGlyph({
 
 // ─── Caballeros (Caballeros y Ciudades, §2.6) ─────────────────────────────────
 //
-// Arte RECICLADO del medallón de caballero del base (`caballero.png`, el mismo
-// que la carta de desarrollo `knight`). NO hay arte por rango ni por estado: el
-// componente los resuelve en CSS, sin arte nuevo (missing-icons.md):
-//  - RANGO (1 Básico / 2 Fuerte / 3 Poderoso): galones (chevrones) bajo el
-//    medallón, uno por nivel de rango.
-//  - ESTADO: ACTIVO → realce dorado heráldico (aro --gold, medallón a plena
-//    opacidad); INACTIVO → acero frío desaturado (aro --ck-steel, medallón
-//    atenuado), el caballero "en reserva".
-// El color del aro y la opacidad son el distintivo; el nombre/etiqueta vecina
-// (KNIGHT_RANK_NAMES + "Activo/Inactivo") lo precisa. Cuando llegue arte propio
-// por rango basta cambiar `knightUrl` o mapear por rango aquí.
+// Arte DEFINITIVO de Esteban POR RANGO: caballero_nivel1/2/3.png. Cada medallón
+// trae su propio marco Y el rango integrado en el dibujo (galones + penacho), así
+// que se renderiza DIRECTO, sin galones CSS ni anillo de color (serían un doble
+// marco). El ESTADO activo/inactivo NO está en el arte, así que se resuelve en
+// CSS SIN un borde que compita con el marco del medallón:
+//  - ACTIVO   → opacidad plena + un glow dorado cálido sutil (`drop-shadow`, que
+//    sigue la silueta del medallón, sin borde duro): el caballero "en pie".
+//  - INACTIVO → atenuado (opacity 0.5) + desaturado (grayscale 0.7): "en reserva".
+// El nombre/etiqueta vecina (KNIGHT_RANK_NAMES + "Activo/Inactivo") lo precisa.
 
-const KNIGHT_ACTIVE_RING = '#d9a93e'; // dorado heráldico (= --gold) → activo
-const KNIGHT_INACTIVE_RING = '#8b919b'; // acero (= --ck-steel) → inactivo
+export const KNIGHT_ICON_URL: Record<1 | 2 | 3, string> = {
+  1: knight1Url,
+  2: knight2Url,
+  3: knight3Url,
+};
 
 export function KnightGlyph({
   rank,
@@ -485,78 +414,90 @@ export function KnightGlyph({
   size?: number;
   className?: string;
 }): JSX.Element {
-  const ring = active ? KNIGHT_ACTIVE_RING : KNIGHT_INACTIVE_RING;
-  const inner = Math.round(size * 0.74);
-  // Galón por rango: alto fijo bajo el medallón; uno por nivel de rango.
-  const chevronH = Math.max(3, Math.round(size * 0.12));
-  const chevronGap = Math.max(1, Math.round(size * 0.04));
   return (
-    <span
-      aria-hidden
+    <img
+      src={KNIGHT_ICON_URL[rank]}
+      width={size}
+      height={size}
       className={className}
+      alt=""
+      aria-hidden
+      draggable={false}
       style={{
-        position: 'relative',
-        display: 'inline-flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: chevronGap,
+        display: 'inline-block',
+        objectFit: 'contain',
         flexShrink: 0,
+        // Estado (no está en el arte): activo a plena opacidad con un glow
+        // dorado cálido y sutil; inactivo atenuado y desaturado ("en reserva").
+        opacity: active ? 1 : 0.5,
+        filter: active
+          ? 'drop-shadow(0 0 2px rgba(217,169,62,0.55))'
+          : 'grayscale(0.7)',
       }}
-    >
-      <span
-        style={{
-          position: 'relative',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: size,
-          height: size,
-          borderRadius: '9999px',
-          background: active
-            ? `radial-gradient(closest-side, ${ring}26, ${ring}0f 70%, transparent)`
-            : `radial-gradient(closest-side, ${ring}1a, ${ring}08 70%, transparent)`,
-          border: `1.5px solid ${ring}`,
-          boxShadow: `inset 0 0 0 1px ${STROKE}33, 0 0 0 1px ${STROKE}22`,
-        }}
-      >
-        <img
-          src={knightUrl}
-          width={inner}
-          height={inner}
-          alt=""
-          aria-hidden
-          draggable={false}
-          style={{
-            display: 'block',
-            objectFit: 'contain',
-            // El caballero inactivo (en reserva) se atenúa y desatura para
-            // leerse "apagado" frente al activo (dorado, a plena opacidad).
-            opacity: active ? 1 : 0.55,
-            filter: active ? 'none' : 'grayscale(0.7)',
-          }}
-        />
-      </span>
-      {/* Galones de rango: 1 (Básico) / 2 (Fuerte) / 3 (Poderoso). */}
-      <span
-        aria-hidden
-        style={{ display: 'inline-flex', gap: chevronGap, height: chevronH }}
-      >
-        {Array.from({ length: rank }, (_, i) => (
-          <span
-            key={i}
-            style={{
-              width: chevronH,
-              height: chevronH,
-              borderRadius: '2px',
-              background: ring,
-              border: `1px solid ${STROKE}66`,
-              transform: 'rotate(45deg)',
-            }}
-          />
-        ))}
-      </span>
-    </span>
+    />
+  );
+}
+
+// ─── Comerciante, metrópolis, muro, bárbaros y Defensor (C&K) ─────────────────
+//
+// Arte DEFINITIVO de Esteban (medallones completos con su marco propio): se
+// renderizan DIRECTO como `ImgGlyph`. Decorativos (`aria-hidden`); el texto
+// vecino los nombra. Las cartas de progreso NO entran aquí (su arte aún no
+// existe; siguen con arte reciclado en `ProgressCardGlyph`).
+
+// Ficha/insignia del comerciante (Mercader): 2:1 + 1 PV a quien lo controla.
+export function MerchantGlyph({ size = 20, className }: GlyphProps): JSX.Element {
+  return <ImgGlyph src={merchantUrl} size={size} className={className} />;
+}
+
+// Metrópolis (ciudad mejorada a 4 PV).
+export function MetropolisGlyph({ size = 20, className }: GlyphProps): JSX.Element {
+  return <ImgGlyph src={metropolisUrl} size={size} className={className} />;
+}
+
+// Barco bárbaro (avance hacia Catán / dado de evento).
+export function BarbarianShipGlyph({ size = 20, className }: GlyphProps): JSX.Element {
+  return <ImgGlyph src={barbarianShipUrl} size={size} className={className} />;
+}
+
+// Ataque/saqueo bárbaro (resolución del ataque).
+export function BarbarianAttackGlyph({ size = 20, className }: GlyphProps): JSX.Element {
+  return <ImgGlyph src={barbarianAttackUrl} size={size} className={className} />;
+}
+
+// Defensor de Catán (+1 PV).
+export function DefenderGlyph({ size = 20, className }: GlyphProps): JSX.Element {
+  return <ImgGlyph src={defenderUrl} size={size} className={className} />;
+}
+
+// Muro de ciudad (muralla.png). `filled` = muro construido (opacidad plena);
+// hueco = aún por construir → atenuado y desaturado para leerse "vacío".
+export function WallGlyph({
+  filled,
+  size = 20,
+  className,
+}: {
+  filled: boolean;
+  size?: number;
+  className?: string;
+}): JSX.Element {
+  return (
+    <img
+      src={wallUrl}
+      width={size}
+      height={size}
+      className={className}
+      alt=""
+      aria-hidden
+      draggable={false}
+      style={{
+        display: 'inline-block',
+        objectFit: 'contain',
+        flexShrink: 0,
+        opacity: filled ? 1 : 0.3,
+        filter: filled ? 'none' : 'grayscale(0.85)',
+      }}
+    />
   );
 }
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store';
 import { Discipline, EventDie } from '../types';
 import { EVENT_DIE_NAMES } from '../lib/spanish';
-import { DisciplineGlyph, RobberGlyph } from '../assets/icons';
+import { BarbarianShipGlyph, DisciplineGlyph } from '../assets/icons';
 
 // ─── Input de 3 dados del encargado del banco (Caballeros y Ciudades, §2.2) ────
 //
@@ -146,7 +146,7 @@ function EventFace({
       }
     >
       {face === 'barbarian' ? (
-        <RobberGlyph size={26} />
+        <BarbarianShipGlyph size={26} />
       ) : (
         <DisciplineGlyph discipline={face as Discipline} size={26} />
       )}

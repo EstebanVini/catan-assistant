@@ -14,7 +14,7 @@ import {
   DISCIPLINE_NAMES,
   DISCIPLINE_LEVEL3_ABILITY_DESC,
 } from '../lib/spanish';
-import { CommodityGlyph, DisciplineGlyph } from '../assets/icons';
+import { CommodityGlyph, DisciplineGlyph, MetropolisGlyph } from '../assets/icons';
 
 // ─── Calendario de la ciudad (Caballeros y Ciudades, brief §2.4/§2.5) ─────────
 //
@@ -323,7 +323,7 @@ function DisciplineCard({
       {/* Indicador de metrópolis. */}
       {ownsMetropolis ? (
         <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-gold/50 bg-gradient-to-b from-gold/[0.14] to-ck-crimson/[0.08] px-2.5 py-1.5">
-          <MetropolisMark size={16} />
+          <MetropolisGlyph size={18} />
           <span className="text-[11px] font-semibold tracking-tight text-gold-light">
             Tu metrópolis de {DISCIPLINE_NAMES[discipline]}
           </span>
@@ -333,7 +333,7 @@ function DisciplineCard({
         </div>
       ) : metropolisIsForeign ? (
         <div className="mt-2 flex items-center gap-1.5 px-0.5 text-[10px] text-neutral-400">
-          <MetropolisMark size={12} muted />
+          <MetropolisGlyph size={14} className="opacity-60" />
           <span>
             Metrópolis de{' '}
             <span className="font-semibold text-neutral-300">
@@ -405,46 +405,3 @@ function DisciplineCard({
   );
 }
 
-// Marca heráldica de metrópolis: torre almenada sobre escudo, en dorado/carmesí
-// (coherente con el lenguaje de medalla del set; arte definitivo pendiente,
-// missing-icons.md §4). Decorativa: el texto vecino la nombra.
-function MetropolisMark({
-  size = 16,
-  muted = false,
-}: {
-  size?: number;
-  muted?: boolean;
-}): JSX.Element {
-  const gold = muted ? '#8b919b' : '#d9a93e';
-  const crimson = muted ? '#5e1d1a' : '#bf4a40';
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      aria-hidden
-      className="flex-shrink-0"
-    >
-      {/* Escudo */}
-      <path
-        d="M12 2.5 L20 5 V11 C20 16.5 16.4 19.8 12 21.5 C7.6 19.8 4 16.5 4 11 V5 Z"
-        fill={crimson}
-        stroke={gold}
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
-      {/* Torre almenada */}
-      <g fill={gold}>
-        <rect x="8" y="9.5" width="8" height="6" rx="0.4" />
-        <rect x="8" y="8" width="1.6" height="2" />
-        <rect x="11.2" y="8" width="1.6" height="2" />
-        <rect x="14.4" y="8" width="1.6" height="2" />
-      </g>
-      {/* Portón */}
-      <path
-        d="M11 15.5 V12.6 A1 1 0 0 1 13 12.6 V15.5 Z"
-        fill={crimson}
-      />
-    </svg>
-  );
-}

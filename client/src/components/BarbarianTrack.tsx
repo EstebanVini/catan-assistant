@@ -1,5 +1,6 @@
 import { useStore } from '../store';
 import { knightDefenseStrength } from '../types';
+import { BarbarianShipGlyph } from '../assets/icons';
 
 // ─── Pista del barco bárbaro (Caballeros y Ciudades, §2.2 / §2.7) ─────────────
 //
@@ -52,7 +53,7 @@ export function BarbarianTrack(): JSX.Element | null {
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <h2 className="flex items-center gap-1.5 font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-ck-steel-light">
-          <BarbarianShipMark size={16} />
+          <BarbarianShipGlyph size={18} />
           Barco bárbaro
         </h2>
         <span className="text-[11px] text-neutral-400">
@@ -103,7 +104,7 @@ export function BarbarianTrack(): JSX.Element | null {
         </span>
         <span className="flex items-center gap-1 text-[9px] font-medium uppercase tracking-[0.06em] text-neutral-500">
           Avanza
-          <BarbarianShipMark size={11} muted />
+          <BarbarianShipGlyph size={14} className="opacity-60" />
         </span>
       </div>
 
@@ -214,44 +215,3 @@ function StrengthStat({
   );
 }
 
-// Marca del barco bárbaro: vela oscura sobre casco, en acero/carmesí (coherente
-// con el lenguaje sobrio C&K). Decorativa: el texto vecino la nombra.
-function BarbarianShipMark({
-  size = 16,
-  muted = false,
-}: {
-  size?: number;
-  muted?: boolean;
-}): JSX.Element {
-  const hull = muted ? '#6b7078' : '#8b919b';
-  const sail = muted ? '#7a322d' : '#bf4a40';
-  const stroke = '#1a130c';
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      aria-hidden
-      className="flex-shrink-0"
-    >
-      {/* Mástil */}
-      <rect x="11.4" y="3" width="1.2" height="13" fill={stroke} />
-      {/* Vela */}
-      <path
-        d="M12.6 4 C 17 5.2, 17.5 10, 16.8 13 L 12.6 13 Z"
-        fill={sail}
-        stroke={stroke}
-        strokeWidth="0.8"
-        strokeLinejoin="round"
-      />
-      {/* Casco */}
-      <path
-        d="M4 16 H20 L18 20.5 C 17.6 21.3, 16.9 21.6, 16 21.6 H8 C 7.1 21.6, 6.4 21.3, 6 20.5 Z"
-        fill={hull}
-        stroke={stroke}
-        strokeWidth="0.9"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}

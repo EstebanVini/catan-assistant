@@ -8,7 +8,39 @@
 
 ---
 
-## 1. Mercancías (commodities) — 3 íconos
+## Estado de integración (actualizado: 2026-06-29)
+
+Esteban entregó el **arte definitivo** de la mayoría de los íconos C&K y se
+**INTEGRARON** en el punto único `client/src/assets/icons.tsx`. Todos son
+**medallones completos con su propio marco** y el color/rango **ya integrado en
+el arte**, así que se renderizan DIRECTO (como `ResourceGlyph`/`ImgGlyph`): se
+**retiraron** los tratamientos CSS que envolvían el arte reciclado (anillo
+dorado de mercancía, anillo de color de disciplina, galones de rango del
+caballero) porque ahora serían un **doble marco**.
+
+| Set | Estado | Archivos |
+|---|---|---|
+| Mercancías (§1) | ✅ **INTEGRADO** | `moneda.png`, `papel.png`, `tela.png` |
+| Caballeros por rango (§2) | ✅ **INTEGRADO** | `caballero_nivel1/2/3.png` (estado activo/inactivo sigue en CSS) |
+| Barco bárbaro + ataque (§3) | ✅ **INTEGRADO** | `barco_barbaro.png`, `barbaros_atacan.png` |
+| Disciplinas (§4) | ✅ **INTEGRADO** | `comercio.png`, `politica.png`, `ciencia.png` |
+| Metrópolis (§4) | ✅ **INTEGRADO** | `metropolis.png` |
+| Muro de ciudad (§5) | ✅ **INTEGRADO** | `muralla.png` |
+| Defensor de Catán (§6) | ✅ **INTEGRADO** | `defensor_catan_1vp.png` |
+| Comerciante / Mercader (§8) | ✅ **INTEGRADO** | `comerciante.png` |
+| **Cartas de progreso (§7)** | ⏳ **PENDIENTE** | aún sin arte propio: siguen con dev cards recicladas + anillo de disciplina |
+| Edificios nivel 3 opcionales (§4) | ⏳ opcional | `acueducto.png`, `casa_comercio.png`, `fortaleza.png` (no usados aún) |
+
+> ⚠️ **Peso de los PNG nuevos:** el arte definitivo se subió a resolución
+> original (~2048px → **2–7 MB por archivo**), no a los ~128px optimizados del
+> set base (40–67 KB). El bundle del cliente crece ~70 MB en imágenes que se
+> muestran a 14–48px. **Recomendado** (no bloqueante): redimensionar a ~128–256px
+> y recomprimir, igual que el set base, manteniendo los mismos nombres de archivo
+> (no requiere tocar `icons.tsx`).
+
+---
+
+## 1. Mercancías (commodities) — 3 íconos  ✅ INTEGRADO
 
 Deben **distinguirse claramente de los recursos** (que ya tienen su medallón). Idea: mismo medallón pero con **marco/cinta** que indique "mercancía" (cinta dorada heráldica) para no confundir mercancía con recurso de un vistazo.
 
@@ -18,7 +50,7 @@ Deben **distinguirse claramente de los recursos** (que ya tienen su medallón). 
 | `papel.png` | **Papel (paper)** — de bosque/madera | Pergamino enrollado / hoja con pluma. Tono pergamino (`--commodity-paper`). | 16–48px | `madera.png` |
 | `tela.png` | **Tela (cloth)** — de pastura/lana | Rollo de tela / bala de paño plegado. Marfil cálido (`--commodity-cloth`). | 16–48px | `obeja.png` |
 
-## 2. Caballeros (knights) — rango y estado
+## 2. Caballeros (knights) — rango y estado  ✅ INTEGRADO
 
 Un único arte base de caballero existe (`caballero.png`). Faltan variantes de **rango** y **estado**. Opción A: 3 artes por rango. Opción B (preferida de momento): **1 arte + indicador** (estrellas/galones de rango y un tinte/halo para activo vs inactivo) resuelto en CSS por el `ui-engineer`.
 
@@ -29,14 +61,14 @@ Un único arte base de caballero existe (`caballero.png`). Faltan variantes de *
 | `caballero_poderoso.png` | Caballero rango 3 | Armadura completa/penacho, 3 galones. | `caballero.png` |
 | (indicador) `activo`/`inactivo` | Estado | Halo dorado = activo; gris/desaturado = inactivo (preferible vía CSS, sin arte nuevo). | estilo CSS |
 
-## 3. Barco bárbaro y ataque
+## 3. Barco bárbaro y ataque  ✅ INTEGRADO
 
 | Nombre propuesto | Uso | Descripción del arte | Provisional |
 |---|---|---|---|
 | `barco_barbaro.png` | Pista del bárbaro, notices | Drakkar/galera oscura con vela carmesí, silueta amenazante. Acero + carmesí. | `ladron.png` (silueta oscura) |
 | `barbaros_atacan.png` (opcional) | Banner de ataque | Hachas/estandartes bárbaros cruzados; tono carmesí/acero. | `ladron.png` + color |
 
-## 4. Mejoras de ciudad / disciplinas — 3 + metrópolis
+## 4. Mejoras de ciudad / disciplinas — 3 + metrópolis  ✅ INTEGRADO (disciplinas + metrópolis)
 
 | Nombre propuesto | Uso | Descripción del arte | Color/Provisional |
 |---|---|---|---|
@@ -48,19 +80,19 @@ Un único arte base de caballero existe (`caballero.png`). Faltan variantes de *
 | `casa_comercio.png` (opc.) | Habilidad Comercio nivel 3 | Edificio de mercado con toldo. | prov. `obeja.png` |
 | `fortaleza.png` (opc.) | Habilidad Política nivel 3 | Torre/fortín almenado. | prov. `mineral.png` |
 
-## 5. Muro de ciudad
+## 5. Muro de ciudad  ✅ INTEGRADO
 
 | Nombre propuesto | Uso | Descripción del arte | Provisional |
 |---|---|---|---|
 | `muro.png` | Muro de ciudad (límite de mano +2) | Sección de muralla de piedra almenada. | prov. `ciudad.png` / `desierto.png` (piedra) |
 
-## 6. Defensor de Catán e insignias
+## 6. Defensor de Catán e insignias  ✅ INTEGRADO
 
 | Nombre propuesto | Uso | Descripción del arte | Provisional |
 |---|---|---|---|
 | `defensor_catan.png` | Carta/insignia Defensor de Catán (+1 PV) | Escudo heráldico con espada y laurel; coherente con el set de **medallas doradas** existente (`BadgeGlyph`). | prov. insignia `army` (espadas cruzadas) |
 
-## 7. Cartas de progreso (progress cards)
+## 7. Cartas de progreso (progress cards)  ⏳ PENDIENTE (sin arte propio)
 
 Reemplazan a las cartas de desarrollo. Tres mazos por color de disciplina. De momento se **reciclan** los íconos de dev cards (`caballero.png`, `monopolio.png`, `ano_abundancia.png`, `construccion_carreteras.png`, `punto_de_victoria.png`) y se distinguen por **etiqueta textual + color de disciplina**. Arte propio deseable a futuro (no bloqueante):
 
@@ -72,7 +104,7 @@ Reemplazan a las cartas de desarrollo. Tres mazos por color de disciplina. De mo
 
 > Prioridad sugerida del arte definitivo: **(1)** mercancías (moneda/papel/tela) → **(2)** barco bárbaro + metrópolis + muro → **(3)** disciplinas → **(4)** rangos de caballero → **(5)** cartas de progreso. Las mercancías son las más usadas y las más fáciles de confundir con recursos, por eso van primero.
 
-## 8. Comerciante (merchant token)
+## 8. Comerciante (merchant token)  ✅ INTEGRADO
 
 Ficha del **comerciante** que coloca la carta de progreso **Mercader** (mazo Comercio, ver §7): se planta sobre un recurso para comerciar **2:1** y otorga **+1 PV** a quien lo controla. Aparece (a) en el **picker** al jugar la carta (elegir sobre qué ficha colocarlo) y (b) como **insignia** junto al jugador que lo controla en el marcador. **No confundir** con la *carta* Mercader de §7 (el evento que activa la ficha): esto es el arte de la **ficha/insignia**, una necesidad de arte distinta.
 

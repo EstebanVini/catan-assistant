@@ -2,6 +2,7 @@ import { useStore } from '../store';
 import { MAX_WALLS, Resource, handLimitForSeven } from '../types';
 import { RESOURCE_NAMES_LOWER, joinList } from '../lib/spanish';
 import { ResourceIcon } from './ResourceIcon';
+import { WallGlyph } from '../assets/icons';
 
 // ─── Control de Muros de ciudad (Caballeros y Ciudades, §2.9) ─────────────────
 //
@@ -183,60 +184,5 @@ function WallCostBadge({
         </span>
       ))}
     </span>
-  );
-}
-
-// Glifo de muralla (SVG inline). No hay arte propio de muro (missing-icons.md):
-// dibujamos una almena de piedra en el lenguaje del set (trazo nogal cálido) y
-// la teñimos con el acero --ck-steel cuando está "construido". `filled=false`
-// la deja desaturada (hueco vacío / inaccesible).
-function WallGlyph({
-  filled,
-  size = 20,
-  className,
-}: {
-  filled: boolean;
-  size?: number;
-  className?: string;
-}): JSX.Element {
-  const stone = filled ? '#8b919b' : '#3a3d44';
-  const stoneDeep = filled ? '#6b7079' : '#2b2e34';
-  const stroke = '#1a130c';
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      aria-hidden
-      className={className}
-      style={{ flexShrink: 0, display: 'inline-block' }}
-    >
-      {/* Almena (línea superior dentada) + cuerpo de muro con sillares. */}
-      <path
-        d="M3 8 H6 V6 H9 V8 H12 V6 H15 V8 H18 V6 H21 V8 H3 Z"
-        fill={stone}
-        stroke={stroke}
-        strokeWidth="1"
-        strokeLinejoin="round"
-      />
-      <rect
-        x="3"
-        y="8"
-        width="18"
-        height="11"
-        fill={stone}
-        stroke={stroke}
-        strokeWidth="1"
-        strokeLinejoin="round"
-      />
-      {/* Juntas de los sillares (despiece de la mampostería). */}
-      <g stroke={stoneDeep} strokeWidth="0.9" strokeLinecap="round">
-        <path d="M3 12.5 H21" />
-        <path d="M3 15.5 H21" />
-        <path d="M8.5 8 V12.5 M15.5 8 V12.5" />
-        <path d="M5.5 12.5 V15.5 M12 12.5 V15.5 M18.5 12.5 V15.5" />
-        <path d="M8.5 15.5 V19 M15.5 15.5 V19" />
-      </g>
-    </svg>
   );
 }

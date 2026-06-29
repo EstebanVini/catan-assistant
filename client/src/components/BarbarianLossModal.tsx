@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { Building } from '../types';
 import { RESOURCE_NAMES_LOWER } from '../lib/spanish';
 import { ResourceIcon } from './ResourceIcon';
+import { BarbarianAttackGlyph } from '../assets/icons';
 import { useModalA11y } from '../lib/useModalA11y';
 
 // Modal forzado de RESOLUCIÓN DEL ATAQUE BÁRBARO (Caballeros y Ciudades, §2.7).
@@ -51,7 +52,7 @@ export function BarbarianLossModal(): JSX.Element | null {
         className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl border border-ck-crimson/50 bg-neutral-900 p-4 shadow-2xl ring-1 ring-ck-crimson/10"
       >
         <div className="flex items-center gap-2">
-          <SackGlyph size={22} />
+          <BarbarianAttackGlyph size={26} />
           <h2
             id="barbarian-loss-title"
             className="text-lg font-bold tracking-tight text-red-200"
@@ -158,40 +159,6 @@ export function BarbarianLossModal(): JSX.Element | null {
         )}
       </div>
     </div>
-  );
-}
-
-// Glifo de saco de saqueo (carmesí/acero): atado arriba, abultado abajo.
-// Decorativo: el texto vecino lo nombra.
-function SackGlyph({ size = 20 }: { size?: number }): JSX.Element {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      aria-hidden
-      className="flex-shrink-0"
-    >
-      <path
-        d="M9 4 H15 L14 7 C 17.5 8.5, 19 12.5, 19 15.5 C 19 19, 16 21, 12 21 C 8 21, 5 19, 5 15.5 C 5 12.5, 6.5 8.5, 10 7 Z"
-        fill="#7a322d"
-        stroke="#1a130c"
-        strokeWidth="0.9"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M9 4 H15"
-        stroke="#1a130c"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-      <path
-        d="M8.5 7 H15.5"
-        stroke="#bf4a40"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
   );
 }
 
