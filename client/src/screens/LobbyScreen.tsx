@@ -122,6 +122,9 @@ export function LobbyScreen(): JSX.Element | null {
   // §6 — Reglas extra (ambas default false).
   const extraRules = state.extraRules;
   const activeExtraRules = [
+    // §3 — "No repartir recursos de inicio" ahora vive en Reglas extra; solo se
+    // lista cuando los recursos de inicio están desactivados (!seedOn).
+    !seedOn ? 'No repartir recursos de inicio' : null,
     extraRules.unequalTrades ? 'Intercambios desiguales' : null,
     extraRules.sharedPorts ? 'Usar puertos ajenos' : null,
     // §4 — solo aplica en 5–6 jugadores; solo se lista si la extensión está activa.
@@ -495,25 +498,8 @@ export function LobbyScreen(): JSX.Element | null {
               </span>
             ) : null}
           </div>
-          {/* §3 — Toggle "Repartir recursos de inicio" (default ON). */}
-          <label className="mt-3 flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-white/10 bg-neutral-950/80 px-3 py-2.5">
-            <span className="min-w-0">
-              <span className="block text-sm font-medium text-neutral-100">
-                Repartir recursos de inicio
-              </span>
-              <span className="mt-0.5 block text-[11px] leading-snug text-neutral-400">
-                {seedOn
-                  ? 'Cada jugador registra sus poblados y recibe sus cartas al iniciar.'
-                  : 'Se inicia sin fichas: nadie recibe recursos y registrar tus poblados es opcional.'}
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              checked={seedOn}
-              onChange={(e) => setSeedResources(e.target.checked)}
-              className="h-5 w-5 shrink-0 accent-emerald-500"
-            />
-          </label>
+          {/* §3 — El control de recursos de inicio se movió a "Reglas extra"
+              como "No repartir recursos de inicio" (semántica invertida). */}
           {/* Fase A (Caballeros y Ciudades) — Toggle de modo. EN DESARROLLO:
               solo cuentas autorizadas (allowlist) pueden activarla; al resto se
               le muestra deshabilitado con un aviso. Si ya está activa (la activó
@@ -602,6 +588,15 @@ export function LobbyScreen(): JSX.Element | null {
             Reglas extra
           </h2>
           <div className="mt-2 space-y-2">
+            {/* §3 — "No repartir recursos de inicio" (default OFF: se reparten
+                por defecto). Semántica invertida sobre seedInitialResources:
+                marcado = NO repartir → setSeedResources(false). */}
+            <ExtraRuleToggle
+              title="No repartir recursos de inicio"
+              help="Cada jugador empieza con sus construcciones de salida pero sin cartas de recursos."
+              checked={!seedOn}
+              onChange={(v) => setSeedResources(!v)}
+            />
             <ExtraRuleToggle
               title="Intercambios desiguales"
               help="Permite regalar cartas o pedir sin dar nada a cambio."
