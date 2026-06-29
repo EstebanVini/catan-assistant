@@ -11,6 +11,7 @@ import {
   bestBankRatio,
   validateTradeOffer,
   executeTrade,
+  stealRandomMixed,
   upgradeCityImprovement,
   publicVictoryPoints,
   playerVP,
@@ -543,5 +544,45 @@ describe('playerVP incluye el comerciante (+1)', () => {
     s.merchant = { ownerId: 'p1', resource: 'ore' };
     expect(playerVP(s, s.players[0])).toBe(before + 1);
     expect(playerVP(s, s.players[1])).toBe(before); // el otro no
+  });
+});
+
+describe('stealRandomMixed (Maestro Mercader)', () => {
+  it('roba recursos y/o mercancías, hasta el máximo disponible', () => {
+    const s = makeState();
+    const victim = s.players[1];
+    const thief = s.players[0];
+    victim.hand = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 1 };
+    victim.commodities = { coin: 1, paper: 0, cloth: 0 };
+    const n = stealRandomMixed(victim, thief, 2);
+    expect(n).toBe(2);
+    expect(victim.hand.ore + victim.commodities.coin).toBe(0);
+    expect(thief.hand.ore + thief.commodities.coin).toBe(2);
+  });
+
+  it('no roba más de lo que tiene la víctima', () => {
+    const s = makeState();
+    const victim = s.players[1];
+    const thief = s.players[0];
+    victim.hand = emptyHand();
+    victim.commodities = { coin: 1, paper: 0, cloth: 0 };
+    const n = stealRandomMixed(victim, thief, 2);
+    expect(n).toBe(1);
+    expect(thief.commodities.coin).toBe(1);
+  });
+});
+
+describe('upgradeCityImprovement con descuento de la Grúa', () => {
+  it('reduce el costo en 1 mercancía (nivel 3 cuesta 2 en vez de 3)', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    const p = s.players[0];
+    p.improvements.science = 2; // siguiente nivel es 3 (costo normal 3)
+    p.commodities.paper = 2; // solo alcanza con el descuento
+    p.buildings = [{ id: 'c1', type: 'city', spots: [] }];
+    const r = upgradeCityImprovement(s, p, 'science', 1);
+    expect(r.ok).toBe(true);
+    expect(r.level).toBe(3);
+    expect(p.commodities.paper).toBe(0); // pagó 2 (3 - 1 de Grúa)
   });
 });

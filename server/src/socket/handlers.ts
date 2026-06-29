@@ -51,6 +51,7 @@ import {
   recomputeVictoryPoints,
   shortfall,
   stealRandomResource,
+  stealRandomMixed,
   takeFromBank,
   playerVP,
   tradeWithBank,
@@ -1029,7 +1030,24 @@ export function registerHandlers(io: Server, socket: Socket): void {
   // recibirán automatización plena en las fases D/E.
   socket.on(
     'progress:play',
-    ({ card, resource, commodity }: { card: ProgressCardType; resource?: Resource; commodity?: Commodity }) => {
+    ({
+      card,
+      resource,
+      commodity,
+      targetPlayerId,
+      knightIds,
+      settlementId,
+    }: {
+      card: ProgressCardType;
+      resource?: Resource;
+      commodity?: Commodity;
+      // Objetivo (Espía, Maestro Mercader, Desertor).
+      targetPlayerId?: string;
+      // Caballeros a promover (Fragua) o a quitar (Desertor, knightIds[0]).
+      knightIds?: string[];
+      // Poblado a convertir en ciudad (Medicina).
+      settlementId?: string;
+    }) => {
       const state = getRoom(socket.data.code ?? '');
       if (!state || !state.citiesKnights) return;
       const player = findPlayer(state, socket.data.playerId ?? '');
@@ -1137,6 +1155,165 @@ export function registerHandlers(io: Server, socket: Socket): void {
             ? `${player.name} le quitó el comerciante a ${prevOwner.name}: 2:1 de ${esResource(resource)} y +1 PV.`
             : `${player.name} tomó el comerciante: 2:1 de ${esResource(resource)} y +1 PV.`,
         });
+      } else if (card === 'warlord') {
+        // Estratega: activa TODOS tus caballeros gratis (sin cereal).
+        let activated = 0;
+        for (const k of player.knights) if (!k.active) { k.active = true; activated += 1; }
+        logAction(state, `${player.name} jugó Estratega: activó ${activated} caballero(s) gratis.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Estratega (activó todos sus caballeros).` });
+      } else if (card === 'crane') {
+        // Grúa: la próxima mejora de ciudad de este turno cuesta 1 mercancía menos.
+        player.craneDiscount = true;
+        logAction(state, `${player.name} jugó Grúa: su próxima mejora de ciudad cuesta 1 mercancía menos este turno.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Grúa (descuento en la próxima mejora de ciudad).` });
+      } else if (card === 'roadBuildingP') {
+        // Construcción de carreteras: 2 caminos gratis (los consume build('road')).
+        player.freeRoads = (player.freeRoads ?? 0) + 2;
+        logAction(state, `${player.name} jugó Construcción de carreteras: 2 caminos gratis.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Construcción de carreteras (2 caminos gratis).` });
+      } else if (card === 'merchantFleet') {
+        // Flota Mercante: 2:1 con el banco de UN tipo (recurso o mercancía) hasta
+        // el final del turno.
+        if (resource && RESOURCES.includes(resource)) {
+          player.merchantFleet = { kind: 'resource', type: resource };
+        } else if (commodity && COMMODITIES.includes(commodity)) {
+          player.merchantFleet = { kind: 'commodity', type: commodity };
+        } else {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige el recurso o la mercancía para el 2:1.' });
+          return;
+        }
+        const label = resource ? esResource(resource) : esCommodity(commodity!);
+        logAction(state, `${player.name} jugó Flota Mercante: 2:1 de ${label} este turno.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Flota Mercante (2:1 de ${label}).` });
+      } else if (card === 'spy') {
+        // Espía: roba 1 carta de progreso (al azar, por privacidad) a un oponente.
+        const target = targetPlayerId ? findPlayer(state, targetPlayerId) : null;
+        if (!target || target.id === player.id) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige a un oponente para espiar.' });
+          return;
+        }
+        if (target.progressCards.length === 0) {
+          popSnapshot(state);
+          socket.emit('error', { message: `${target.name} no tiene cartas de progreso.` });
+          return;
+        }
+        const i = Math.floor(Math.random() * target.progressCards.length);
+        const stolen = target.progressCards.splice(i, 1)[0];
+        player.progressCards.push(stolen);
+        if (player.progressCards.length > PROGRESS_HAND_LIMIT) {
+          state.pendingProgressDiscard[player.id] = player.progressCards.length - PROGRESS_HAND_LIMIT;
+        }
+        logAction(state, `${player.name} jugó Espía y robó una carta de progreso a ${target.name}.`, player.id);
+        io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} jugó Espía contra ${target.name} (le robó una carta de progreso).` });
+      } else if (card === 'masterMerchant') {
+        // Maestro Mercader: roba 2 cartas (recursos/mercancías) a un oponente con
+        // MÁS PV que tú.
+        const target = targetPlayerId ? findPlayer(state, targetPlayerId) : null;
+        if (!target || target.id === player.id) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige a un oponente.' });
+          return;
+        }
+        if (playerVP(state, target) <= playerVP(state, player)) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Solo puedes robar a un jugador con más puntos que tú.' });
+          return;
+        }
+        const stole = stealRandomMixed(target, player, 2);
+        logAction(state, `${player.name} jugó Maestro Mercader y robó ${stole} carta(s) a ${target.name}.`, player.id);
+        io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} jugó Maestro Mercader contra ${target.name} (le robó ${stole}).` });
+      } else if (card === 'medicine') {
+        // Medicina: sube un poblado a ciudad por 2 mineral + 1 trigo.
+        const target = settlementId
+          ? player.buildings.find((b) => b.id === settlementId && b.type === 'settlement')
+          : null;
+        if (!target) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige un poblado para convertir en ciudad.' });
+          return;
+        }
+        const medCost: Partial<Hand> = { ore: 2, grain: 1 };
+        if (!canAfford(player.hand, medCost)) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Necesitas 2 mineral y 1 trigo (Medicina ahorra 1 de cada uno).' });
+          return;
+        }
+        payToBank(player.hand, state.bank, medCost);
+        target.type = 'city';
+        state.hexes = rebuildHexes(state.players, state.hexes, state.extension56 ? 2 : 1);
+        recomputeVictoryPoints(state);
+        logAction(state, `${player.name} jugó Medicina: subió un poblado a ciudad por 2 mineral + 1 trigo.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Medicina (poblado → ciudad).` });
+      } else if (card === 'smith') {
+        // Fragua: promueve gratis hasta 2 caballeros (sin promover dos veces el
+        // mismo; rango 3 requiere Fortaleza; respeta el máx de 2 por rango).
+        const ids = Array.isArray(knightIds) ? [...new Set(knightIds)].slice(0, 2) : [];
+        if (ids.length === 0) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige 1 o 2 caballeros para promover.' });
+          return;
+        }
+        for (const id of ids) {
+          const k = player.knights.find((kk) => kk.id === id);
+          if (!k) {
+            popSnapshot(state);
+            socket.emit('error', { message: 'Caballero inválido.' });
+            return;
+          }
+          if (k.rank >= 3) {
+            popSnapshot(state);
+            socket.emit('error', { message: 'No puedes promover a un caballero que ya es poderoso.' });
+            return;
+          }
+          if (k.rank === 2 && player.improvements.politics < 3) {
+            popSnapshot(state);
+            socket.emit('error', { message: 'Necesitas la Fortaleza (Política nivel 3) para promover a poderoso.' });
+            return;
+          }
+        }
+        let promoted = 0;
+        for (const id of ids) {
+          const k = player.knights.find((kk) => kk.id === id)!;
+          const targetRank = k.rank + 1;
+          if (player.knights.filter((x) => x.rank === targetRank).length >= MAX_KNIGHTS_PER_RANK) continue;
+          k.rank = targetRank as 1 | 2 | 3;
+          promoted += 1;
+        }
+        logAction(state, `${player.name} jugó Fragua: promovió ${promoted} caballero(s) gratis.`, player.id);
+        io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó Fragua (promovió ${promoted} caballero(s)).` });
+      } else if (card === 'deserter') {
+        // Desertor: un oponente pierde un caballero (knightIds[0] o el primero) y
+        // tú colocas uno del mismo rango y estado (rango 3 permitido aunque no
+        // tengas Fortaleza; respeta el máx de 2 por rango).
+        const target = targetPlayerId ? findPlayer(state, targetPlayerId) : null;
+        if (!target || target.id === player.id) {
+          popSnapshot(state);
+          socket.emit('error', { message: 'Elige a un oponente.' });
+          return;
+        }
+        const wantId = Array.isArray(knightIds) ? knightIds[0] : undefined;
+        const victimKnight = wantId ? target.knights.find((k) => k.id === wantId) : target.knights[0];
+        if (!victimKnight) {
+          popSnapshot(state);
+          socket.emit('error', { message: `${target.name} no tiene caballeros.` });
+          return;
+        }
+        const rank = victimKnight.rank;
+        const wasActive = victimKnight.active;
+        target.knights = target.knights.filter((k) => k.id !== victimKnight.id);
+        let placed = false;
+        if (player.knights.filter((k) => k.rank === rank).length < MAX_KNIGHTS_PER_RANK) {
+          player.knights.push({ id: nanoid(8), rank, active: wasActive });
+          placed = true;
+        }
+        logAction(
+          state,
+          `${player.name} jugó Desertor: ${target.name} pierde un caballero (fuerza ${rank})${placed ? ' y tú colocas uno igual' : ''}.`,
+          player.id
+        );
+        io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} jugó Desertor contra ${target.name}.` });
       } else {
         // Registro asistido: la carta se retira y la mesa la resuelve.
         handled = false;
@@ -1390,7 +1567,10 @@ export function registerHandlers(io: Server, socket: Socket): void {
         socket.emit('error', { message: 'Elige qué poblado se convierte en ciudad.' });
         return;
       }
-      const cost = BUILD_COSTS[type];
+      // Construcción de carreteras (carta de progreso C&K): si hay caminos
+      // gratis pendientes, este camino no cuesta recursos.
+      const useFreeRoad = type === 'road' && (player.freeRoads ?? 0) > 0;
+      const cost = useFreeRoad ? {} : BUILD_COSTS[type];
       if (!canAfford(player.hand, cost)) {
         const lack = shortfall(player.hand, cost);
         const parts = (Object.entries(lack) as [Resource, number][]).map(([r, n]) => `${n} ${esResource(r)}`);
@@ -1399,6 +1579,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
       }
       pushSnapshot(state);
       payToBank(player.hand, state.bank, cost);
+      if (useFreeRoad) player.freeRoads = (player.freeRoads ?? 0) - 1;
       if (type === 'devcard') {
         const card = state.devDeck.pop();
         if (!card) {
@@ -1621,12 +1802,16 @@ export function registerHandlers(io: Server, socket: Socket): void {
     }
     if (!DISCIPLINES.includes(discipline)) return;
     pushSnapshot(state);
-    const r = upgradeCityImprovement(state, player, discipline);
+    // Descuento de la Grúa (1 mercancía menos), si está activo este turno.
+    const craneOn = !!player.craneDiscount;
+    const r = upgradeCityImprovement(state, player, discipline, craneOn ? 1 : 0);
     if (!r.ok) {
       popSnapshot(state);
       socket.emit('error', { message: r.reason ?? 'No pudimos mejorar la ciudad.' });
       return;
     }
+    // La Grúa se consume con la mejora.
+    if (craneOn) player.craneDiscount = false;
     const discName = DISCIPLINE_NAMES[discipline];
     logAction(state, `${player.name} mejoró ${discName} al nivel ${r.level}.`, player.id);
     if (r.abilityUnlocked) {

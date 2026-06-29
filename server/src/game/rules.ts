@@ -9,6 +9,7 @@ import {
   RESOURCES,
   Resource,
   Commodity,
+  COMMODITIES,
   CommodityHand,
   RESOURCE_COMMODITY,
   Discipline,
@@ -198,6 +199,29 @@ export function stealRandomResource(victim: Player, thief: Player): Resource | n
   victim.hand[picked] -= 1;
   thief.hand[picked] += 1;
   return picked;
+}
+
+// Roba hasta `n` cartas al azar de la mano de la víctima incluyendo MERCANCÍAS
+// (recursos + mercancías; las cartas de progreso no se roban así). Usado por
+// Maestro Mercader (Caballeros y Ciudades). Devuelve cuántas robó.
+export function stealRandomMixed(victim: Player, thief: Player, n: number): number {
+  let stolen = 0;
+  for (let k = 0; k < n; k++) {
+    const pool: Array<{ kind: TradeItemKind; type: Resource | Commodity }> = [];
+    for (const r of RESOURCES) for (let i = 0; i < victim.hand[r]; i++) pool.push({ kind: 'resource', type: r });
+    for (const c of COMMODITIES) for (let i = 0; i < victim.commodities[c]; i++) pool.push({ kind: 'commodity', type: c });
+    if (pool.length === 0) break;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    if (pick.kind === 'resource') {
+      victim.hand[pick.type as Resource] -= 1;
+      thief.hand[pick.type as Resource] += 1;
+    } else {
+      victim.commodities[pick.type as Commodity] -= 1;
+      thief.commodities[pick.type as Commodity] += 1;
+    }
+    stolen += 1;
+  }
+  return stolen;
 }
 
 // === Intercambio con banco / puertos ===
@@ -393,14 +417,16 @@ const LEVEL3_ABILITY: Record<Discipline, 'tradingHouse' | 'fortress' | 'aqueduct
 export function upgradeCityImprovement(
   state: GameState,
   player: Player,
-  discipline: Discipline
+  discipline: Discipline,
+  // Descuento en mercancía (carta de progreso "Grúa": 1 menos). Piso en 0.
+  discount = 0
 ): CityUpgradeResult {
   const current = player.improvements[discipline];
   const target = current + 1;
   if (target > MAX_IMPROVEMENT_LEVEL) {
     return { ok: false, reason: 'Esa disciplina ya está al nivel máximo.' };
   }
-  const cost = improvementUpgradeCost(target);
+  const cost = Math.max(0, improvementUpgradeCost(target) - discount);
   const commodity = DISCIPLINE_COMMODITY[discipline];
   if (player.commodities[commodity] < cost) {
     return {
