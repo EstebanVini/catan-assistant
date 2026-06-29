@@ -4,13 +4,17 @@ import {
   Commodity,
   DISCIPLINES,
   Discipline,
-  PROGRESS_AUTOMATED,
   PROGRESS_CARD_DISCIPLINE,
   PROGRESS_HAND_LIMIT,
   PROGRESS_NEEDS_COMMODITY,
-  PROGRESS_NEEDS_RESOURCE,
+  PROGRESS_NEEDS_KNIGHTS,
+  PROGRESS_NEEDS_SETTLEMENT,
+  PROGRESS_NEEDS_TARGET,
+  PROGRESS_NEEDS_TYPE,
   ProgressCardType,
   Resource,
+  isProgressAutomated,
+  playerVictoryPoints,
 } from '../types';
 import {
   DISCIPLINE_NAMES,
@@ -21,6 +25,11 @@ import { ProgressCardGlyph } from '../assets/icons';
 import { useModalA11y } from '../lib/useModalA11y';
 import { ResourceMonopolyPickerModal } from './ResourceMonopolyPickerModal';
 import { CommodityMonopolyPickerModal } from './CommodityMonopolyPickerModal';
+import { MerchantPlacementPickerModal } from './MerchantPlacementPickerModal';
+import { MerchantFleetPickerModal } from './MerchantFleetPickerModal';
+import { OpponentTargetPickerModal } from './OpponentTargetPickerModal';
+import { SettlementUpgradePickerModal } from './SettlementUpgradePickerModal';
+import { KnightPromotePickerModal } from './KnightPromotePickerModal';
 
 // ─── Mano de cartas de progreso (Caballeros y Ciudades, §2.10) ────────────────
 //
@@ -72,15 +81,34 @@ const DISCIPLINE_CLASSES: Record<Discipline, DisciplineClasses> = {
 };
 
 // Una carta es "automática" si el servidor la resuelve por completo; el resto se
-// resuelve en la mesa. Helpers locales sobre los espejos de `types.ts`.
+// resuelve en la mesa. `isProgressAutomated` (espejo de `types.ts`) es la fuente
+// de verdad: ahora muchas más cartas se automatizan.
 function isAutomated(card: ProgressCardType): boolean {
-  return PROGRESS_AUTOMATED.includes(card);
+  return isProgressAutomated(card);
 }
-function needsResource(card: ProgressCardType): boolean {
-  return PROGRESS_NEEDS_RESOURCE.includes(card);
-}
-function needsCommodity(card: ProgressCardType): boolean {
-  return PROGRESS_NEEDS_COMMODITY.includes(card);
+
+// Qué picker abre cada carta al jugarse. `merchant` comparte la lista
+// PROGRESS_NEEDS_RESOURCE con `resourceMonopoly`, pero su picker (y su copy) es
+// propio, así que lo resolvemos antes que el resto.
+type PickerKind =
+  | 'resourceMonopoly'
+  | 'merchant'
+  | 'commodity'
+  | 'type'
+  | 'target'
+  | 'settlement'
+  | 'knights'
+  | 'confirm';
+
+function pickerKindFor(card: ProgressCardType): PickerKind {
+  if (card === 'merchant') return 'merchant';
+  if (card === 'resourceMonopoly') return 'resourceMonopoly';
+  if (PROGRESS_NEEDS_COMMODITY.includes(card)) return 'commodity';
+  if (PROGRESS_NEEDS_TYPE.includes(card)) return 'type';
+  if (PROGRESS_NEEDS_TARGET.includes(card)) return 'target';
+  if (PROGRESS_NEEDS_SETTLEMENT.includes(card)) return 'settlement';
+  if (PROGRESS_NEEDS_KNIGHTS.includes(card)) return 'knights';
+  return 'confirm';
 }
 
 export function ProgressHand(): JSX.Element | null {
@@ -107,6 +135,28 @@ export function ProgressHand(): JSX.Element | null {
   const isMyTurn = activeId === me.id;
   const canPlay = isMyTurn && state.phase === 'main' && !overLimit;
 
+  // Datos públicos del jugador local (caballeros + niveles de mejora) y de los
+  // rivales, para alimentar los pickers de objetivo / caballeros.
+  const myPublic = state.players.find((p) => p.id === me.id) ?? null;
+  const myKnights = myPublic?.knights ?? [];
+  const myPolitics = myPublic?.improvements.politics ?? 0;
+  const myVictoryPoints = myPublic
+    ? playerVictoryPoints(myPublic, state.merchant?.ownerId)
+    : 0;
+  const opponents = state.players.filter((p) => p.id !== me.id);
+  const mySettlements = (me.buildings ?? []).filter(
+    (b) => b.type === 'settlement'
+  );
+  // Comerciante actual en mesa (recurso + nombre del dueño), si existe.
+  const currentMerchant = state.merchant
+    ? {
+        resource: state.merchant.resource,
+        ownerName:
+          state.players.find((p) => p.id === state.merchant!.ownerId)?.name ??
+          null,
+      }
+    : null;
+
   // Agrupamos por disciplina, en el orden canónico (Comercio, Política,
   // Ciencia). Dentro de cada grupo conservamos el orden de llegada.
   const grouped: Record<Discipline, ProgressCardType[]> = {
@@ -132,6 +182,32 @@ export function ProgressHand(): JSX.Element | null {
   function handlePlayCommodity(commodity: Commodity) {
     if (!activeCard) return;
     playProgress({ card: activeCard, commodity });
+  }
+  // Flota Mercante: el picker manda `resource` O `commodity` (uno solo).
+  function handlePlayType(payload: {
+    resource?: Resource;
+    commodity?: Commodity;
+  }) {
+    if (!activeCard) return;
+    playProgress({ card: activeCard, ...payload });
+  }
+  // Espía / Maestro Mercader / Desertor: oponente y, opcional, caballero.
+  function handlePlayTarget(payload: {
+    targetPlayerId: string;
+    knightIds?: string[];
+  }) {
+    if (!activeCard) return;
+    playProgress({ card: activeCard, ...payload });
+  }
+  // Medicina: poblado propio a convertir en ciudad.
+  function handlePlaySettlement(settlementId: string) {
+    if (!activeCard) return;
+    playProgress({ card: activeCard, settlementId });
+  }
+  // Herrero: caballeros propios a promover.
+  function handlePlayKnights(knightIds: string[]) {
+    if (!activeCard) return;
+    playProgress({ card: activeCard, knightIds });
   }
   function handlePlaySimple() {
     if (!activeCard) return;
@@ -236,26 +312,80 @@ export function ProgressHand(): JSX.Element | null {
         </div>
       )}
 
-      {/* Flujo de juego: picker o confirmación según el tipo de carta. */}
-      {activeCard && needsResource(activeCard) ? (
-        <ResourceMonopolyPickerModal
-          onConfirm={handlePlayResource}
-          onClose={closeModal}
-        />
-      ) : null}
-      {activeCard && needsCommodity(activeCard) ? (
-        <CommodityMonopolyPickerModal
-          onConfirm={handlePlayCommodity}
-          onClose={closeModal}
-        />
-      ) : null}
-      {activeCard && !needsResource(activeCard) && !needsCommodity(activeCard) ? (
-        <PlayConfirmModal
-          card={activeCard}
-          onConfirm={handlePlaySimple}
-          onClose={closeModal}
-        />
-      ) : null}
+      {/* Flujo de juego: picker o confirmación según el tipo de carta. Un solo
+          `pickerKindFor` decide cuál se monta para evitar condiciones cruzadas. */}
+      {activeCard
+        ? (() => {
+            switch (pickerKindFor(activeCard)) {
+              case 'resourceMonopoly':
+                return (
+                  <ResourceMonopolyPickerModal
+                    onConfirm={handlePlayResource}
+                    onClose={closeModal}
+                  />
+                );
+              case 'merchant':
+                return (
+                  <MerchantPlacementPickerModal
+                    currentMerchant={currentMerchant}
+                    onConfirm={handlePlayResource}
+                    onClose={closeModal}
+                  />
+                );
+              case 'commodity':
+                return (
+                  <CommodityMonopolyPickerModal
+                    onConfirm={handlePlayCommodity}
+                    onClose={closeModal}
+                  />
+                );
+              case 'type':
+                return (
+                  <MerchantFleetPickerModal
+                    onConfirm={handlePlayType}
+                    onClose={closeModal}
+                  />
+                );
+              case 'target':
+                return (
+                  <OpponentTargetPickerModal
+                    card={activeCard as 'spy' | 'masterMerchant' | 'deserter'}
+                    opponents={opponents}
+                    myVictoryPoints={myVictoryPoints}
+                    merchantOwnerId={state.merchant?.ownerId}
+                    onConfirm={handlePlayTarget}
+                    onClose={closeModal}
+                  />
+                );
+              case 'settlement':
+                return (
+                  <SettlementUpgradePickerModal
+                    settlements={mySettlements}
+                    onConfirm={handlePlaySettlement}
+                    onClose={closeModal}
+                  />
+                );
+              case 'knights':
+                return (
+                  <KnightPromotePickerModal
+                    knights={myKnights}
+                    politics={myPolitics}
+                    onConfirm={handlePlayKnights}
+                    onClose={closeModal}
+                  />
+                );
+              case 'confirm':
+              default:
+                return (
+                  <PlayConfirmModal
+                    card={activeCard}
+                    onConfirm={handlePlaySimple}
+                    onClose={closeModal}
+                  />
+                );
+            }
+          })()
+        : null}
     </div>
   );
 }

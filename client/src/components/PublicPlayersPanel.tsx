@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../store';
-import { Discipline, Knight, MAX_WALLS, PublicPlayer, knightDefenseStrength, playerVictoryPoints } from '../types';
+import { Discipline, Knight, MAX_WALLS, PublicPlayer, Resource, knightDefenseStrength, playerVictoryPoints } from '../types';
 import { ColorChip } from './ColorChip';
-import { DISCIPLINE_NAMES, portLabel } from '../lib/spanish';
+import { DISCIPLINE_NAMES, RESOURCE_NAMES, RESOURCE_NAMES_LOWER, portLabel } from '../lib/spanish';
 import { playerHex } from '../lib/playerColors';
 import { BadgeChip, BadgeIcon } from './BadgeIcon';
-import { FireGlyph, KnightGlyph } from '../assets/icons';
+import { FireGlyph, KnightGlyph, ResourceGlyph } from '../assets/icons';
 import { CollapsibleSection } from './CollapsibleSection';
 
 // Estado público por jugador. Manos ajenas nunca se muestran (privacidad).
@@ -143,8 +143,9 @@ export function PublicPlayersPanel(): JSX.Element | null {
             const isActive = p.id === activeId;
             // Marcador 100% público: vpCards son cartas de Punto de victoria
             // ya usadas; las que siguen en mano no cuentan para nadie. En C&K
-            // incluye metrópolis (+2) y Defensor de Catán (+1) vía el helper.
-            const vpVisible = playerVictoryPoints(p);
+            // incluye metrópolis (+2), Defensor de Catán (+1) y el +1 del
+            // comerciante (al dueño actual) vía el helper.
+            const vpVisible = playerVictoryPoints(p, state.merchant?.ownerId);
             // El tick > 0 indica que hubo al menos un cambio: aplicamos la
             // clase de pulso. El `key` con tick fuerza re-mount cada cambio
             // para que la animación CSS se reinicie. La animación corre
@@ -351,6 +352,19 @@ export function PublicPlayersPanel(): JSX.Element | null {
                       <DefenderChip count={p.defenderCards} />
                     </div>
                   ) : null}
+                  {/* Comerciante (Mercader, C&K): el jugador que lo controla
+                      comercia 2:1 del recurso de la ficha donde está y suma
+                      +1 PV (ya contado arriba en `vpVisible`). Insignia dorada
+                      —el dorado es legítimo: otorga PV, como Defensor/metrópolis—
+                      con el ícono del recurso que controla. Solo en C&K y solo
+                      para el dueño actual. */}
+                  {state.citiesKnights &&
+                  state.merchant &&
+                  state.merchant.ownerId === p.id ? (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      <MerchantChip resource={state.merchant.resource} />
+                    </div>
+                  ) : null}
                   {p.ports.length > 0 ? (
                     <div className="mt-1 flex flex-wrap items-center gap-1">
                       {p.ports.map((port) => (
@@ -545,6 +559,29 @@ function DefenderChip({ count }: { count: number }): JSX.Element {
             <span className="nums text-gold-light">×{count}</span>
           </>
         ) : null}
+      </span>
+    </span>
+  );
+}
+
+// Comerciante (Mercader, C&K): el jugador que lo controla obtiene 2:1 del
+// recurso de la ficha donde está colocado y +1 PV (ese punto ya va sumado en
+// `playerVictoryPoints` cuando se pasa `merchant.ownerId`; este chip es
+// informativo). Dorado heráldico (legítimo: otorga PV, como Defensor/metrópolis)
+// con el ícono del recurso controlado para que se lea de un vistazo CUÁL.
+function MerchantChip({ resource }: { resource: Resource }): JSX.Element {
+  const label = `Comerciante: comercia 2:1 de ${RESOURCE_NAMES_LOWER[resource]} y suma 1 punto de victoria.`;
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className="inline-flex items-center gap-1 rounded-full border border-gold/50 bg-gold/[0.10] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-gold-light shadow-medal"
+    >
+      <ResourceGlyph resource={resource} size={13} />
+      <span>
+        Comerciante
+        <span className="font-medium text-gold-light/90"> · {RESOURCE_NAMES[resource]} 2:1</span>
       </span>
     </span>
   );

@@ -71,4 +71,18 @@ Reemplazan a las cartas de desarrollo. Tres mazos por color de disciplina. De mo
 | **Comercio (amarillo)** | Merchant, Merchant Fleet, Commercial Harbor, Master Merchant, Resource Monopoly, Trade Monopoly |
 
 > Prioridad sugerida del arte definitivo: **(1)** mercancías (moneda/papel/tela) → **(2)** barco bárbaro + metrópolis + muro → **(3)** disciplinas → **(4)** rangos de caballero → **(5)** cartas de progreso. Las mercancías son las más usadas y las más fáciles de confundir con recursos, por eso van primero.
+
+## 8. Comerciante (merchant token)
+
+Ficha del **comerciante** que coloca la carta de progreso **Mercader** (mazo Comercio, ver §7): se planta sobre un recurso para comerciar **2:1** y otorga **+1 PV** a quien lo controla. Aparece (a) en el **picker** al jugar la carta (elegir sobre qué ficha colocarlo) y (b) como **insignia** junto al jugador que lo controla en el marcador. **No confundir** con la *carta* Mercader de §7 (el evento que activa la ficha): esto es el arte de la **ficha/insignia**, una necesidad de arte distinta.
+
+| Nombre propuesto | Uso | Descripción del arte | Tamaños de uso | Provisional (reciclado) |
+|---|---|---|---|---|
+| `comerciante.png` | Picker (colocar ficha) + insignia de control en marcador (+1 PV, 2:1) | Medallón cálido con un **mercader ambulante**: carromato/carreta cubierta con un **cofre o saco de mercancías** y, opcional, una pequeña **balanza** y un **"2:1"** sugerido por dos sacos vs. uno (sin texto incrustado). Horizonte ámbar al fondo, trazo nogal `#1a130c`. Acentos en **amarillo de Comercio** para anclarlo a esa disciplina. Silueta limpia y **legible a 16–24px**: que el contorno del carromato + cofre se reconozca sin detalle. | 16–24px (insignia en marcador) · ~40px (picker) | **Picker:** `monopolio.png` (escena de comercio/mercader). **Insignia:** medallón dorado vía `BadgeGlyph` o `punto_de_victoria.png` tintado al amarillo de Comercio (a 16–24px `monopolio.png` se vuelve ilegible y choca con la carta de Monopolio). |
+
+**Distinciones obligatorias para el arte definitivo:**
+- **vs. Comercio (disciplina, §4):** la disciplina es una **balanza/bolsa o caravana abstracta**; el comerciante debe protagonizar el **carromato + cofre** (mercader concreto, no símbolo) para diferenciarse.
+- **vs. Monopolio (carta, §7):** Monopolio muestra un **señor sentado recibiendo tributo**; el comerciante es un **mercader solitario en camino**. Evitar figura entronizada.
+
+**Recomendación de confusión (insignia en el marcador):** el comerciante suma **+1 PV**, igual que `defensor_catan.png` y que el medallón de `punto_de_victoria.png`. Si las tres insignias se muestran como medallas doradas casi idénticas a 16–24px, el jugador no distinguirá *quién* aporta cada punto. Sugerencia: dar al comerciante un **color de acento propio (amarillo Comercio)** o un **distintivo de silueta (carromato)** que lo separe del escudo del Defensor y del castillo del Punto de Victoria. Mientras se recicle `monopolio.png` como provisional de la insignia, **no** usar también `monopolio.png` para la carta de progreso Monopolio en la misma vista del marcador/picker.
 </content>
