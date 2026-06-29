@@ -502,6 +502,29 @@ describe('tradeWithBankCK (recurso ↔ mercancía)', () => {
     const r = tradeWithBankCK(s, p, 'commodity', 'coin', 'resource', 'grain');
     expect(r.ok).toBe(false);
   });
+
+  it('mercancía→recurso a 4:1 SIN Guilda funciona con 4 mercancías (bug B4)', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    const p = s.players[0];
+    p.commodities.coin = 4; // sin Guilda ni puerto: 4:1
+    const r = tradeWithBankCK(s, p, 'commodity', 'coin', 'resource', 'grain');
+    expect(r.ok).toBe(true);
+    expect(r.ratio).toBe(4);
+    expect(p.commodities.coin).toBe(0);
+    expect(p.hand.grain).toBe(1);
+  });
+
+  it('mercancía→recurso a 3:1 con puerto genérico', () => {
+    const s = makeState();
+    s.citiesKnights = true;
+    const p = s.players[0];
+    p.ports = ['3:1'];
+    p.commodities.paper = 3;
+    const r = tradeWithBankCK(s, p, 'commodity', 'paper', 'resource', 'ore');
+    expect(r.ok).toBe(true);
+    expect(r.ratio).toBe(3);
+  });
 });
 
 describe('intercambio entre jugadores con mercancías', () => {
