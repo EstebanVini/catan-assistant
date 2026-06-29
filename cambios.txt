@@ -4,18 +4,18 @@ Para todas las implementaciones que necesiten un ícono, recicla los íconos que
 
 Bugs encontrados:
 
-Las cartas de progreso no funcionan correctamente. El juego si las asigna bien cuando le toca a cualquier jugador pero hay muchas cartas que no tienen ninguna funcionalidad (únicamente dicen "Resolver en el tablero") cuando si deberían hacer varias otras cosas. Lee El documentos docs/Progress-Cards-CC.md para implementar correctamente las cartas de probreso y también limitar la cantidad de cada una a la que dice el documento, así como eliminar por completo las cartas de progreso que son del catán base y no deberían existir jugando con esta extensión.
+En la vista de tablet o computadora, el calendario de ciudades, la defensa tienen que ir arriba de las estadísticas de los judadores pero además que vaya primero la defensa y después el calendario de ciudades Y las cartas de progreso que vayan arriba de la tabla de construcción.
 
-El el lobby, cuando se registran el primer poblado y la primer ciudad, no hay nada que diferencie cuál es la ciudad y cuál es el poblado. 
+Otro bug que encontré es que en el calendario de ciudad, cuando vas subiendo de nivel en cada rubro, al llegar al nivel 4 es cuando desbloqueas la metrópolis pero el texto "Metrópolis" aparece abajo del nivel 3. Además quiero que elimines completamente los textos "Habilidad" y Arrebatar del contador de niveles
 
-Cuándo inicia la partida se reparten correctamente los recursos pero no las mercancías que debería recibir cada jugador por tener una ciudad en fichas de recursos específicas
+Cuando sale 7 el acueducto no otorga cartas a ningún jugador
 
-No se pueden intercambiar mercancías entre jugadores (si se debería poder)
+No se puede intercambiar con el banco y/o con un puerto mercancías por recursos y si debería ser posible
 
-No se pueden intercambiar recursos por mercancías y viceversa en el banco y/o con los puertos marítimos (si se debería poder)
+En el lobby mover la opción "Repartir recursos de inicio" a las reglas extras y cambiarlo un poco a "No repartir recursos de inicio" y que por default esté desactivado
 
-Las mejoras de las ciudades a nivel 3 no funcionan, ninguna da los "Beneficios" descritos en docs/cities_updates.md 
+Que no se "Acaben" las cartas de progreso, que simplemente se "Reciclen" como si volvieran al pool de cartas, pero hasta que un jugador ya haya jugado esa carta
 
-Cuando utilizas al comerciante, además de que debería ser posible seleccionar una ficha de recurso en dónde ponerla para poder hacer intercambios 2:1 de ese recurso, también el jugador que lo tenga recibe 1 punto de victoria
+Reglas extras:
 
-En la vista de tableta y de computadora, lo que son los caballeros, mejoras de ciudades y todo lo que se agregó visualmente debe quedar en la tercera columna, arriba de las estadísticas de los dados para que de un solo vistazo se puedan hacer todas las acciones sin necesidad de hacer scrolldown
+Cartas de progreso ilimitadas: cada jugador puede tener las cartas de progreso que sean
