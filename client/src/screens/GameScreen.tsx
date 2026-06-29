@@ -165,7 +165,9 @@ export function GameScreen(): JSX.Element | null {
               defaultCollapsed={false}
               summary={
                 <span className="nums text-[11px] text-neutral-400">
-                  {view.me.progressCards.length} / 4
+                  {state.extraRules.unlimitedProgressCards
+                    ? `${view.me.progressCards.length} · sin límite`
+                    : `${view.me.progressCards.length} / 4`}
                 </span>
               }
             >
