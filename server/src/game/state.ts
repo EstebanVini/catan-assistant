@@ -410,6 +410,11 @@ export interface GameState {
   pendingAqueductPick?: string[];
   // Mazos de cartas de progreso barajados (servidor; ocultos). Solo C&K.
   progressDecks: ProgressDecks;
+  // Pila de descarte por disciplina (servidor; oculta). Las cartas que SALEN de
+  // la mano (jugadas no-VP y descartadas por exceder el límite) caen aquí; al
+  // robar con el mazo vacío, la pila se rebaraja dentro del mazo (las cartas se
+  // "reciclan" en vez de acabarse). Solo C&K.
+  progressDiscards: ProgressDecks;
   // Último dado rojo (1-6) y dado de evento ingresados (para la UI y el calendario).
   lastRedDie: number | null;
   lastEventDie: EventDie | null;

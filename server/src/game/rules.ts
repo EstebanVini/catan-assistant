@@ -101,6 +101,23 @@ export function buildProgressDecks(): ProgressDecks {
   return decks;
 }
 
+// Roba la carta superior del mazo de la disciplina `disc`. Si el mazo está
+// vacío, RECICLA la pila de descarte (cartas ya jugadas/descartadas) rebarajándola
+// dentro del mazo: así las cartas de progreso no se "acaban". Devuelve null solo
+// si tampoco hay descartes que reciclar.
+export function drawProgressCard(
+  decks: ProgressDecks,
+  discards: ProgressDecks,
+  disc: Discipline
+): ProgressCardType | null {
+  if (decks[disc].length === 0) {
+    if (discards[disc].length === 0) return null;
+    decks[disc] = shuffle(discards[disc]);
+    discards[disc] = [];
+  }
+  return decks[disc].pop() ?? null;
+}
+
 // ¿El jugador roba carta de la disciplina `disc` con este dado rojo? Regla del
 // calendario: roba si su nivel de mejora ≥ valor del dado rojo (1-6). Nivel 0
 // nunca roba; nivel 5 roba con rojo 1-5 (nunca con 6).
@@ -586,16 +603,18 @@ export function resolveBarbarianAttack(state: GameState): BarbarianResult {
         if (winner) winner.defenderCards += 1;
         result.uniqueDefender = top[0];
       } else {
-        // Empate: cada top roba 1 carta de progreso (disciplina al azar con mazo).
+        // Empate: cada top roba 1 carta de progreso (disciplina al azar con
+        // mazo o pila de descarte reciclable).
         for (const id of top) {
           const p = state.players.find((pp) => pp.id === id);
           if (!p) continue;
           const avail = (['trade', 'politics', 'science'] as Discipline[]).filter(
-            (d) => state.progressDecks[d].length > 0
+            (d) => state.progressDecks[d].length > 0 || state.progressDiscards[d].length > 0
           );
           if (avail.length === 0) continue;
           const disc = avail[Math.floor(Math.random() * avail.length)];
-          const card = state.progressDecks[disc].pop() as ProgressCardType;
+          const card = drawProgressCard(state.progressDecks, state.progressDiscards, disc);
+          if (!card) continue;
           p.progressCards.push(card);
           if (p.progressCards.length > 4) {
             state.pendingProgressDiscard[p.id] = p.progressCards.length - 4;

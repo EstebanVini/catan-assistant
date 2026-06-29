@@ -12,6 +12,7 @@ import {
   validateTradeOffer,
   executeTrade,
   aqueductBeneficiaries,
+  drawProgressCard,
   stealRandomMixed,
   upgradeCityImprovement,
   publicVictoryPoints,
@@ -545,6 +546,32 @@ describe('playerVP incluye el comerciante (+1)', () => {
     s.merchant = { ownerId: 'p1', resource: 'ore' };
     expect(playerVP(s, s.players[0])).toBe(before + 1);
     expect(playerVP(s, s.players[1])).toBe(before); // el otro no
+  });
+});
+
+describe('drawProgressCard (reciclaje de cartas de progreso)', () => {
+  it('roba del mazo mientras tenga cartas', () => {
+    const decks = { trade: ['merchant', 'spy'] as any, politics: [] as any, science: [] as any };
+    const discards = { trade: [] as any, politics: [] as any, science: [] as any };
+    const c = drawProgressCard(decks, discards, 'trade');
+    expect(c).toBe('spy'); // pop = última
+    expect(decks.trade).toHaveLength(1);
+  });
+
+  it('cuando el mazo se agota, RECICLA la pila de descarte', () => {
+    const decks = { trade: [] as any, politics: [] as any, science: [] as any };
+    const discards = { trade: ['merchant', 'merchantFleet'] as any, politics: [] as any, science: [] as any };
+    const c = drawProgressCard(decks, discards, 'trade');
+    expect(['merchant', 'merchantFleet']).toContain(c);
+    // La pila se vació al rebarajarse en el mazo, y se robó una.
+    expect(discards.trade).toHaveLength(0);
+    expect(decks.trade).toHaveLength(1);
+  });
+
+  it('devuelve null solo si no hay mazo NI descartes', () => {
+    const decks = { trade: [] as any, politics: [] as any, science: [] as any };
+    const discards = { trade: [] as any, politics: [] as any, science: [] as any };
+    expect(drawProgressCard(decks, discards, 'trade')).toBeNull();
   });
 });
 

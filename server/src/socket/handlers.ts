@@ -17,6 +17,7 @@ import {
   EventDie,
   ProgressCardType,
   PROGRESS_CARD_DISCIPLINE,
+  PROGRESS_VP_CARDS,
   PROGRESS_HAND_LIMIT,
   MAX_KNIGHTS_PER_RANK,
   KNIGHT_BUILD_COST,
@@ -36,6 +37,7 @@ import {
   aqueductBeneficiaries,
   bestBankRatio,
   buildDevDeck,
+  drawProgressCard,
   canAfford,
   computePendingDiscards,
   shuffle,
@@ -913,9 +915,9 @@ export function registerHandlers(io: Server, socket: Socket): void {
         const drawers: string[] = [];
         for (const p of state.players) {
           if (!drawsProgressCard(p.improvements[eventDie], redDie)) continue;
-          const deck = state.progressDecks[eventDie];
-          if (deck.length === 0) continue;
-          const card = deck.pop()!;
+          // Roba reciclando la pila de descarte si el mazo se agotó.
+          const card = drawProgressCard(state.progressDecks, state.progressDiscards, eventDie);
+          if (!card) continue;
           p.progressCards.push(card);
           if (p.progressCards.length > PROGRESS_HAND_LIMIT) {
             state.pendingProgressDiscard[p.id] =
@@ -1013,6 +1015,8 @@ export function registerHandlers(io: Server, socket: Socket): void {
     }
     pushSnapshot(state);
     player.progressCards.splice(idx, 1);
+    // La carta descartada vuelve al pool (pila de descarte) para reciclarse.
+    state.progressDiscards[PROGRESS_CARD_DISCIPLINE[card]].push(card);
     const remaining = owed - 1;
     if (remaining > 0) state.pendingProgressDiscard[player.id] = remaining;
     else delete state.pendingProgressDiscard[player.id];
@@ -1319,9 +1323,16 @@ export function registerHandlers(io: Server, socket: Socket): void {
         io.to(state.code).emit('notice', { level: 'info', text: `${player.name} jugó ${name}. Resuélvanla en la mesa.` });
       }
 
-      // Quitar la carta de la mano (por índice; ya validado arriba).
+      // Quitar la carta de la mano (por índice; ya validado arriba) y RECICLARLA
+      // a la pila de descarte de su disciplina (para que no se acaben), salvo las
+      // de Punto de victoria (printer/constitution), que quedan como PV permanente.
       const removeAt = player.progressCards.indexOf(card);
-      if (removeAt !== -1) player.progressCards.splice(removeAt, 1);
+      if (removeAt !== -1) {
+        player.progressCards.splice(removeAt, 1);
+        if (!PROGRESS_VP_CARDS.includes(card)) {
+          state.progressDiscards[PROGRESS_CARD_DISCIPLINE[card]].push(card);
+        }
+      }
       void handled; // (handled se conserva por claridad; ambas ramas quitan la carta)
       broadcastState(io, state);
       checkVictory(io, state, player);
