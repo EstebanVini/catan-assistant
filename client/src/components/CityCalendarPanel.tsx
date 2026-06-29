@@ -21,9 +21,10 @@ import { CommodityGlyph, DisciplineGlyph } from '../assets/icons';
 // Tres disciplinas (Comercio/amarillo↔tela, Política/azul↔moneda,
 // Ciencia/verde↔papel) como tarjetas apiladas (móvil) / columnas (md+). Cada
 // una muestra: nivel actual (0–5) con una mini-escala de 5 pasos donde 3/4/5
-// están marcados (habilidad / metrópolis / arrebatar), la habilidad de nivel 3
-// y si está desbloqueada, el indicador de metrópolis (propia o ajena) y el
-// botón "Mejorar" con el costo del siguiente nivel.
+// están marcados como hitos (descritos en los tooltips de cada paso) y una
+// única etiqueta visible "Metrópolis" alineada bajo el nivel 4, la habilidad de
+// nivel 3 y si está desbloqueada, el indicador de metrópolis (propia o ajena) y
+// el botón "Mejorar" con el costo del siguiente nivel.
 //
 // El botón solo es accionable para el jugador activo en su turno (mismo
 // criterio que ActionGrid: `main` con el turno actual, o `specialBuild` con la
@@ -244,10 +245,20 @@ function DisciplineCard({
           );
         })}
       </div>
-      <div className="mt-1 flex justify-between text-[9px] font-medium uppercase tracking-[0.06em] text-neutral-500">
-        <span className={level >= 3 ? cls.text : ''}>Habilidad</span>
-        <span className={level >= 4 ? 'text-gold' : ''}>Metrópolis</span>
-        <span className={level >= 5 ? 'text-gold' : ''}>Arrebatar</span>
+      {/* Etiqueta del único hito con texto visible: "Metrópolis" (nivel 4).
+          Es un grid de 5 columnas que ESPEJA la mini-escala (mismas columnas y
+          `gap-1`), con la etiqueta fijada a la 4ª columna (`col-start-4`) para
+          que quede exactamente bajo el 4º paso. Dorada al alcanzarse, apagada
+          mientras no. */}
+      <div className="mt-1 grid grid-cols-5 gap-1 text-[9px] font-medium uppercase tracking-[0.06em]">
+        <span
+          className={
+            'col-start-4 whitespace-nowrap text-center ' +
+            (level >= 4 ? 'text-gold' : 'text-neutral-500')
+          }
+        >
+          Metrópolis
+        </span>
       </div>
 
       {/* Habilidad de nivel 3. Desbloqueada (nivel ≥ 3) se REFUERZA como
