@@ -932,6 +932,8 @@ export function registerHandlers(io: Server, socket: Socket): void {
 
       // 2) Resolver la PRODUCCIÓN (igual que turn:rollNumber, con el ladrón
       //    condicionado a que ya haya habido un ataque bárbaro).
+      // Jugadores que recibieron algo con esta tirada (para el Acueducto).
+      const receivedAny = new Set<string>();
       if (production === 7) {
         const firstRound = state.turnsPlayed < state.turnOrder.length;
         const skipDiscard = state.extraRules.robberNoStealFirstRound && firstRound;
@@ -961,6 +963,7 @@ export function registerHandlers(io: Server, socket: Socket): void {
           ...Object.keys(result.perPlayer),
           ...Object.keys(result.perPlayerCommodities),
         ]);
+        allIds.forEach((id) => receivedAny.add(id));
         for (const pid of allIds) {
           const p = findPlayer(state, pid);
           if (!p) continue;
@@ -974,6 +977,23 @@ export function registerHandlers(io: Server, socket: Socket): void {
         }
         logAction(state, `Salió ${production}. ${lines.join('; ') || 'Nadie recibió recursos.'}`);
         state.phase = 'main';
+      }
+
+      // Acueducto (Ciencia nivel 3): quien NO recibió ningún recurso/mercancía
+      // con esta tirada —incluido el 7, que bloquea la producción— puede tomar
+      // 1 recurso del banco a su elección (aqueduct:pick). Se recalcula en cada
+      // tirada (los pendientes viejos se reemplazan).
+      const aqueductPending: string[] = [];
+      for (const p of state.players) {
+        if (p.improvements.science >= 3 && !receivedAny.has(p.id)) aqueductPending.push(p.id);
+      }
+      state.pendingAqueductPick = aqueductPending;
+      if (aqueductPending.length > 0) {
+        const names = aqueductPending
+          .map((id) => findPlayer(state, id)?.name)
+          .filter(Boolean)
+          .join(', ');
+        logAction(state, `Acueducto: ${names} no produjeron; pueden tomar 1 recurso del banco.`);
       }
       broadcastState(io, state);
     }
@@ -1659,6 +1679,28 @@ export function registerHandlers(io: Server, socket: Socket): void {
     payToBank(player.hand, state.bank, WALL_COST);
     player.walls += 1;
     logAction(state, `${player.name} construyó un muro de ciudad (${player.walls}/${MAX_WALLS}).`, player.id);
+    broadcastState(io, state);
+  });
+
+  // === Acueducto (Ciencia nivel 3, Caballeros y Ciudades) ===
+  // El jugador marcado en pendingAqueductPick (no produjo en la última tirada)
+  // toma 1 recurso del banco a su elección. No bloquea el turno del activo;
+  // cualquiera de los marcados resuelve el suyo de forma independiente.
+  socket.on('aqueduct:pick', ({ resource }: { resource: Resource }) => {
+    const state = getRoom(socket.data.code ?? '');
+    if (!state || !state.citiesKnights) return;
+    const player = findPlayer(state, socket.data.playerId ?? '');
+    if (!player) return;
+    if (!state.pendingAqueductPick || !state.pendingAqueductPick.includes(player.id)) return;
+    if (!RESOURCES.includes(resource)) {
+      socket.emit('error', { message: 'Elige un recurso válido.' });
+      return;
+    }
+    pushSnapshot(state);
+    player.hand[resource] += 1;
+    drainBank(state.bank, resource, 1);
+    state.pendingAqueductPick = state.pendingAqueductPick.filter((id) => id !== player.id);
+    logAction(state, `${player.name} tomó 1 ${esResource(resource)} con el Acueducto.`, player.id);
     broadcastState(io, state);
   });
 
