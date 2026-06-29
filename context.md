@@ -221,6 +221,6 @@ La app es jugable de extremo a extremo: auth, lobby, MVP completo, cartas de des
 - **B1 Layout v3:** Defensa→Calendario arriba del marcador; Cartas de progreso arriba de la tabla de construcción.
 - **B5 Lobby:** "No repartir recursos de inicio" en Reglas extra (default off).
 - **F1 (regla extra):** "Cartas de progreso ilimitadas" (`unlimitedProgressCards`).
-- **Arte pendiente del usuario:** hay PNGs nuevos sin integrar en `client/src/assets/icons/` (moneda/papel/tela, caballero_nivel1-3, barco_barbaro, barbaros_atacan) descritos en `missing-icons.md`; falta cablearlos en `assets/icons.tsx` (no era parte de esta tanda).
+- **Arte definitivo integrado:** se cableó en `assets/icons.tsx` el arte definitivo de mercancías (moneda/papel/tela), disciplinas (comercio/politica/ciencia), rangos de caballero (caballero_nivel1-3), comerciante, metrópolis, muro (muralla), barco/ataque bárbaro y defensor. Como el arte ya son medallones completos, se quitaron los anillos/galones CSS reciclados (se conserva el estado activo/inactivo del caballero). PNGs optimizados a 256px (~1.3 MB total). **Solo las 25 cartas de progreso siguen con arte reciclado** (su arte aún no existe; ver `missing-icons.md`).
 
 **Pendiente / futuro:** celebración de logros y XP en `WinnerScreen` al terminar la partida (hoy se ven en el perfil); y los ganchos de `docs/pending-phase3.md` (foto del tablero, paired players, subida de avatar).
