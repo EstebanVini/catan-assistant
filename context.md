@@ -178,6 +178,7 @@ Aditiva: con el toggle apagado el juego se comporta EXACTAMENTE como el base. Co
 - `cambios-plan.md` — plan de la tanda de `cambios.txt` de junio 2026 (toggles de privacidad, ladrón a ficha vacía, ajuste de XP), con tareas por agente.
 - `cambios-CC-plan.md` — plan de la tanda de **bugs de Caballeros y Ciudades** de `cambios.txt` (cartas de progreso, reparto de mercancías, mejoras nivel 3, comerciante, comercio de mercancías, lobby poblado/ciudad, layout 3ª columna), con tareas por agente.
 - `cambios-CC-plan-3.md` — plan de la **3ª tanda** de bugs C&K (acueducto en 7, comercio mercancía↔recurso, textos del calendario, reciclaje de cartas de progreso, layout v3, toggle del lobby a reglas extra) + regla extra "cartas de progreso ilimitadas". Rama de trabajo: `main`.
+- `cambios-CC-plan-4.md` — 4ª tanda (1 bug): normalizar el tamaño del ícono de Ciencia (su medallón ocupaba 63% del lienzo vs 96% de las otras disciplinas; se recortó y reescaló a ~97%).
 - `Progress-Cards-CC.md` — texto oficial de las 54 cartas de progreso C&K (referencia para implementar sus efectos). `cities_updates.md` — beneficios de las mejoras de ciudad nivel 3.
 - En la raíz: `caballeros-plan.md` (plan completo de la expansión C&K) y `missing-icons.md` (arte pendiente / reciclado).
 
