@@ -604,7 +604,7 @@ export function LobbyScreen(): JSX.Element | null {
             />
             <ExtraRuleToggle
               title="Intercambios desiguales"
-              help="Permite regalar cartas o pedir sin dar nada a cambio."
+              help="Habilita los tratos vacíos de un lado: enviar cartas sin recibir nada (regalar) o pedir cartas sin dar nada a cambio."
               checked={extraRules.unequalTrades}
               onChange={(v) => setExtraRules({ unequalTrades: v })}
             />
