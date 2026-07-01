@@ -120,6 +120,7 @@ export function CityCalendarPanel(): JSX.Element | null {
             ownerName={ownerName(state.players, state.metropolisOwners[discipline])}
             myId={me.id}
             commodityHave={me.commodities[DISCIPLINE_COMMODITY[discipline]]}
+            craneActive={!!me.craneDiscount}
             canAct={canAct}
             onUpgrade={() => upgradeCity(discipline)}
             onBlocked={(reason) => pushToast('info', reason)}
@@ -146,6 +147,7 @@ function DisciplineCard({
   ownerName: metropolisOwnerName,
   myId,
   commodityHave,
+  craneActive,
   canAct,
   onUpgrade,
   onBlocked,
@@ -157,6 +159,9 @@ function DisciplineCard({
   ownerName: string | null;
   myId: string;
   commodityHave: number;
+  // Grúa activa este turno: la próxima mejora de disciplina cuesta 1 menos
+  // (piso en 0). El servidor aplica exactamente el mismo cálculo.
+  craneActive: boolean;
   canAct: boolean;
   onUpgrade: () => void;
   onBlocked: (reason: string) => void;
@@ -166,7 +171,14 @@ function DisciplineCard({
   const atMax = level >= MAX_IMPROVEMENT_LEVEL;
   const nextLevel = level + 1;
   const cost = improvementUpgradeCost(nextLevel);
-  const canAfford = commodityHave >= cost;
+  // Costo efectivo con la Grúa: -1 mercancía, mínimo 0. Se usa para TODO lo
+  // que el jugador ve/acciona (asequibilidad, botón, aria, textos), para que
+  // coincida con lo que cobra el servidor.
+  const effectiveCost = Math.max(0, cost - (craneActive ? 1 : 0));
+  // La Grúa solo aplica si aún se puede mejorar (nivel < máximo) y hay
+  // descuento real que mostrar.
+  const craneApplies = craneActive && !atMax && effectiveCost < cost;
+  const canAfford = commodityHave >= effectiveCost;
   const abilityUnlocked = level >= 3;
 
   // Metrópolis ajena: la tiene otro jugador (no yo) en esta disciplina.
@@ -180,7 +192,7 @@ function DisciplineCard({
     : !canAct
       ? 'Solo puedes mejorar en tu turno.'
       : !canAfford
-        ? `Te falta ${cost - commodityHave} ${COMMODITY_NAMES_LOWER[commodity]} para mejorar.`
+        ? `Te falta ${effectiveCost - commodityHave} ${COMMODITY_NAMES_LOWER[commodity]} para mejorar.`
         : null;
 
   const disabled = reason !== null;
@@ -351,41 +363,94 @@ function DisciplineCard({
             Nivel máximo alcanzado
           </div>
         ) : canAct ? (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={onUpgrade}
-            title={reason ?? undefined}
-            aria-label={
-              disabled
-                ? `Mejorar ${DISCIPLINE_NAMES[discipline]} a nivel ${nextLevel}. ${reason}`
-                : `Mejorar ${DISCIPLINE_NAMES[discipline]} a nivel ${nextLevel} por ${cost} ${COMMODITY_NAMES_LOWER[commodity]}`
-            }
-            className={
-              'flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-all ' +
-              (disabled
-                ? 'cursor-not-allowed border border-white/10 bg-surface-1 text-neutral-500'
-                : cls.upgradeBtn)
-            }
-          >
-            <span>Mejorar a {nextLevel}</span>
-            <span className="flex items-center gap-1">
-              <span className="nums font-bold">{cost}</span>
-              <CommodityGlyph commodity={commodity} size={18} />
-            </span>
-          </button>
+          <>
+            {/* Señal de la Grúa: costo original tachado + descuento aplicado.
+                Chip discreto con el tinte de la disciplina; no rompe el ancho
+                estrecho de la tarjeta en móvil (se apila sobre el botón). */}
+            {craneApplies ? (
+              <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                <span
+                  className={
+                    'inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] ' +
+                    cls.abilityBox +
+                    ' ' +
+                    cls.text
+                  }
+                >
+                  <DisciplineGlyph discipline={discipline} size={11} />
+                  Grúa −1
+                </span>
+                <span className="flex items-center gap-1 text-[10px] text-neutral-400">
+                  <span className="nums line-through decoration-neutral-500">
+                    {cost}
+                  </span>
+                  <span aria-hidden>→</span>
+                  <span className={'nums font-bold ' + cls.text}>
+                    {effectiveCost}
+                  </span>
+                  <CommodityGlyph commodity={commodity} size={13} />
+                </span>
+              </div>
+            ) : null}
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={onUpgrade}
+              title={reason ?? undefined}
+              aria-label={
+                disabled
+                  ? `Mejorar ${DISCIPLINE_NAMES[discipline]} a nivel ${nextLevel}. ${reason}`
+                  : craneApplies
+                    ? `Mejorar ${DISCIPLINE_NAMES[discipline]} a nivel ${nextLevel} por ${effectiveCost} ${COMMODITY_NAMES_LOWER[commodity]} (Grúa: 1 menos)`
+                    : `Mejorar ${DISCIPLINE_NAMES[discipline]} a nivel ${nextLevel} por ${effectiveCost} ${COMMODITY_NAMES_LOWER[commodity]}`
+              }
+              className={
+                'flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-all ' +
+                (disabled
+                  ? 'cursor-not-allowed border border-white/10 bg-surface-1 text-neutral-500'
+                  : cls.upgradeBtn)
+              }
+            >
+              <span>Mejorar a {nextLevel}</span>
+              <span className="flex items-center gap-1">
+                {craneApplies ? (
+                  <span className="nums text-[11px] font-medium text-neutral-500 line-through decoration-neutral-500">
+                    {cost}
+                  </span>
+                ) : null}
+                <span className="nums font-bold">{effectiveCost}</span>
+                <CommodityGlyph commodity={commodity} size={18} />
+              </span>
+            </button>
+          </>
         ) : (
           // Informativo para no-activos: muestra el costo del siguiente nivel
-          // sin botón accionable.
+          // sin botón accionable (con el descuento de Grúa si aplica).
           <div
-            className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-surface-1 px-3 py-2 text-[11px] font-medium text-neutral-400"
-            aria-label={`Siguiente nivel ${nextLevel}: ${cost} ${COMMODITY_NAMES_LOWER[commodity]}`}
+            className="flex min-h-[44px] w-full flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 rounded-lg border border-white/10 bg-surface-1 px-3 py-2 text-[11px] font-medium text-neutral-400"
+            aria-label={
+              craneApplies
+                ? `Siguiente nivel ${nextLevel}: ${effectiveCost} ${COMMODITY_NAMES_LOWER[commodity]} (Grúa: 1 menos)`
+                : `Siguiente nivel ${nextLevel}: ${effectiveCost} ${COMMODITY_NAMES_LOWER[commodity]}`
+            }
           >
             <span>Siguiente: nivel {nextLevel}</span>
             <span className="flex items-center gap-1">
-              <span className="nums font-bold text-neutral-200">{cost}</span>
+              {craneApplies ? (
+                <span className="nums text-neutral-500 line-through decoration-neutral-500">
+                  {cost}
+                </span>
+              ) : null}
+              <span className="nums font-bold text-neutral-200">
+                {effectiveCost}
+              </span>
               <CommodityGlyph commodity={commodity} size={16} />
             </span>
+            {craneApplies ? (
+              <span className={'text-[9px] font-semibold uppercase tracking-[0.06em] ' + cls.text}>
+                Grúa −1
+              </span>
+            ) : null}
           </div>
         )}
         {/* En mi turno, si el botón está bloqueado por mercancía, deja claro
