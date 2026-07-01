@@ -179,6 +179,7 @@ export function ConstructionTable(): JSX.Element | null {
             <RobberHexList
               hexes={state.hexes}
               canMove={isMyTurn}
+              bishopActive={state.pendingBishop}
               onPick={(hexId) => moveRobber(hexId)}
               onPickEmpty={() => moveRobberEmpty()}
               emptyGivesResource={state.extraRules.robberEmptyGivesResource}
@@ -665,12 +666,17 @@ function PortPickerSheet({
 function RobberHexList({
   hexes,
   canMove,
+  bishopActive,
   onPick,
   onPickEmpty,
   emptyGivesResource,
 }: {
   hexes: Hex[];
   canMove: boolean;
+  // Obispo en curso: al colocar el ladrón se roba 1 carta a CADA jugador con
+  // construcción en la ficha (no a uno solo). Solo cambia el aviso contextual;
+  // la emisión (moveRobber/moveRobberEmpty) es la misma.
+  bishopActive: boolean;
   onPick: (hexId: string) => void;
   // Acción destacada para mover el ladrón a una ficha vacía (fuera del
   // tablero): no le roba a nadie. Según la regla, el banco puede dar 1 recurso.
@@ -736,6 +742,30 @@ function RobberHexList({
 
   return (
     <div className="rounded-xl border border-red-500/30 bg-red-500/[0.05] p-2.5">
+      {/* Aviso contextual del Obispo: el ladrón robará a TODOS los jugadores
+          con construcción en la ficha elegida, no a uno solo. Banner inline
+          con el tinte político (azul) para diferenciarlo del rojo del ladrón. */}
+      {bishopActive ? (
+        <div
+          role="note"
+          className="mb-2 flex items-start gap-2 rounded-lg border border-discipline-politics/50 bg-discipline-politics/10 px-2.5 py-2 text-[11px] leading-snug text-neutral-100"
+        >
+          <span
+            aria-hidden
+            className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-discipline-politics/25 text-discipline-politics"
+          >
+            <svg width={11} height={11} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M12 2 L14.6 9.4 L22 12 L14.6 14.6 L12 22 L9.4 14.6 L2 12 L9.4 9.4 Z" />
+            </svg>
+          </span>
+          <span>
+            <span className="font-semibold text-discipline-politics">Obispo:</span>{' '}
+            robarás 1 carta a{' '}
+            <span className="font-semibold">cada jugador</span> con construcción
+            en la ficha que elijas.
+          </span>
+        </div>
+      ) : null}
       <p className="text-xs font-semibold text-red-200">
         {canMove
           ? 'Elige la ficha a donde se mueve el ladrón.'
