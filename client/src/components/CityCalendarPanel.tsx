@@ -371,10 +371,11 @@ function DisciplineCard({
               <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                 <span
                   className={
-                    'inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] ' +
-                    cls.abilityBox +
-                    ' ' +
-                    cls.text
+                    // Texto en neutral-100 (no en color de disciplina): a 9px
+                    // sobre el fondo teñido, el color de disciplina no alcanza
+                    // AA. El borde/fondo y el glifo ya identifican la disciplina.
+                    'inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-neutral-100 ' +
+                    cls.abilityBox
                   }
                 >
                   <DisciplineGlyph discipline={discipline} size={11} />

@@ -747,7 +747,7 @@ function RobberHexList({
           con el tinte político (azul) para diferenciarlo del rojo del ladrón. */}
       {bishopActive ? (
         <div
-          role="note"
+          role="status"
           className="mb-2 flex items-start gap-2 rounded-lg border border-discipline-politics/50 bg-discipline-politics/10 px-2.5 py-2 text-[11px] leading-snug text-neutral-100"
         >
           <span
@@ -759,7 +759,10 @@ function RobberHexList({
             </svg>
           </span>
           <span>
-            <span className="font-semibold text-discipline-politics">Obispo:</span>{' '}
+            {/* Realce por negrita, no por color: el color de disciplina a este
+                tamaño no alcanza AA (WCAG) sobre el fondo teñido; el borde+fondo
+                del banner ya aportan la identidad política. */}
+            <span className="font-semibold text-neutral-50">Obispo:</span>{' '}
             robarás 1 carta a{' '}
             <span className="font-semibold">cada jugador</span> con construcción
             en la ficha que elijas.
