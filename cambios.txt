@@ -5,3 +5,18 @@ Bugs:
 
 El ícono de ciencia se ve demasiado pequeño en todos lados, se ve desproporcionado a los de comercio y política, la imágen es un poco más pequeña así que ajústala para que quede del mismo tamaño
 
+No sirve correctamente la carta "grúa", si hace el descuento pero en la tabla de calendario de ciudad no aparece que puedes hacer la mejora por 1 recurso menos y además no se activa el botón para hacer la mejora
+
+La carta "obispo" tiene que resolverse automáticamente. Al jugar esa carta el jugador debería poder elegir a qué ficha mover al ladrón y recibir un recurso del jugador al que le puso al ladrón (o si está activada la regla extra y lo mueve al desierto o a una ficha vacía, recibe una carta del banco
+
+El acueducto no debería funcionar cuando sale 7
+
+No está funcionando la regla extra de hacer tratos vacíos, no deja mandar tratos vacíos ni para dar ni para recibir. 
+
+La carta "puerto comercial" no funciona, debería funcionar en automático
+
+
+La carta "Saboteador" tampoco funciona. Al jugara todos los jugadores con más o igual de puntos de victoria que tú tienes que descartar todas sus cartas
+
+
+Revisa todas las cartas que se resuelven en mesa e intenta integrarlas para que se resuelvan en automático
