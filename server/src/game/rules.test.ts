@@ -566,6 +566,44 @@ describe('intercambio entre jugadores con mercancías', () => {
   });
 });
 
+// B5 — Tratos desiguales / vacíos (regla extra unequalTrades). Confirma que la
+// lógica pura acepta y ejecuta ofertas de un solo lado cuando allowUnequal=true,
+// y las rechaza cuando está apagada.
+describe('tratos desiguales (regalar / pedir sin dar)', () => {
+  it('con la regla activa acepta REGALAR (doy, no pido)', () => {
+    const s = makeState();
+    const from = s.players[0];
+    const to = s.players[1];
+    from.hand.brick = 1;
+    const v = validateTradeOffer(from, to, { brick: 1 }, {}, true);
+    expect(v.ok).toBe(true);
+    executeTrade(from, to, { brick: 1 }, {});
+    expect(from.hand.brick).toBe(0);
+    expect(to.hand.brick).toBe(1);
+  });
+  it('con la regla activa acepta PEDIR sin dar (pido, no doy)', () => {
+    const s = makeState();
+    const from = s.players[0];
+    const to = s.players[1];
+    to.hand.grain = 1;
+    const v = validateTradeOffer(from, to, {}, { grain: 1 }, true);
+    expect(v.ok).toBe(true);
+    executeTrade(from, to, {}, { grain: 1 });
+    expect(to.hand.grain).toBe(0);
+    expect(from.hand.grain).toBe(1);
+  });
+  it('con la regla apagada rechaza una oferta de un solo lado', () => {
+    const s = makeState();
+    const from = s.players[0];
+    from.hand.brick = 1;
+    expect(validateTradeOffer(from, s.players[1], { brick: 1 }, {}, false).ok).toBe(false);
+  });
+  it('siempre rechaza una oferta totalmente vacía', () => {
+    const s = makeState();
+    expect(validateTradeOffer(s.players[0], s.players[1], {}, {}, true).ok).toBe(false);
+  });
+});
+
 describe('playerVP incluye el comerciante (+1)', () => {
   it('suma 1 PV al dueño del comerciante', () => {
     const s = makeState();
