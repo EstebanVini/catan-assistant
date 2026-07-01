@@ -55,6 +55,10 @@ import {
   shortfall,
   stealRandomResource,
   stealRandomMixed,
+  discardRandomMixed,
+  saboteurDiscardCount,
+  bishopSteal,
+  commercialHarborExchange,
   takeFromBank,
   playerVP,
   tradeWithBank,
@@ -262,6 +266,7 @@ function nextTurn(state: GameState): void {
   state.phase = 'roll';
   state.pendingRobberMove = false;
   state.pendingRobberSteal = false;
+  state.pendingBishop = false;
   // Cerrar negociaciones del turno anterior que quedaran abiertas.
   state.activeTrade = undefined;
   state.activePortUse = undefined;
@@ -988,17 +993,23 @@ export function registerHandlers(io: Server, socket: Socket): void {
       }
 
       // Acueducto (Ciencia nivel 3): quien NO recibió ningún recurso/mercancía
-      // con esta tirada —incluido el 7, que bloquea la producción— puede tomar
-      // 1 recurso del banco a su elección (aqueduct:pick). Se recalcula en cada
-      // tirada (los pendientes viejos se reemplazan).
-      const aqueductPending = aqueductBeneficiaries(state.players, receivedAny);
-      state.pendingAqueductPick = aqueductPending;
-      if (aqueductPending.length > 0) {
-        const names = aqueductPending
-          .map((id) => findPlayer(state, id)?.name)
-          .filter(Boolean)
-          .join(', ');
-        logAction(state, `Acueducto: ${names} no produjeron; pueden tomar 1 recurso del banco.`);
+      // con esta tirada puede tomar 1 recurso del banco a su elección
+      // (aqueduct:pick). Se recalcula en cada tirada (los pendientes viejos se
+      // reemplazan). EXCEPCIÓN: un 7 NO cuenta como "no producir" —bloquea la
+      // producción por el ladrón, no por falta de fichas—, así que el Acueducto
+      // no se activa en un 7 (cambios.txt B4).
+      if (production !== 7) {
+        const aqueductPending = aqueductBeneficiaries(state.players, receivedAny);
+        state.pendingAqueductPick = aqueductPending;
+        if (aqueductPending.length > 0) {
+          const names = aqueductPending
+            .map((id) => findPlayer(state, id)?.name)
+            .filter(Boolean)
+            .join(', ');
+          logAction(state, `Acueducto: ${names} no produjeron; pueden tomar 1 recurso del banco.`);
+        }
+      } else {
+        state.pendingAqueductPick = [];
       }
       broadcastState(io, state);
     }
@@ -1323,6 +1334,98 @@ export function registerHandlers(io: Server, socket: Socket): void {
           player.id
         );
         io.to(state.code).emit('notice', { level: 'warn', text: `${player.name} jugó Desertor contra ${target.name}.` });
+      } else if (card === 'bishop') {
+        // Obispo: mueve el ladrón y roba 1 carta (recurso o mercancía) a CADA
+        // jugador con poblado/ciudad en ese hex. Se resuelve reutilizando el
+        // flujo del ladrón en "modo Obispo" (pendingBishop): el activo coloca el
+        // ladrón (robber:move / robber:moveEmpty) y el servidor roba a todos.
+        state.phase = 'robber';
+        state.pendingRobberMove = true;
+        state.pendingRobberSteal = false;
+        state.pendingBishop = true;
+        logAction(
+          state,
+          `${player.name} jugó Obispo: mueve el ladrón y robará 1 carta a cada jugador de esa ficha.`,
+          player.id
+        );
+        io.to(state.code).emit('notice', {
+          level: 'warn',
+          text: `${player.name} jugó Obispo (moverá el ladrón y robará a todos los de la ficha).`,
+        });
+      } else if (card === 'saboteur') {
+        // Saboteador: cada oponente con PV IGUAL O MAYOR a los tuyos descarta la
+        // mitad de su mano (recursos + mercancías, floor). Automático: se
+        // descarta al azar al banco (la "elección" del oponente se aproxima).
+        const myVP = playerVP(state, player);
+        const affected: string[] = [];
+        for (const other of state.players) {
+          if (other.id === player.id) continue;
+          if (playerVP(state, other) < myVP) continue;
+          const n = saboteurDiscardCount(other);
+          if (n <= 0) continue;
+          const d = discardRandomMixed(other, n, state.bank, state.commodityBank);
+          if (d > 0) affected.push(`${other.name} (${d})`);
+        }
+        logAction(
+          state,
+          affected.length
+            ? `${player.name} jugó Saboteador: descartan la mitad ${affected.join(', ')}.`
+            : `${player.name} jugó Saboteador, pero nadie tenía que descartar.`,
+          player.id
+        );
+        io.to(state.code).emit('notice', {
+          level: 'warn',
+          text: affected.length
+            ? `${player.name} jugó Saboteador: ${affected.join(', ')} descartan la mitad de su mano.`
+            : `${player.name} jugó Saboteador (nadie descartó).`,
+        });
+      } else if (card === 'wedding') {
+        // Boda: cada oponente con MÁS PV que tú te regala 2 cartas (recursos y/o
+        // mercancías, al azar). Automático.
+        const myVP = playerVP(state, player);
+        let total = 0;
+        const from: string[] = [];
+        for (const other of state.players) {
+          if (other.id === player.id) continue;
+          if (playerVP(state, other) <= myVP) continue;
+          const got = stealRandomMixed(other, player, 2);
+          if (got > 0) {
+            total += got;
+            from.push(`${other.name} (${got})`);
+          }
+        }
+        logAction(
+          state,
+          total
+            ? `${player.name} jugó Boda y recibió ${total} carta(s) de ${from.join(', ')}.`
+            : `${player.name} jugó Boda, pero nadie con más puntos tenía cartas.`,
+          player.id
+        );
+        io.to(state.code).emit('notice', {
+          level: 'warn',
+          text: total
+            ? `${player.name} jugó Boda: recibió ${total} carta(s) de ${from.join(', ')}.`
+            : `${player.name} jugó Boda (sin cartas que recibir).`,
+        });
+      } else if (card === 'commercialHarbor') {
+        // Puerto de mercancías: por cada oponente con al menos 1 mercancía, le
+        // das 1 recurso (al azar de tu mano) y recibes 1 mercancía (al azar de
+        // la suya). Automático; se detiene si te quedas sin recursos que ofrecer.
+        const opponents = state.players.filter((p) => p.id !== player.id);
+        const n = commercialHarborExchange(player, opponents);
+        logAction(
+          state,
+          n
+            ? `${player.name} jugó Puerto de mercancías: intercambió recurso↔mercancía con ${n} jugador(es).`
+            : `${player.name} jugó Puerto de mercancías, pero no hubo intercambios.`,
+          player.id
+        );
+        io.to(state.code).emit('notice', {
+          level: 'info',
+          text: n
+            ? `${player.name} jugó Puerto de mercancías (${n} intercambio(s) recurso↔mercancía).`
+            : `${player.name} jugó Puerto de mercancías (sin intercambios).`,
+        });
       } else {
         // Registro asistido: la carta se retira y la mesa la resuelve.
         handled = false;
@@ -1465,10 +1568,31 @@ export function registerHandlers(io: Server, socket: Socket): void {
       io.to(state.code).emit('notice', { level: 'info', text: `${active.name} recibió 1 recurso del banco (ladrón en ficha vacía).` });
     }
 
-    // Nota: la regla robberNoStealFirstRound NO impide robar: en la primera
-    // ronda solo se omite el DESCARTE del 7 (ver turn:rollNumber/turn:rollCK).
-    // El robo procede normal aquí, robándole 1 carta al dueño elegido.
-    if (candidates.length === 0) {
+    if (state.pendingBishop) {
+      // Modo Obispo: roba 1 carta a CADA dueño distinto del hex (máx 1 por
+      // jugador aunque tenga 2 construcciones), no a uno solo. No hay paso de
+      // elección de víctima; se resuelve y vuelve a 'main'.
+      state.pendingBishop = false;
+      const victimIds = [...new Set(candidates.map((o) => o.playerId))];
+      const victims = victimIds
+        .map((id) => findPlayer(state, id))
+        .filter((p): p is Player => !!p && p.id !== active.id);
+      const stolen = bishopSteal(active, victims);
+      if (victims.length > 0) {
+        state.stealsByPlayer[active.id] = (state.stealsByPlayer[active.id] ?? 0) + stolen;
+        logAction(
+          state,
+          `Obispo: ${active.name} robó ${stolen} carta(s) a ${victims.map((v) => v.name).join(', ')}.`,
+          active.id
+        );
+      } else {
+        logAction(state, 'Obispo: no había a quién robarle en esa ficha.');
+      }
+      state.phase = 'main';
+    } else if (candidates.length === 0) {
+      // Nota: la regla robberNoStealFirstRound NO impide robar: en la primera
+      // ronda solo se omite el DESCARTE del 7 (ver turn:rollNumber/turn:rollCK).
+      // El robo procede normal aquí, robándole 1 carta al dueño elegido.
       logAction(state, 'No hay a quién robarle en esa ficha.');
       state.phase = 'main';
     } else {
@@ -1494,8 +1618,18 @@ export function registerHandlers(io: Server, socket: Socket): void {
     state.robberOnEmpty = true;
     state.pendingRobberMove = false;
     state.pendingRobberSteal = false;
+    // Obispo a ficha vacía: no hay dueños a quien robar; solo aplica el bono del
+    // banco si la regla extra está activa (abajo). Se cierra el modo Obispo.
+    const wasBishop = !!state.pendingBishop;
+    state.pendingBishop = false;
     const active = activePlayer(state)!;
-    logAction(state, `${active.name} movió el ladrón a una ficha vacía.`, active.id);
+    logAction(
+      state,
+      wasBishop
+        ? `Obispo: ${active.name} movió el ladrón a una ficha vacía (nadie a quien robar).`
+        : `${active.name} movió el ladrón a una ficha vacía.`,
+      active.id
+    );
     io.to(state.code).emit('notice', { level: 'warn', text: `${active.name} movió el ladrón a una ficha vacía (no le robó a nadie).` });
 
     // Regla extra: ladrón a ficha vacía → el banco da 1 recurso al azar.

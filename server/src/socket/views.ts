@@ -87,6 +87,7 @@ export interface PlayerView {
     pendingDiscards: GameState['pendingDiscards'];
     pendingRobberMove: boolean;
     pendingRobberSteal: boolean;
+    pendingBishop: boolean; // el ladrón se mueve en modo Obispo (roba a todos)
     robberOnEmpty: boolean;
     activeTrade?: GameState['activeTrade'];
     activePortUse?: GameState['activePortUse'];
@@ -150,6 +151,7 @@ export function buildView(state: GameState, viewerId: string | null): PlayerView
       pendingDiscards: state.pendingDiscards,
       pendingRobberMove: state.pendingRobberMove,
       pendingRobberSteal: state.pendingRobberSteal,
+      pendingBishop: state.pendingBishop ?? false,
       robberOnEmpty: state.robberOnEmpty,
       activeTrade: state.activeTrade,
       activePortUse: state.activePortUse,

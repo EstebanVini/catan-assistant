@@ -438,6 +438,11 @@ export interface GameState {
   pendingDiscards: Record<string, number>;
   pendingRobberMove: boolean; // tras el 7, el activo debe colocar el ladrón
   pendingRobberSteal: boolean; // tras colocar el ladrón, hay que robar
+  // Obispo (carta de progreso, Caballeros y Ciudades): el ladrón se mueve en
+  // "modo Obispo" → al colocarlo roba 1 carta a CADA dueño del hex (no a uno
+  // solo), y en desierto/ficha vacía aplica robberEmptyGivesResource. Se activa
+  // al jugar el Obispo y se limpia al resolver el movimiento. Solo C&K.
+  pendingBishop?: boolean;
   activeTrade?: TradeOffer;
   activePortUse?: PortUseRequest; // solicitud en curso de uso de puerto ajeno
   winnerId?: string;

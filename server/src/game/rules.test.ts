@@ -14,6 +14,10 @@ import {
   aqueductBeneficiaries,
   drawProgressCard,
   stealRandomMixed,
+  discardRandomMixed,
+  saboteurDiscardCount,
+  bishopSteal,
+  commercialHarborExchange,
   upgradeCityImprovement,
   publicVictoryPoints,
   playerVP,
@@ -643,6 +647,92 @@ describe('stealRandomMixed (Maestro Mercader)', () => {
     const n = stealRandomMixed(victim, thief, 2);
     expect(n).toBe(1);
     expect(thief.commodities.coin).toBe(1);
+  });
+});
+
+describe('saboteurDiscardCount (Saboteador: mitad de la mano, floor)', () => {
+  it('9 cartas (recursos + mercancías) → descarta 4', () => {
+    const s = makeState();
+    const p = s.players[0];
+    p.hand = { brick: 3, lumber: 2, wool: 0, grain: 0, ore: 2 }; // 7 recursos
+    p.commodities = { coin: 2, paper: 0, cloth: 0 }; // 2 mercancías → 9 total
+    expect(saboteurDiscardCount(p)).toBe(4);
+  });
+  it('mano pequeña se redondea hacia abajo (3 → 1)', () => {
+    const s = makeState();
+    const p = s.players[0];
+    p.hand = { brick: 3, lumber: 0, wool: 0, grain: 0, ore: 0 };
+    p.commodities = emptyCommodities();
+    expect(saboteurDiscardCount(p)).toBe(1);
+  });
+});
+
+describe('discardRandomMixed (Saboteador: descarta al banco)', () => {
+  it('descarta exactamente n cartas (recursos + mercancías) al banco', () => {
+    const s = makeState();
+    const p = s.players[0];
+    p.hand = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 2 };
+    p.commodities = { coin: 2, paper: 0, cloth: 0 }; // 4 cartas
+    const before = fullBank(false);
+    const bank = { ...before };
+    const cb = fullCommodityBank();
+    const n = discardRandomMixed(p, 2, bank, cb);
+    expect(n).toBe(2);
+    // Empezó con 4 cartas (ore:2 + coin:2); tras descartar 2 le quedan 2.
+    expect(p.hand.ore + p.commodities.coin).toBe(2);
+  });
+  it('no descarta más de lo que tiene', () => {
+    const s = makeState();
+    const p = s.players[0];
+    p.hand = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 1 };
+    p.commodities = emptyCommodities();
+    const n = discardRandomMixed(p, 3, fullBank(false), fullCommodityBank());
+    expect(n).toBe(1);
+  });
+});
+
+describe('bishopSteal (Obispo: 1 carta a cada víctima)', () => {
+  it('roba 1 carta a cada dueño distinto del activo', () => {
+    const s = makeState();
+    const active = s.players[0];
+    const v1 = s.players[1];
+    v1.hand = { brick: 0, lumber: 0, wool: 0, grain: 0, ore: 2 };
+    const stolen = bishopSteal(active, [v1]);
+    expect(stolen).toBe(1); // máx 1 por jugador
+    expect(v1.hand.ore).toBe(1);
+    expect(active.hand.ore).toBe(1);
+  });
+  it('omite al propio activo y a víctimas sin cartas', () => {
+    const s = makeState();
+    const active = s.players[0];
+    const v1 = s.players[1];
+    v1.hand = emptyHand();
+    v1.commodities = emptyCommodities();
+    expect(bishopSteal(active, [active, v1])).toBe(0);
+  });
+});
+
+describe('commercialHarborExchange (Puerto de mercancías)', () => {
+  it('da 1 recurso y recibe 1 mercancía por cada oponente con mercancías', () => {
+    const s = makeState();
+    const me = s.players[0];
+    const opp = s.players[1];
+    me.hand = { brick: 1, lumber: 0, wool: 0, grain: 0, ore: 0 };
+    opp.commodities = { coin: 1, paper: 0, cloth: 0 };
+    const n = commercialHarborExchange(me, [opp]);
+    expect(n).toBe(1);
+    expect(me.commodities.coin).toBe(1); // recibí la mercancía
+    expect(opp.hand.brick).toBe(1); // le di mi recurso
+    expect(me.hand.brick).toBe(0);
+    expect(opp.commodities.coin).toBe(0);
+  });
+  it('omite oponentes sin mercancías y se detiene sin recursos', () => {
+    const s = makeState();
+    const me = s.players[0];
+    const opp = s.players[1];
+    me.hand = emptyHand(); // sin recursos que ofrecer
+    opp.commodities = { coin: 1, paper: 0, cloth: 0 };
+    expect(commercialHarborExchange(me, [opp])).toBe(0);
   });
 });
 

@@ -255,6 +255,81 @@ export function stealRandomMixed(victim: Player, thief: Player, n: number): numb
   return stolen;
 }
 
+// Descarta al azar hasta `n` cartas de la mano del jugador (recursos +
+// mercancías), devolviéndolas al banco. Usado por el Saboteador (Caballeros y
+// Ciudades). Devuelve cuántas descartó realmente (limitado por lo que tenga).
+export function discardRandomMixed(
+  player: Player,
+  n: number,
+  bank: Hand,
+  commodityBank: CommodityHand
+): number {
+  let discarded = 0;
+  for (let k = 0; k < n; k++) {
+    const pool: Array<{ kind: TradeItemKind; type: Resource | Commodity }> = [];
+    for (const r of RESOURCES) for (let i = 0; i < player.hand[r]; i++) pool.push({ kind: 'resource', type: r });
+    for (const c of COMMODITIES) for (let i = 0; i < player.commodities[c]; i++) pool.push({ kind: 'commodity', type: c });
+    if (pool.length === 0) break;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    if (pick.kind === 'resource') {
+      player.hand[pick.type as Resource] -= 1;
+      bank[pick.type as Resource] += 1;
+    } else {
+      const c = pick.type as Commodity;
+      player.commodities[c] -= 1;
+      commodityBank[c] = Math.min(12, commodityBank[c] + 1);
+    }
+    discarded += 1;
+  }
+  return discarded;
+}
+
+// Cuántas cartas descarta un jugador con el Saboteador: la mitad de su mano
+// (recursos + mercancías), redondeando hacia abajo (9 cartas → descarta 4).
+export function saboteurDiscardCount(player: Player): number {
+  return Math.floor((handTotal(player.hand) + commodityTotal(player.commodities)) / 2);
+}
+
+// Obispo (Caballeros y Ciudades): roba 1 carta al azar (recurso o mercancía) a
+// CADA víctima (dueños del hex del ladrón, distintos del activo). El llamador
+// debe pasar la lista YA deduplicada por jugador (máx 1 carta por jugador aunque
+// tenga 2 construcciones). Devuelve cuántas cartas robó en total.
+export function bishopSteal(active: Player, victims: Player[]): number {
+  let stolen = 0;
+  for (const v of victims) {
+    if (v.id === active.id) continue;
+    stolen += stealRandomMixed(v, active, 1);
+  }
+  return stolen;
+}
+
+// Puerto de mercancías / Puerto comercial (Caballeros y Ciudades): por cada
+// oponente con al menos 1 mercancía, el jugador le entrega 1 recurso (al azar de
+// su mano) y recibe 1 mercancía (al azar de la del oponente). Se detiene si el
+// jugador se queda sin recursos que ofrecer. La "elección" ajena se aproxima al
+// azar (mismo criterio que Maestro Mercader/Monopolio). Devuelve cuántos
+// intercambios ocurrieron.
+export function commercialHarborExchange(player: Player, opponents: Player[]): number {
+  let exchanges = 0;
+  for (const opp of opponents) {
+    if (opp.id === player.id) continue;
+    const resPool: Resource[] = [];
+    for (const r of RESOURCES) for (let i = 0; i < player.hand[r]; i++) resPool.push(r);
+    if (resPool.length === 0) break; // sin recursos que ofrecer: se acaba el efecto
+    const comPool: Commodity[] = [];
+    for (const c of COMMODITIES) for (let i = 0; i < opp.commodities[c]; i++) comPool.push(c);
+    if (comPool.length === 0) continue; // el oponente no tiene mercancías: no hay trato
+    const giveRes = resPool[Math.floor(Math.random() * resPool.length)];
+    const getCom = comPool[Math.floor(Math.random() * comPool.length)];
+    player.hand[giveRes] -= 1;
+    opp.hand[giveRes] += 1;
+    opp.commodities[getCom] -= 1;
+    player.commodities[getCom] += 1;
+    exchanges += 1;
+  }
+  return exchanges;
+}
+
 // === Intercambio con banco / puertos ===
 export function bestBankRatio(player: Player, give: Resource): number {
   if (player.ports.includes(give as PortType)) return 2;

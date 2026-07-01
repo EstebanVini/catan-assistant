@@ -71,7 +71,12 @@ export const PROGRESS_HAND_LIMIT = 4;
 // de tablero o elección física multi-jugador); se retiran de la mano y la mesa
 // las resuelve. TODO lo demás lo automatiza el servidor. Espejo de progress:play.
 export const PROGRESS_TABLE_RESOLVED: ProgressCardType[] = [
-  'alchemist', 'inventor', 'diplomat', 'intrigue', 'saboteur', 'wedding', 'commercialHarbor', 'bishop',
+  // Solo quedan las que exigen geometría física de tablero o dependen de la
+  // tirada manual: Alquimista (fija los dados antes de tirar), Inventor
+  // (intercambia fichas de número), Diplomático (quita el tramo final de una
+  // carretera) e Intriga (expulsa un caballero de una encrucijada). El resto
+  // (Obispo, Saboteador, Boda, Puerto de mercancías…) las automatiza el servidor.
+  'alchemist', 'inventor', 'diplomat', 'intrigue',
 ];
 export function isProgressAutomated(card: ProgressCardType): boolean {
   return !PROGRESS_TABLE_RESOLVED.includes(card);
@@ -411,6 +416,7 @@ export interface PublicGameState {
   pendingDiscards: Record<string, number>;
   pendingRobberMove: boolean;
   pendingRobberSteal: boolean;
+  pendingBishop: boolean; // el ladrón se mueve en modo Obispo (roba a todos los del hex)
   robberOnEmpty: boolean; // ladrón en una ficha vacía (no sobre ningún hex)
   activeTrade?: TradeOffer;
   activePortUse?: PortUseRequest;
