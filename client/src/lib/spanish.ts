@@ -231,13 +231,14 @@ export const PROGRESS_CARD_NAMES: Record<ProgressCardType, string> = {
 };
 
 // Descripción breve de cada carta de progreso para el tooltip / subtítulo
-// (espejo del efecto resumido del §2.10). Aún NO son jugables (Fase C3): el
-// texto sirve para que el jugador sepa qué guarda en la mano.
+// (espejo del efecto resumido del §2.10). El prefijo indica cómo se resuelve:
+// "Automática" (la app aplica el efecto sola) o "En mesa" (el jugador la
+// resuelve físicamente sobre el tablero por geometría o al fijar los dados).
 export const PROGRESS_CARD_DESCRIPTIONS: Record<ProgressCardType, string> = {
-  alchemist: 'Antes de tirar, eliges el resultado de los dos dados de producción.',
+  alchemist: 'En mesa: antes de tirar, fijas a mano el resultado de los dos dados de producción.',
   crane: 'Mejora una ciudad pagando 1 mercancía menos.',
   engineer: 'Construye 1 muro gratis.',
-  inventor: 'Intercambia 2 fichas de número (no 2, 12, 6 ni 8).',
+  inventor: 'En mesa: intercambias a mano 2 fichas de número del tablero (no 2, 12, 6 ni 8).',
   irrigation: 'Gana 2 trigo por cada poblado o ciudad junto a una ficha de trigo.',
   mining: 'Gana 2 mineral por cada poblado o ciudad junto a una ficha de mineral.',
   medicine: 'Mejora un poblado a ciudad por 2 mineral y 1 trigo.',
@@ -245,17 +246,17 @@ export const PROGRESS_CARD_DESCRIPTIONS: Record<ProgressCardType, string> = {
   smith: 'Promueve gratis 2 de tus caballeros.',
   printer: 'Carta permanente: +1 punto de victoria.',
   spy: 'Róbale una carta de progreso (al azar) a un rival.',
-  bishop: 'Mueve el ladrón y roba 1 carta a todos los jugadores junto a esa ficha.',
+  bishop: 'Automática: mueves el ladrón (eliges la ficha) y la app roba 1 carta —recurso o mercancía— a cada rival con poblado o ciudad ahí; en ficha vacía o desierto, con la regla extra activa, recibes 1 carta del banco.',
   constitution: 'Carta permanente: +1 punto de victoria.',
   deserter: 'Un rival retira un caballero; tú colocas uno gratis del mismo rango.',
-  diplomat: 'Retira un camino abierto; si era tuyo, recolócalo gratis.',
-  intrigue: 'Expulsa a un caballero rival que esté sobre tu camino.',
-  saboteur: 'Cada rival con tantos o más puntos que tú descarta media mano.',
+  diplomat: 'En mesa: retiras a mano un camino abierto del tablero; si era tuyo, lo recolocas gratis.',
+  intrigue: 'En mesa: expulsas a mano del tablero a un caballero rival que esté sobre tu camino.',
+  saboteur: 'Automática: cada rival con tantos o más puntos que tú descarta la mitad de su mano (recursos y mercancías, redondeando hacia abajo).',
   warlord: 'Activa gratis todos tus caballeros.',
-  wedding: 'Cada rival con más puntos que tú te entrega 2 recursos o mercancías.',
+  wedding: 'Automática: cada rival con más puntos que tú te regala 2 cartas (recursos o mercancías).',
   merchant: 'Coloca el mercader sobre una ficha tuya: comercias 2:1 ese recurso y ganas +1 punto.',
   merchantFleet: 'Comercia 2:1 con el banco un recurso o mercancía a tu elección este turno.',
-  commercialHarbor: 'Cada rival te cambia 1 recurso por 1 mercancía tuya.',
+  commercialHarbor: 'Automática: por cada rival con mercancías, le das 1 recurso y recibes 1 mercancía suya.',
   masterMerchant: 'Róbale 2 cartas (recursos o mercancías) a un rival con más puntos que tú.',
   resourceMonopoly: 'Toma hasta 2 cartas de un recurso a elección de cada rival.',
   tradeMonopoly: 'Toma 1 mercancía a elección de cada rival.',
