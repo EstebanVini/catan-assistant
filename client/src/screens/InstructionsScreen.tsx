@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, RefObject } from 'react';
 import { useStore } from '../store';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { prefersReducedMotion } from '../lib/motion';
@@ -61,6 +61,81 @@ function dimsFor(src: string): { w: number; h: number } {
   return IMAGE_DIMS[src] ?? { w: 3, h: 4 };
 }
 
+// ─── Scroll-reveal one-shot ──────────────────────────────────────────────────
+// Revela cada bloque ilustrado al entrar al viewport (fade + leve translateY),
+// una sola vez, con un escalonado suave entre sus etapas (foto → conector →
+// app → resultado). Intensidad baja: es una guía de LECTURA, el movimiento solo
+// aporta jerarquía y feedback de "aquí llega este bloque".
+//
+// Contrato de seguridad (ver `.reveal` en index.css): el estado oculto SOLO se
+// aplica cuando el JS confirma soporte de IntersectionObserver y que el usuario
+// NO pidió reduced-motion. En cualquier otro caso el contenido queda visible de
+// inmediato — nada "atrapado" invisible.
+
+const REVEAL_STEP_MS = 55; // paso del escalonado entre etapas de un bloque
+const REVEAL_MAX_STEPS = 6; // tope: los bloques largos no arrastran el revelado
+
+function useRevealOnEnter<T extends HTMLElement>(): {
+  ref: RefObject<T>;
+  animate: boolean;
+  visible: boolean;
+} {
+  const ref = useRef<T>(null);
+  // Decidido una sola vez al montar: sin animación si el usuario pidió
+  // reduced-motion o el navegador no expone IntersectionObserver.
+  const [animate] = useState(
+    () =>
+      !prefersReducedMotion() &&
+      typeof window !== 'undefined' &&
+      typeof window.IntersectionObserver === 'function'
+  );
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!animate) return;
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisible(true);
+          io.disconnect(); // one-shot: no re-anima al re-scrollear
+        }
+      },
+      // Dispara cuando el bloque ya entró un poco al viewport (margen inferior
+      // negativo), nunca antes: así el revelado no se adelanta al lazy-load de
+      // las imágenes.
+      { rootMargin: '0px 0px -8% 0px', threshold: 0 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [animate]);
+
+  return { ref, animate, visible };
+}
+
+// Props de revelado para una etapa: mezcla la clase base con `.reveal`, fija el
+// estado hidden/shown y el retraso del escalonado (topado). Con `animate` en
+// falso devuelve solo la clase base → la etapa queda visible, sin transición.
+function revealAttrs(
+  base: string,
+  animate: boolean,
+  visible: boolean,
+  order: number
+): {
+  className: string;
+  style?: CSSProperties;
+  'data-reveal'?: 'hidden' | 'shown';
+} {
+  if (!animate) return { className: base };
+  const delay = Math.min(order, REVEAL_MAX_STEPS) * REVEAL_STEP_MS;
+  return {
+    className: base ? base + ' reveal' : 'reveal',
+    style: { '--reveal-delay': `${delay}ms` } as CSSProperties,
+    'data-reveal': visible ? 'shown' : 'hidden',
+  };
+}
+
 export function InstructionsScreen(): JSX.Element {
   const setHomeView = useStore((s) => s.setHomeView);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -68,6 +143,20 @@ export function InstructionsScreen(): JSX.Element {
   // Alto del header sticky: alimenta el `scroll-margin-top` de las secciones
   // para que el anchor-scroll del índice no las deje ocultas bajo la barra.
   const [headerOffset, setHeaderOffset] = useState(96);
+  // Estado de apertura de las secciones (modo controlado de CollapsibleSection).
+  // Por defecto solo la sección con `defaultOpen` (registrar-poblados) queda
+  // abierta; el índice puede abrir cualquier otra al saltar a ella.
+  const [openIds, setOpenIds] = useState<Set<string>>(
+    () => new Set(INSTRUCTIONS.filter((s) => s.defaultOpen).map((s) => s.id))
+  );
+  function toggleSection(id: string): void {
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   // Cambio de ruta: al montar, mover el foco al título como haría un router al
   // navegar (no es un modal, no atrapa el foco). `preventScroll` evita que el
@@ -90,12 +179,36 @@ export function InstructionsScreen(): JSX.Element {
   }, []);
 
   function scrollToSection(id: string) {
+    // Un índice lleva al CONTENIDO, no a un header colapsado: abre la sección
+    // destino antes de saltar. `block: 'start'` apunta al borde superior de la
+    // sección (no se mueve al expandirse), así el salto no espera al re-render.
+    setOpenIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
     const el = document.getElementById(`section-${id}`);
     if (!el) return;
+    const reduce = prefersReducedMotion();
     el.scrollIntoView({
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+      behavior: reduce ? 'auto' : 'smooth',
       block: 'start',
     });
+    // Micro-feedback de destino: un realce breve confirma a dónde saltó el
+    // índice. Escala mínima anclada arriba (`block: 'start'` deja el borde
+    // superior a la vista, así que el origen top mantiene quieta la zona
+    // visible incluso en secciones altas). Solo transform, one-shot vía WAAPI;
+    // se omite con reduced-motion o si el navegador no expone Element.animate.
+    if (reduce || typeof el.animate !== 'function') return;
+    el.animate(
+      [
+        { transform: 'scale(1)', transformOrigin: 'top center' },
+        { transform: 'scale(1.008)', transformOrigin: 'top center', offset: 0.45 },
+        { transform: 'scale(1)', transformOrigin: 'top center' },
+      ],
+      { duration: 420, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' }
+    );
   }
 
   // Expone el alto del header como custom property para el `scroll-mt-[var(...)]`
@@ -111,7 +224,7 @@ export function InstructionsScreen(): JSX.Element {
     >
       <header
         ref={headerRef}
-        className="sticky top-0 z-30 -mx-4 border-b border-white/10 bg-surface/90 px-4 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)] backdrop-blur-md"
+        className="sticky top-0 z-30 -mx-4 border-b border-white/[0.12] bg-surface/90 px-4 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)] shadow-[0_10px_24px_-16px_rgba(0,0,0,0.8)] backdrop-blur-md"
       >
         <button
           type="button"
@@ -147,7 +260,12 @@ export function InstructionsScreen(): JSX.Element {
 
         <div className="mt-3">
           {INSTRUCTIONS.map((section) => (
-            <SectionCard key={section.id} section={section} />
+            <SectionCard
+              key={section.id}
+              section={section}
+              collapsed={!openIds.has(section.id)}
+              onToggle={() => toggleSection(section.id)}
+            />
           ))}
         </div>
       </div>
@@ -165,7 +283,7 @@ function TableOfContents({
   return (
     <nav
       aria-label={INSTRUCTIONS_TOC_TITLE}
-      className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-surface-1 shadow-soft"
+      className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-surface-1 shadow-card"
     >
       <h2 className="border-b border-white/10 px-4 py-2.5 font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-neutral-300">
         {INSTRUCTIONS_TOC_TITLE}
@@ -180,7 +298,7 @@ function TableOfContents({
             >
               <span
                 aria-hidden
-                className="nums flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-white/10 bg-surface-3 text-[11px] font-semibold text-neutral-400"
+                className="nums flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-white/10 bg-surface-3 text-[11px] font-semibold text-neutral-300"
               >
                 {i + 1}
               </span>
@@ -209,14 +327,20 @@ function TableOfContents({
 
 function SectionCard({
   section,
+  collapsed,
+  onToggle,
 }: {
   section: InstructionSection;
+  collapsed: boolean;
+  onToggle: () => void;
 }): JSX.Element {
   return (
     <CollapsibleSection
       id={section.id}
       title={section.title}
       defaultCollapsed={!section.defaultOpen}
+      collapsed={collapsed}
+      onToggleCollapsed={onToggle}
       // `!mx-0`: la card ya vive dentro del gutter `px-4` del <main>, así que
       // anulamos el `mx-3` propio del componente para alinear al borde.
       // `scroll-mt`: compensa el header sticky en el anchor-scroll del índice.
@@ -290,19 +414,43 @@ function IllustratedBlockView({
 }): JSX.Element {
   const groups = groupImages(block.images);
   const titleId = `block-${block.id}`;
+  // El bloque se auto-observa: al entrar al viewport, sus etapas se revelan en
+  // cascada. La card (borde/fondo) NO se anima como bloque: queda como marco
+  // estable y solo su contenido escalona, evitando opacidades anidadas.
+  const { ref, animate, visible } = useRevealOnEnter<HTMLElement>();
+
+  // Orden del escalonado, de arriba hacia abajo. Se incrementa en el mismo
+  // orden en que se construye el JSX: título → (lead) → etapas/conectores →
+  // leyenda. La evaluación de los hijos es de izquierda a derecha, así que el
+  // contador refleja el orden visual real.
+  let order = 0;
+
   return (
     <section
+      ref={ref}
       aria-labelledby={titleId}
-      className="rounded-lg border border-white/10 bg-surface-2/50 p-3"
+      className="rounded-xl border border-white/10 bg-surface-2 p-3.5 shadow-soft"
     >
       <h3
         id={titleId}
-        className="font-display text-[15px] font-semibold tracking-tight text-neutral-100"
+        {...revealAttrs(
+          'font-display text-[15px] font-semibold tracking-tight text-neutral-100',
+          animate,
+          visible,
+          order++
+        )}
       >
         {block.title}
       </h3>
       {block.lead ? (
-        <p className="mt-1 text-[13px] leading-relaxed text-neutral-400">
+        <p
+          {...revealAttrs(
+            'mt-1 text-[13px] leading-relaxed text-neutral-400',
+            animate,
+            visible,
+            order++
+          )}
+        >
           {block.lead}
         </p>
       ) : null}
@@ -310,13 +458,26 @@ function IllustratedBlockView({
       <div className="mt-3">
         {groups.map((group, i) => (
           <Fragment key={i}>
-            {i > 0 ? <Connector /> : null}
-            <GroupView group={group} />
+            {i > 0 ? (
+              <div {...revealAttrs('', animate, visible, order++)}>
+                <Connector />
+              </div>
+            ) : null}
+            <div {...revealAttrs('', animate, visible, order++)}>
+              <GroupView group={group} />
+            </div>
           </Fragment>
         ))}
       </div>
 
-      <p className="mt-3 text-sm leading-relaxed text-neutral-300">
+      <p
+        {...revealAttrs(
+          'mt-3 text-sm leading-relaxed text-neutral-300',
+          animate,
+          visible,
+          order++
+        )}
+      >
         {block.caption}
       </p>
     </section>
@@ -360,11 +521,16 @@ function SingleFigure({ image }: { image: InstructionImage }): JSX.Element {
   }
 }
 
-// Conector entre etapas: chevron hacia abajo en un círculo. Decorativo.
+// Conector entre etapas: chevron hacia abajo sobre una línea-espina vertical.
+// La espina hace legible el "y esto se convierte en → esto" entre las etapas
+// apiladas (foto → app → resultado); el badge, elevado en surface-3, se lee
+// como el eslabón. Puramente decorativo (aria-hidden) y estático (nada que
+// degradar bajo reduced-motion).
 function Connector(): JSX.Element {
   return (
-    <div className="flex justify-center py-1.5" aria-hidden>
-      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-2 text-neutral-400 ring-1 ring-white/10">
+    <div className="relative flex justify-center py-2" aria-hidden>
+      <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/10" />
+      <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-surface-3 text-neutral-300 shadow-soft ring-1 ring-white/10">
         <svg width={16} height={16} viewBox="0 0 24 24">
           <path
             d="M6 9 L12 15 L18 9"
@@ -428,7 +594,7 @@ function BoardFigure({ image }: { image: InstructionImage }): JSX.Element {
     <figure className="mx-auto w-full max-w-[13rem]">
       <ReservedImage
         image={image}
-        className="rounded-xl ring-1 ring-white/10"
+        className="rounded-xl shadow-[0_8px_20px_-8px_rgba(0,0,0,0.7)] ring-1 ring-white/10"
       />
       <MicroCaption text={image.caption} />
     </figure>
@@ -454,7 +620,7 @@ function AppFigure({ image }: { image: InstructionImage }): JSX.Element {
 function ResultFigure({ image }: { image: InstructionImage }): JSX.Element {
   return (
     <figure className="w-full">
-      <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.05] p-2">
+      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.06] p-2">
         <span className="mb-1.5 inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
           <svg width={11} height={11} viewBox="0 0 24 24" aria-hidden>
             <path

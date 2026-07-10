@@ -662,6 +662,34 @@
     stroke-dasharray: 14;
     animation: check-draw 220ms cubic-bezier(0.4, 0, 0.2, 1) 120ms both;
   }
+
+  /*
+   * Scroll-reveal one-shot de la guía "Cómo jugar" (InstructionsScreen).
+   *
+   * Contrato de seguridad: un elemento SIN `.reveal` o SIN [data-reveal] queda
+   * a opacity:1 (defecto del navegador). El componente solo añade
+   * `.reveal` + [data-reveal='hidden'] cuando el JS confirma que hay
+   * IntersectionObserver y que el usuario NO pidió reduced-motion; al entrar al
+   * viewport pasa a [data-reveal='shown'] una única vez. Si el JS no corre o
+   * falta IO, el contenido nunca queda atrapado invisible.
+   *
+   * Solo se animan transform/opacity. El escalonado foto→conector→app→resultado
+   * llega por --reveal-delay (calculado y topado en JS).
+   */
+  .reveal {
+    transition:
+      opacity 380ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      transform 380ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+  .reveal[data-reveal='hidden'] {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  .reveal[data-reveal='shown'] {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 /*
@@ -731,6 +759,17 @@
   .anim-delta-up,
   .anim-delta-down {
     animation: fade-in 120ms ease-out both !important;
+  }
+
+  /* Scroll-reveal de la guía: el JS ya evita el estado oculto con
+     reduced-motion; este seguro garantiza que nada quede invisible aunque la
+     clase estuviera presente. Todo el contenido aparece de inmediato. */
+  .reveal,
+  .reveal[data-reveal='hidden'],
+  .reveal[data-reveal='shown'] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
   }
 }
 
