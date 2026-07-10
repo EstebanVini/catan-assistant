@@ -1,6 +1,8 @@
+import { useRef } from 'react';
 import { PortType, RESOURCES } from '../types';
 import { RESOURCE_NAMES_LOWER } from '../lib/spanish';
 import { ResourceIcon } from './ResourceIcon';
+import { useModalA11y } from '../lib/useModalA11y';
 
 // Bottom-sheet para asignar el puerto de UN poblado/ciudad (base y C&K).
 //
@@ -30,22 +32,29 @@ export function PortPickerSheet({
   onClose: () => void;
   onConfirm: (port: PortType | null) => void;
 }): JSX.Element {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y(dialogRef, onClose);
   return (
     <div
       className="fixed inset-0 z-[200] flex flex-col justify-end"
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="port-picker-title"
         className="rounded-t-2xl border-t border-white/10 bg-surface-1 p-4 pb-safe-bottom"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-semibold text-neutral-100">
+          <p id="port-picker-title" className="text-sm font-semibold text-neutral-100">
             Puerto — {buildLabel}
           </p>
           <button
             type="button"
             onClick={onClose}
+            aria-label="Cerrar"
             className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 transition-colors active:bg-white/10"
           >
             <svg width={14} height={14} viewBox="0 0 24 24" aria-hidden>
@@ -59,7 +68,7 @@ export function PortPickerSheet({
           </button>
         </div>
         <p className="mb-3 text-[11px] text-neutral-400">
-          Un poblado con puerto puede tener máximo 2 fichas de recursos. El tipo de puerto determina tu ratio de intercambio.
+          Una construcción con puerto toca máximo 2 fichas. El tipo de puerto determina tu ratio de intercambio.
         </p>
         <div className="space-y-1.5">
           {/* Opción: sin puerto */}

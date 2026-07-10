@@ -406,6 +406,7 @@ function BuildingList({
                 <button
                   type="button"
                   onClick={() => onSetPort(b.id)}
+                  aria-label={`Puerto de ${label}: ${b.port ? PORT_SHORT[b.port] : 'sin puerto'}. Editar`}
                   className={
                     'mt-1.5 flex w-full items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left transition-colors active:bg-white/[0.08] ' +
                     (b.port
@@ -413,7 +414,7 @@ function BuildingList({
                       : 'border-white/10 bg-surface-2 text-neutral-400')
                   }
                 >
-                  <span className="text-base leading-none">⚓</span>
+                  <span aria-hidden className="text-base leading-none">⚓</span>
                   <span className="text-[11px] font-medium">
                     {b.port ? PORT_SHORT[b.port] : 'Sin puerto'}
                   </span>

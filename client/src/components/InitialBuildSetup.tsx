@@ -209,7 +209,7 @@ export function InitialBuildSetup(): JSX.Element | null {
     if (trimmed) {
       pushToast(
         'info',
-        'Un poblado con puerto toca máximo 2 fichas. Quitamos la última ficha que registraste.'
+        `Tu ${cardMeta(buildIdx).noun} con puerto toca máximo 2 fichas. Quitamos la última que registraste.`
       );
     }
     setPortSheet(null);
@@ -294,6 +294,7 @@ export function InitialBuildSetup(): JSX.Element | null {
               <button
                 type="button"
                 onClick={() => setPortSheet(idx)}
+                aria-label={`Puerto de ${meta.label}: ${b.port ? PORT_SHORT[b.port] : 'sin puerto'}. Editar`}
                 className={
                   'mt-1.5 flex w-full items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left transition-colors active:bg-white/[0.08] ' +
                   (b.port
@@ -301,7 +302,7 @@ export function InitialBuildSetup(): JSX.Element | null {
                     : 'border-white/10 bg-surface-2 text-neutral-400')
                 }
               >
-                <span className="text-base leading-none">⚓</span>
+                <span aria-hidden className="text-base leading-none">⚓</span>
                 <span className="text-[11px] font-medium">
                   {b.port ? PORT_SHORT[b.port] : 'Sin puerto'}
                 </span>
