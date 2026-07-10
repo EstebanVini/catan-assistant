@@ -53,6 +53,27 @@ const IMAGE_DIMS: Record<string, { w: number; h: number }> = {
   '/instructions/2poblados_ficha_compartida.jpg': { w: 828, h: 1100 },
   '/instructions/ficha_recurso_compartida_app.png': { w: 393, h: 612 },
   '/instructions/ficha_recursos_NO_compartida.png': { w: 395, h: 614 },
+  // Capturas del walkthrough de la app (verticales, ~480px de ancho). Se usan
+  // como `figures` sueltas que ilustran las secciones de texto.
+  '/instructions/01-home-guest.jpg': { w: 480, h: 767 },
+  '/instructions/08-lobby-host.jpg': { w: 480, h: 713 },
+  '/instructions/09-lobby-player-color.jpg': { w: 480, h: 770 },
+  '/instructions/15-lobby-host-controls.jpg': { w: 480, h: 716 },
+  '/instructions/17-game-roll-phase.jpg': { w: 480, h: 716 },
+  '/instructions/18-game-production.jpg': { w: 480, h: 738 },
+  '/instructions/19-game-turn-main.jpg': { w: 480, h: 738 },
+  '/instructions/24-game-buy-settlement.jpg': { w: 480, h: 738 },
+  '/instructions/27-game-hand-hidden.jpg': { w: 480, h: 738 },
+  '/instructions/28-card-knight.jpg': { w: 480, h: 738 },
+  '/instructions/30-game-bank-give-card.jpg': { w: 480, h: 738 },
+  '/instructions/34-game-trade-bank.jpg': { w: 480, h: 738 },
+  '/instructions/35-game-trade-players.jpg': { w: 480, h: 738 },
+  '/instructions/42-game-construction-table.jpg': { w: 480, h: 702 },
+  '/instructions/44-game-discard-seven.jpg': { w: 480, h: 702 },
+  '/instructions/46-game-robber-pick-hex.jpg': { w: 441, h: 773 },
+  '/instructions/50-game-play-card-menu.jpg': { w: 480, h: 715 },
+  '/instructions/52-game-players-badges.jpg': { w: 480, h: 715 },
+  '/instructions/56-game-ended.jpg': { w: 480, h: 699 },
 };
 
 function dimsFor(src: string): { w: number; h: number } {
@@ -362,8 +383,40 @@ function SectionCard({
             ))}
           </div>
         ) : null}
+
+        {section.figures && section.figures.length > 0 ? (
+          <SectionFigures figures={section.figures} />
+        ) : null}
       </div>
     </CollapsibleSection>
+  );
+}
+
+// ─── Capturas sueltas de sección ─────────────────────────────────────────────
+// Capturas de la app (kind 'app', verticales) que ilustran una sección de texto,
+// sin la coreografía "foto → app → resultado" de los bloques. Se apilan bajo los
+// párrafos con el mismo tratamiento visual que las capturas `app` (marco
+// `ring-1`/`rounded`, `object-contain`), acotadas a un ancho cómodo para que no
+// dominen la lectura en móvil.
+//
+// El contenedor se auto-observa (`useRevealOnEnter`): al entrar al viewport, las
+// figuras se revelan con el mismo fade-in escalonado que los bloques. Con
+// reduced-motion o sin IntersectionObserver quedan visibles de inmediato
+// (contrato de `useRevealOnEnter` + `revealAttrs`).
+function SectionFigures({
+  figures,
+}: {
+  figures: InstructionImage[];
+}): JSX.Element {
+  const { ref, animate, visible } = useRevealOnEnter<HTMLDivElement>();
+  return (
+    <div ref={ref} className="mt-5 space-y-5">
+      {figures.map((figure, i) => (
+        <div key={figure.src} {...revealAttrs('', animate, visible, i)}>
+          <AppFigure image={figure} className="mx-auto w-full max-w-[15rem]" />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -601,10 +654,19 @@ function BoardFigure({ image }: { image: InstructionImage }): JSX.Element {
   );
 }
 
-// Captura de la app (pantalla intermedia). No se recorta la UI.
-function AppFigure({ image }: { image: InstructionImage }): JSX.Element {
+// Captura de la app (pantalla intermedia). No se recorta la UI. `className`
+// controla el ancho del marco: por defecto el de las etapas de bloque
+// (`max-w-[17rem]`); las capturas sueltas de sección lo acotan un poco más para
+// que no dominen la lectura.
+function AppFigure({
+  image,
+  className = 'mx-auto w-full max-w-[17rem]',
+}: {
+  image: InstructionImage;
+  className?: string;
+}): JSX.Element {
   return (
-    <figure className="mx-auto w-full max-w-[17rem]">
+    <figure className={className}>
       <ReservedImage
         image={image}
         className="rounded-lg ring-1 ring-white/10"

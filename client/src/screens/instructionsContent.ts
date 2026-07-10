@@ -27,6 +27,10 @@ export interface InstructionSection {
   title: string;
   body: string[];
   blocks?: IllustratedBlock[];
+  // Capturas de la app (del walkthrough) que ilustran la sección. A diferencia
+  // de `blocks` (foto tablero -> app -> resultado, solo en registrar-poblados),
+  // `figures` son capturas sueltas con leyenda que acompañan al texto.
+  figures?: InstructionImage[];
   defaultOpen?: boolean;
 }
 
@@ -52,6 +56,14 @@ export const INSTRUCTIONS: InstructionSection[] = [
       'Todos juegan en la misma sala, cada uno desde su propio celular. Una persona crea la sala y comparte un código; los demás se unen con ese código y todo se sincroniza en tiempo real: cuando alguien construye o el banco reparte recursos, lo ves al instante en tu pantalla.',
       'Ten presente algo desde el principio: la app no ve el tablero. No sabe dónde están tus poblados ni qué fichas tocan. Por eso hay dos momentos en los que tú le pasas esa información: al inicio registras las fichas de tus poblados de salida, y las insignias de Camino más largo y Ejército más grande se asignan a mano. Todo lo demás lo lleva la app sola.',
     ],
+    figures: [
+      {
+        src: '/instructions/19-game-turn-main.jpg',
+        kind: 'app',
+        alt: 'Captura de la app durante la partida. Arriba, "TU MANO" con el total de cartas y tus cinco recursos (ladrillo, madera, lana, trigo y mineral), cada uno con su cantidad. Debajo, las recetas de construcción (Camino, Poblado, Ciudad y Carta de desarrollo) con su costo, los botones "Intercambiar" y "Jugar carta de desarrollo", y el botón verde "Terminar turno".',
+        caption: 'Esta es tu pantalla base durante la partida: aquí ves tu mano, consultas lo que puedes construir y cierras tu turno.',
+      },
+    ],
   },
   {
     id: 'sala',
@@ -61,6 +73,14 @@ export const INSTRUCTIONS: InstructionSection[] = [
       'Puedes jugar de dos formas. Como invitado solo eliges un nombre y entras enseguida, sin registrarte, ideal para quien juega una sola vez. Con una cuenta, en cambio, la app recuerda tu nombre y tu historial entre partidas. Los dos tipos de jugador conviven en la misma sala sin problema.',
       'Comparte el código en voz alta o por mensaje; como están todos en la misma mesa, lo más rápido suele ser dictarlo. En cuanto cada quien entra, aparece en la sala de espera, listo para el siguiente paso.',
     ],
+    figures: [
+      {
+        src: '/instructions/01-home-guest.jpg',
+        kind: 'app',
+        alt: 'Captura de la pantalla de inicio "Asistente de Catán". En la parte baja hay un botón verde "Crear partida" y, debajo, uno oscuro "Unirse a partida". En la esquina inferior derecha aparece el enlace "Iniciar sesión o crear cuenta".',
+        caption: 'Desde el inicio: toca "Crear partida" si tú organizas la mesa, o "Unirse a partida" para entrar con el código de otro.',
+      },
+    ],
   },
   {
     id: 'lobby',
@@ -69,6 +89,20 @@ export const INSTRUCTIONS: InstructionSection[] = [
       'La sala de espera es donde se reúnen todos antes de empezar. Aquí cada jugador elige su color; procura que coincida con el color de tus piezas físicas en la mesa, así no te confundes durante la partida.',
       'El anfitrión (quien creó la sala) tiene algunos controles extra. Ordena los turnos, elige quién será el encargado del banco (la persona que capturará los dados y confirmará los repartos) y activa las variantes de la partida.',
       'Entre esas variantes están el modo 5-6 jugadores y la expansión Caballeros y Ciudades. Actívalas aquí, antes de arrancar, si van a jugar con ellas. Cuando todos tengan color y la mesa esté lista, pasan a registrar los poblados de salida.',
+    ],
+    figures: [
+      {
+        src: '/instructions/08-lobby-host.jpg',
+        kind: 'app',
+        alt: 'Captura de la sala de espera vista por el anfitrión. Arriba, "CÓDIGO DE PARTIDA" con el código y un botón "Copiar", el interruptor "Extensión 5-6 jugadores" y el botón "Invitar amigos". Debajo, la lista "JUGADORES": tú apareces marcado como Anfitrión y Banco, y cada jugador tiene flechas para reordenarlo y una equis para expulsarlo.',
+        caption: 'Como anfitrión ves el código para compartir y los controles para reordenar o expulsar jugadores.',
+      },
+      {
+        src: '/instructions/09-lobby-player-color.jpg',
+        kind: 'app',
+        alt: 'Captura de la sala de espera con la sección "TU COLOR": botones Rojo, Azul, Blanco, Naranja y Morado. El Azul aparece tachado y deshabilitado porque otro jugador ya lo eligió.',
+        caption: 'Elige tu color en "TU COLOR"; los que ya tomó otro jugador salen tachados y deshabilitados.',
+      },
     ],
   },
   {
@@ -234,6 +268,14 @@ export const INSTRUCTIONS: InstructionSection[] = [
       'Con todos listos, se sortea el orden de juego con los dados. Tira tus dados físicos y captura el resultado; la app ordena los turnos según lo que saque cada quien. El anfitrión también puede activar aquí algunas reglas extra opcionales, si acordaron jugar con ellas.',
       'A partir de este punto empieza la partida normal, ronda por ronda, siguiendo el orden que quedó definido.',
     ],
+    figures: [
+      {
+        src: '/instructions/15-lobby-host-controls.jpg',
+        kind: 'app',
+        alt: 'Captura de los "CONTROLES DEL ANFITRIÓN". Arriba se ve la marca verde "Registro completo". Dentro del panel están el interruptor "Caballeros y Ciudades", el botón "Sortear orden con dados" y la sección "ENCARGADO DEL BANCO" con los jugadores para elegir a uno.',
+        caption: 'El anfitrión sortea el orden con dados, nombra al encargado del banco y activa variantes como Caballeros y Ciudades.',
+      },
+    ],
   },
   {
     id: 'turno',
@@ -242,6 +284,20 @@ export const INSTRUCTIONS: InstructionSection[] = [
       'Cada turno empieza con la tirada de producción. Tira los dos dados físicos sobre la mesa, como siempre. La app no ve los dados, así que el encargado del banco captura el número que salió.',
       'Con ese número, la app reparte automáticamente los recursos: a cada jugador le da lo que producen sus fichas con ese número, según lo que registraste al inicio. Verás aparecer los aumentos como pequeños "+N" en cada recurso, para que quede claro cuánto te tocó.',
       'Si sale un 7 no hay producción: se activa el ladrón (lo ves en su propia sección). En cualquier otro caso, tras el reparto ya puedes construir, intercambiar o jugar cartas.',
+    ],
+    figures: [
+      {
+        src: '/instructions/17-game-roll-phase.jpg',
+        kind: 'app',
+        alt: 'Captura del inicio del turno. Un aviso azul dice "Ingresa el número que salió en el dado". Debajo se ve tu mano y, más abajo, el "PANEL DEL BANCO" con un teclado numérico para capturar la tirada.',
+        caption: 'Al empezar el turno, el encargado del banco toca en el teclado el número que salió en los dados físicos.',
+      },
+      {
+        src: '/instructions/18-game-production.jpg',
+        kind: 'app',
+        alt: 'Captura tras la tirada. En la fila de recursos, los que produjeron muestran una etiqueta verde "+N" sobre su cantidad. Más abajo, el "PANEL DEL BANCO" indica la última tirada registrada.',
+        caption: 'Después de capturar la tirada, cada recurso que te tocó aparece con un "+N" verde para que veas cuánto produjiste.',
+      },
     ],
   },
   {
@@ -252,6 +308,20 @@ export const INSTRUCTIONS: InstructionSection[] = [
       'Cada compra se confirma antes de aplicarse, para que no se cuele un gasto por error. Al confirmar, mueve también la pieza de verdad en el tablero: la app lleva la cuenta, pero el poblado o el camino los colocas tú en la mesa.',
       'Ojo con los poblados nuevos: como la app no ve dónde lo pusiste, un poblado recién construido queda PENDIENTE hasta que registres las fichas que toca, igual que hiciste con los de salida. Mientras esté pendiente no produce; en cuanto lo registras, empieza a darte recursos.',
     ],
+    figures: [
+      {
+        src: '/instructions/24-game-buy-settlement.jpg',
+        kind: 'app',
+        alt: 'Captura con la confirmación "Comprar poblado". Muestra el costo en recursos y una nota de que al confirmar se descuentan y el poblado aparece en tu Tabla de construcción. Abajo, los botones "Cancelar" y "Confirmar compra".',
+        caption: 'Cada construcción se confirma antes de aplicarse y te recuerda su costo, para que no se cuele un gasto por error.',
+      },
+      {
+        src: '/instructions/42-game-construction-table.jpg',
+        kind: 'app',
+        alt: 'Captura de la "Tabla de construcción". Un poblado recién comprado aparece con la etiqueta "PENDIENTE", sin fichas todavía, con el botón "Registrar fichas" y el enlace "No toca recursos".',
+        caption: 'Un poblado nuevo queda marcado "Pendiente" y no produce hasta que registres las fichas que toca.',
+      },
+    ],
   },
   {
     id: 'cartas',
@@ -260,6 +330,20 @@ export const INSTRUCTIONS: InstructionSection[] = [
       'Comprar una carta de desarrollo te da una carta al azar del mazo. Puede ser un Caballero, una carta de Construcción de caminos, Año de la abundancia, Monopolio o un Punto de victoria. La app te dice cuál te tocó y la guarda en tu mano.',
       'Una regla clave: no puedes jugar una carta el mismo turno en que la compras (los Puntos de victoria son la excepción, porque solo suman al final). La app respeta esa espera, así que una carta recién comprada aparecerá disponible hasta tu siguiente turno.',
       'Cuando juegues una carta, la app aplica su efecto: el Caballero mueve el ladrón y cuenta para el Ejército más grande; Año de la abundancia te da dos recursos del banco a tu elección; Monopolio te entrega todas las cartas de un recurso del resto de jugadores; y Construcción de caminos te deja poner dos caminos. Los Puntos de victoria se quedan ocultos en tu mano hasta que ganas.',
+    ],
+    figures: [
+      {
+        src: '/instructions/50-game-play-card-menu.jpg',
+        kind: 'app',
+        alt: 'Captura del menú "Jugar carta de desarrollo". Lista las cartas de tu mano, cada una con una breve explicación y su cantidad: Caballero, Punto de victoria, Año de la abundancia y Construcción de caminos.',
+        caption: 'Desde este menú eliges qué carta de desarrollo jugar; cada opción resume su efecto y cuántas tienes.',
+      },
+      {
+        src: '/instructions/28-card-knight.jpg',
+        kind: 'app',
+        alt: 'Captura del preview de la carta Caballero: su ilustración y el texto que explica que mueve el ladrón, roba una carta al azar a un jugador con poblado o ciudad ahí y cuenta para el Ejército más grande.',
+        caption: 'Toca una carta para leer qué hace antes de jugarla, como este preview del Caballero.',
+      },
     ],
   },
   {
@@ -270,6 +354,20 @@ export const INSTRUCTIONS: InstructionSection[] = [
       'Con otros jugadores propones un trato (doy esto, pido aquello) que se cierra cuando ambos aceptan. Los recursos pasan de una mano a otra dentro de la app al confirmar, así que no hace falta mover fichas de cartón.',
       'También puedes usar el puerto de otro jugador si en tu mesa juegan con esa regla, con o sin la comisión que hayan acordado. La app te deja registrar ese intercambio para que las cuentas cuadren.',
     ],
+    figures: [
+      {
+        src: '/instructions/34-game-trade-bank.jpg',
+        kind: 'app',
+        alt: 'Captura del intercambio con la pestaña "Banco / Puertos" activa. La fila "DOY" te deja elegir qué recursos entregas y la fila "RECIBO" muestra lo que el banco te daría a cambio. Abajo, el botón "Confirmar intercambio".',
+        caption: 'Con el banco y los puertos eliges qué das y qué recibes; la app aplica sola tu mejor ratio disponible.',
+      },
+      {
+        src: '/instructions/35-game-trade-players.jpg',
+        kind: 'app',
+        alt: 'Captura del intercambio con la pestaña "Jugadores" activa. Cada recurso de las filas "DOY" y "RECIBO" tiene sumadores (menos, cantidad, más) para armar la oferta.',
+        caption: 'Con otros jugadores armas el trato con los sumadores: subes lo que ofreces y lo que pides a cambio.',
+      },
+    ],
   },
   {
     id: 'siete',
@@ -278,6 +376,20 @@ export const INSTRUCTIONS: InstructionSection[] = [
       'Cuando alguien saca un 7 no se produce nada y pasan tres cosas. Primero, todo jugador con más cartas del límite permitido debe descartar la mitad; la app te avisa y te hace elegir qué sueltas antes de seguir.',
       'Después, quien tiró mueve el ladrón. En el tablero físico colocas la ficha del ladrón sobre una loseta; en la app eliges esa misma loseta para que sepa cuál queda bloqueada. Esa loseta deja de producir mientras el ladrón esté encima.',
       'Por último, robas una carta al azar a un jugador que tenga un poblado o ciudad en esa loseta. Eliges a la víctima en la app y ella se encarga de pasar un recurso al azar a tu mano, sin que nadie vea cuál.',
+    ],
+    figures: [
+      {
+        src: '/instructions/44-game-discard-seven.jpg',
+        kind: 'app',
+        alt: 'Captura del descarte forzado. El aviso "Te toca descartar" indica que salió un 7 y que debes descartar exactamente N cartas; lista tus recursos con sumadores para elegir cuáles sueltas y un contador de lo que llevas elegido.',
+        caption: 'Tras un 7, si te pasas del límite la app te hace soltar exactamente la cantidad de cartas que indica.',
+      },
+      {
+        src: '/instructions/46-game-robber-pick-hex.jpg',
+        kind: 'app',
+        alt: 'Captura para mover el ladrón. El aviso "Elige la ficha a donde se mueve el ladrón" lista las fichas con poblados o ciudades, cada una con su número, su recurso y quién la toca, para seleccionar una.',
+        caption: 'En la app eliges la misma ficha donde colocaste el ladrón en el tablero, y así queda bloqueada.',
+      },
     ],
   },
   {
@@ -288,6 +400,20 @@ export const INSTRUCTIONS: InstructionSection[] = [
       'El Ejército más grande es de quien haya jugado más Caballeros (mínimo tres); ese conteo sí lo lleva la app, pero la asignación se confirma igual para que todos estén de acuerdo. El resto de puntos (poblados, ciudades y Puntos de victoria de cartas) la app los suma automáticamente.',
       'La partida termina en cuanto un jugador llega a los puntos necesarios en su turno. La app avisa del ganador y cierra la partida. Aun así, cotejen los puntos con el tablero antes de cantar victoria, sobre todo las insignias que se asignan a mano.',
     ],
+    figures: [
+      {
+        src: '/instructions/52-game-players-badges.jpg',
+        kind: 'app',
+        alt: 'Captura del panel de jugadores. Bajo un jugador aparecen las insignias "Ejército más grande" y "Camino más largo", cada una con sus 2 puntos, junto a sus conteos de mano, poblados, ciudades, desarrollo, caballeros y puntos.',
+        caption: 'En el panel de jugadores ves quién tiene el Ejército más grande y el Camino más largo, cada insignia con sus puntos.',
+      },
+      {
+        src: '/instructions/56-game-ended.jpg',
+        kind: 'app',
+        alt: 'Captura de la pantalla de fin de partida "Partida finalizada". Muestra un resumen con turnos jugados, quién robó más y número de tiradas, más las estadísticas de dados. Abajo, el botón "Volver al inicio".',
+        caption: 'Al terminar, la app cierra la partida y te deja un resumen de cómo estuvo.',
+      },
+    ],
   },
   {
     id: 'privacidad',
@@ -296,6 +422,20 @@ export const INSTRUCTIONS: InstructionSection[] = [
       'Como cada quien juega en su propio celular, tu mano es privada por dispositivo: solo tú ves tus cartas y tus recursos. Nadie puede espiar tu pantalla para saber qué guardas, igual que no verían tus cartas de cartón.',
       'A la vez, las acciones que deben ser públicas sí se anuncian. El banco publica avisos de lo que ocurre (cuánto se repartió, quién construyó, quién intercambió) para que la mesa confíe en las cuentas sin necesidad de revelar manos privadas.',
       'Si algo se captura mal, existe la opción de deshacer la última acción, y todo queda en un registro cronológico de la partida. Ante una duda, revisen ese historial: deja ver qué pasó y en qué orden, y ayuda a resolver cualquier desacuerdo sin discutir de memoria.',
+    ],
+    figures: [
+      {
+        src: '/instructions/27-game-hand-hidden.jpg',
+        kind: 'app',
+        alt: 'Captura de tu mano con la privacidad activada. En "TU MANO" se ve el total de cartas, pero cada recurso aparece tapado con un punto y la nota "OCULTO — toca para mostrar"; lo mismo pasa con tus cartas de desarrollo.',
+        caption: 'Con el toggle de privacidad se ve tu total pero no el detalle: nadie espía en tu pantalla qué guardas.',
+      },
+      {
+        src: '/instructions/30-game-bank-give-card.jpg',
+        kind: 'app',
+        alt: 'Captura de "Entregar carta del banco": eliges a quién le das y qué carta (un recurso del stock del banco o una de desarrollo). Un aviso amarillo advierte que todos los jugadores verán esta entrega.',
+        caption: 'Cuando el banco entrega una carta a mano, la app siempre avisa a toda la mesa para que la cuenta sea pública.',
+      },
     ],
   },
 ];
