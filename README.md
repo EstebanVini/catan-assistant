@@ -1,149 +1,226 @@
 # Catán Assistant
 
-Asistente digital **mobile-first** para partidas presenciales del juego de mesa Catán. Reemplaza el papel y las cartas de recursos; el tablero físico sigue existiendo. Sincronización en tiempo real entre los celulares de los jugadores conectados a la misma sala por código.
+**Mobile-first digital assistant** for in-person games of the Catan board game.
+It replaces the paper score sheet and the resource cards; the physical board
+still exists. Players' phones join the same room by code and stay in sync in real
+time.
 
-UI en español, identificadores de código en inglés.
+The interface is in Spanish; code identifiers are in English.
 
-## Stack
+**▶ Live app: [catan-assistant.eviniegra.software](https://catan-assistant.eviniegra.software)** — installable as a PWA from Chrome/Edge/Android ("Install") and iOS ("Add to Home Screen").
 
-- **Backend**: Node.js + Express + Socket.IO + TypeScript. El estado en vivo de cada partida vive **en memoria**; **MongoDB (Mongoose)** persiste usuarios, historial de partidas y estadísticas.
-- **Autenticación**: cuentas con login simple **JWT + bcrypt** (registro/login por REST, token en el handshake de Socket.IO). El **modo invitado** funciona sin cuenta (no acumula stats).
-- **Frontend**: React 18 + Vite + Zustand + Tailwind CSS + `socket.io-client` + TypeScript.
-- **Un solo proceso** en producción: Express sirve el cliente compilado (`client/dist`) y mantiene el socket.
-- **Docker**: `docker compose up --build` levanta MongoDB + la app completa.
+---
 
-## Estructura
+## What it is
+
+A **mobile-first web app (PWA)** that acts as a digital assistant for **in-person**
+Catan games. The physical board stays on the table; the app takes over the
+bookkeeping — the bank, resources, buildings and cards — so it's **cheat-proof and
+shared in real time**.
+
+- Several players join the **same session** from their phones with a **5-character
+  room code** and see a shared state that updates instantly.
+- Supports the **base game (3–4 players)**, the **5–6 player extension** (lobby
+  toggle) and the **Cities & Knights expansion** (`citiesKnights` toggle, victory
+  at 13 points).
+- **100% Spanish UI**; **English code identifiers**.
+
+## Features
+
+**Accounts & identity**
+- Register / log in with **JWT + bcrypt**; **guest mode** (play without earning
+  stats). Session syncs across browser tabs (`storage` event).
+- **Profile**: edit display name, preferred color and avatar; deterministic
+  generated avatar (initials + color by hash) with a fallback if the image fails.
+- **Stats**: games, wins/losses, win rate, total VP, badges (longest road /
+  largest army), **current and longest win streak**, **XP + level**, and
+  **achievements**.
+- **Friends**: search users, send/accept/reject/cancel requests, remove friends,
+  see who's **online**, **invite to the room** in real time, and view a friend's
+  full profile.
+
+**Room / lobby**
+- Create a room (5-character code) and join by code; automatic **reconnection**
+  via `sessionToken`.
+- The host configures **colors** per player, **turn order** (manual or dice
+  draw), the **bank manager**, the **5–6 extension** and **Cities & Knights**
+  toggles, a **start without resources** toggle, and **extra rules**. The host can
+  also **kick** players and **cancel** the room.
+- Each player registers their **2 starting settlements** (the number+resource
+  tokens they touch); starting the game is gated until everyone is ready (except
+  in the "no tokens" mode).
+
+**Gameplay engine**
+- **Dice roll**: the bank manager enters the number (base) or the 3 dice
+  (Cities & Knights); resources are distributed to settlements/cities and **dice
+  statistics** are tracked.
+- **The 7 sequence**: forced discard (> 7 cards) → move the robber → random steal.
+  The robber can go to a board hex, the **desert**, or a **generic empty tile**.
+  Extra robber rules are supported (no steal on the first round; empty tile/desert
+  grants a bank resource).
+- **Building**: roads, settlements, cities, development cards; an editable
+  **construction table** that derives the production hexes; pending token
+  registration after buying a settlement (with a **buy confirmation**).
+- **Development cards**: Knight (+ Largest Army), Year of Plenty, Monopoly, Road
+  Building, and Victory Point (private until used). Cards can't be played the turn
+  they're bought. Each card has an illustrated **preview with a description**.
+- **Trades**: with the bank/ports (4:1 / 3:1 / 2:1 ratios), **between players**
+  (targeted or open offers, per-player rejection), and **use another player's
+  port** with an optional commission (3-step flow).
+- **Badges & victory**: Longest Road (assigned manually by bank/host), Largest
+  Army (automatic), declare victory (10 base / 13 Cities & Knights) → the match
+  and stats are persisted.
+- **Bank**: manual card grants (cheat-proof: always announced publicly) and
+  **undo** of the last action. The bank is **informational only** — it never
+  blocks a grant.
+- **Special Build Phase** (5–6 extension).
+- **Leave a game** in progress (returns cards to the bank/decks and frees the
+  seat) and **end a game** with no winner (host).
+- Full **Cities & Knights expansion**: commodities, city improvements
+  (trade/science/politics), metropolises, knights, city walls, the barbarian
+  track, progress cards, aqueduct and merchant.
+
+**Real time, privacy & feedback**
+- Shared state over Socket.IO with a **personalized view**: other players' hands
+  and card types are never sent — only public counts.
+- **Your own hand is private too**: local toggles (which never touch the shared
+  state) let you hide your resources and dev cards during an in-person game.
+- Prominent public **notices** (cheat-proof), **toasts**, a chronological game
+  **log**, a disconnect/reconnect banner, and real-time friend **invitations**.
+- **Installable PWA** (offline shell; never caches `/socket.io/` or `/api/`).
+- Catan theme, **accessibility** (WCAG AA, focus trap in modals,
+  `prefers-reduced-motion`), animations and micro-interactions.
+
+## Architecture
+
+The defining trait: **each live game's state lives in memory on the server** (the
+authoritative source of truth); **MongoDB** persists only what must survive between
+sessions — accounts, match history, stats and friendships. The server **degrades
+gracefully**: if MongoDB is down, you can still play in guest mode (only accounts
+and result persistence are disabled).
+
+![Container architecture — actors, Client SPA/PWA, single-process Node server (HTTP+WS edge, auth REST, real-time layer, in-memory state, pure domain, persistence) and MongoDB](docs/catan_assistant_container_architecture_en.png)
+
+### Single process & deployment
+
+- **One process in production**: a single Node app (Express + Socket.IO) **serves
+  the compiled client** (`client/dist`, with SPA fallback) **and** keeps the
+  WebSocket, all on port `3001`.
+- In development, the Vite dev server (`:5173`) proxies `/api` and `/socket.io` to
+  the Node server (`:3001`) and listens on the LAN so you can test from phones.
+- **Docker**: `docker compose up --build` starts MongoDB + the full app
+  (multi-stage `node:20-alpine` image, non-root user). See
+  [docs/development-setup.md](docs/development-setup.md).
+
+### Backend
+
+- **Node.js + Express + Socket.IO + TypeScript**. Entry point `server/src/index.ts`.
+- **Auth** (`server/src/auth/`): REST register/login with **bcrypt** hashing and
+  **JWT** (30-day tokens); `GET/PATCH /api/users/me`; friends endpoints. The
+  socket sends the JWT in the handshake (`auth.token`); **guest mode** is allowed
+  (no token → no stats).
+- **Real-time layer** (`server/src/socket/handlers.ts`): ~60 client→server event
+  handlers. Each socket joins a Socket.IO room named by the **game code**, and
+  authenticated users also join a personal room `user:<userId>` for out-of-game
+  invites. The server emits `state:update` (the main state push), plus `notice`,
+  `error`, `build:notify`, `achievement:unlocked`, `friends:invited`,
+  `lobby:kicked` and `lobby:cancelled`.
+- **In-memory state** (`server/src/game/rooms.ts`): a `Map<code, GameState>` of
+  active rooms plus a per-room snapshot stack for **undo** (max 10). Volatile — it
+  is lost on restart.
+- **Pure domain logic** (`server/src/game/`, tested with Vitest): `state.ts`
+  (domain types), `rules.ts` (costs, distribution, the 7, trades, dev cards, VP
+  and all Cities & Knights math), `setup.ts` (hex seeding and initial deal) and
+  `achievements.ts` (achievement catalog, XP, levels). No side effects — the
+  handlers call into it as plain functions.
+- **Persistence** (`server/src/db/`): a fault-tolerant Mongoose connection;
+  `persistMatch.ts` creates the `Match` and atomically updates each registered
+  user's stats when victory is declared. Models: `User`, `Match`, `Friendship`.
+
+### Frontend
+
+- **React 18 + Vite + TypeScript + Zustand + Tailwind CSS + socket.io-client**.
+- **State-driven navigation** (no router): `App.tsx` picks the screen from the
+  store. Screens: `LoginScreen`, `HomeScreen`, `LobbyScreen`, `GameScreen`,
+  `ProfileScreen`, `WinnerScreen`.
+- A single **Zustand store** (`store.ts`) holds the server-pushed `view`, the room
+  `session`, the account auth (`authToken`/`authUser`/`guestMode`, independent
+  from the room session), toasts, notices and invites. Its actions are thin
+  wrappers over `socket.emit(...)`; `wireSocket()` bridges socket events into the
+  store.
+- **localStorage** persists the room session, JWT, cached user and guest mode.
+- **PWA**: the service worker (`sw.js`) is **network-first** for navigation and
+  **never** intercepts `/socket.io/` or `/api/` (real time and auth always hit the
+  network). Registered in production only.
+
+### Privacy model
+
+Each player's **hand** and **development cards** are private: the server builds a
+**personalized view per socket** (`server/src/socket/views.ts`) and emits
+`state:update` individually, so everyone gets their own private hand while others
+see only public counts.
+
+![Privacy boundary — the in-memory GameState passes through views.ts, which emits each player a personalized state:update with their private hand and only public counts for others](docs/catan_assistant_privacy_boundary_broadcast_en.png)
+
+## Project structure
 
 ```
 catan-assistant/
-  package.json          # scripts raíz (dev, build, start, test, docker:*)
-  docker-compose.yml    # mongo + server (build multi-stage del client+server)
-  .env.example          # MONGODB_URI, JWT_SECRET, PORT, credenciales mongo
+  package.json          # root scripts (dev, build, start, test, docker:*)
+  docker-compose.yml    # mongo + server (multi-stage build of client + server)
+  .env.example          # MONGODB_URI, JWT_SECRET, PORT, mongo credentials
   server/               # backend (Express + Socket.IO)
-    Dockerfile          # multi-stage: compila client + server, imagen final ligera
+    Dockerfile          # multi-stage: builds client + server, lean final image
     src/
-      index.ts          # entry: Express + Socket.IO + auth + mongo, sirve client/dist
-      auth/
-        auth.ts         # REST: register/login (bcrypt+JWT), GET/PATCH /api/users/me
-        middleware.ts   # Bearer en REST + guard del handshake Socket.IO (invitado ok)
-      db/
-        connection.ts   # conexión Mongoose (tolerante: el juego sigue sin DB)
-        persistMatch.ts # al terminar: crea Match y actualiza stats ($inc atómico)
-        models/         # User.ts, Match.ts
-      game/
-        state.ts        # tipos del dominio (Resource, Hand, Player, Hex, GameState)
-        rules.ts        # lógica pura (costos, distribución, 7, robo, trade)
-        setup.ts        # construcciones iniciales -> hexes sembrados + recursos de inicio
-        rooms.ts        # gestión de salas en memoria + snapshots para undo
-      socket/
-        handlers.ts     # eventos cliente <-> servidor
-        views.ts        # vista personalizada por jugador (oculta manos ajenas)
+      index.ts          # entry: Express + Socket.IO + auth + mongo; serves client/dist
+      auth/             # REST register/login (bcrypt+JWT), /api/users/me, friends, guards
+      db/               # Mongoose connection, match persistence, models/
+      game/             # state, rules, setup, achievements, rooms (in-memory), tests
+      socket/           # handlers (client <-> server events), views (per-player view)
   client/               # frontend (React + Vite)
     src/
-      main.tsx
-      App.tsx
-      api.ts            # llamadas REST de auth
-      socket.ts         # cliente Socket.IO con reconexión (manda el JWT)
-      store.ts          # estado global (Zustand)
+      main.tsx, App.tsx
+      api.ts            # REST auth/profile/friends client
+      socket.ts         # Socket.IO client with reconnection (sends the JWT)
+      store.ts          # global state (Zustand)
       screens/          # Login, Home, Lobby, Game, Profile
-      components/       # HandView, ActionGrid, BankPanel, ProductionTable, ...
+      components/       # HandView, ActionGrid, BankPanel, ConstructionTable, ...
       lib/              # persistence, motion, playerColors, spanish, useModalA11y
-  docs/                 # briefs de UX por fase
-  plan.md               # plan completo de desarrollo
-  prompt-claude-code-catan.md
+    public/             # PWA manifest + service worker + icons
+  docs/                 # setup guide, UX briefs, plans, and the architecture diagrams
 ```
 
-## Requisitos
+## Tech stack
 
-- Node.js ≥ 18 y npm ≥ 9 (para correr fuera de Docker)
-- Docker + Docker Compose (para MongoDB y/o la app completa)
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Vite, TypeScript, Zustand, Tailwind CSS, socket.io-client, PWA |
+| Backend | Node.js, Express, Socket.IO, TypeScript |
+| Auth | JWT + bcrypt (guest mode supported) |
+| Database | MongoDB (Mongoose) — users, matches, friendships |
+| Live game state | In-memory `Map<code, GameState>` (authoritative, volatile) |
+| Tests | Vitest (pure game logic) |
+| Packaging | Docker + Docker Compose (single-process app + mongo) |
 
-## Configuración
+## Privacy & security
 
-```bash
-cp .env.example .env
-# Edita JWT_SECRET (usa un valor largo y aleatorio) y, si quieres, las credenciales de mongo.
-```
+- Resource hands and development-card types are **private**: the server sends a
+  personalized view per socket (others only see counts).
+- Passwords are hashed with **bcrypt** (salt included); the `passwordHash` never
+  leaves the server; passwords and tokens are never logged.
+- `JWT_SECRET` comes from an environment variable; `.env` is in `.gitignore`.
+- Every manual bank grant produces a public notice + a log entry (cheat-proof).
 
-Variables de entorno:
+## Documentation
 
-| Variable | Descripción | Default |
-|---|---|---|
-| `PORT` | Puerto del server (Express + Socket.IO) | `3001` |
-| `MONGODB_URI` | Conexión a MongoDB | `mongodb://catan:...@localhost:27017/catan?authSource=admin` |
-| `JWT_SECRET` | Secreto para firmar los JWT | — (obligatorio en producción) |
-| `MONGO_INITDB_ROOT_USERNAME/PASSWORD` | Credenciales del contenedor de mongo | `catan` / `catan-dev-password` |
+- [docs/development-setup.md](docs/development-setup.md) — requirements,
+  configuration, installation, running locally and with Docker, tests.
+- [docs/prompt-diagrama-arquitectura.md](docs/prompt-diagrama-arquitectura.md) —
+  the architecture-diagram prompt the diagrams above were generated from.
+- Architecture diagrams: [container architecture](docs/catan_assistant_container_architecture_en.png)
+  · [privacy boundary & broadcast](docs/catan_assistant_privacy_boundary_broadcast_en.png).
+- `docs/` also holds the UX briefs, development plans and QA reports.
 
-> Si MongoDB no está disponible, la app sigue funcionando para **jugar** (salas en memoria, modo invitado); solo se deshabilitan cuentas y persistencia de resultados.
+## License
 
-## Instalación
-
-```bash
-npm run install:all
-```
-
-## Desarrollo (DB en Docker, código local)
-
-```bash
-npm run docker:db   # levanta solo mongo (docker compose up -d mongo)
-npm run dev
-```
-
-- Server con `tsx watch` en `http://localhost:3001`.
-- Client con Vite en `http://localhost:5173` (proxy `/socket.io` y `/api` al server; escucha en la red local para probar desde celulares).
-
-## Producción local (un solo proceso, un solo puerto)
-
-```bash
-npm run build
-npm start
-```
-
-- `build` compila el cliente a `client/dist`.
-- `start` arranca el server, que sirve los estáticos del cliente y el SPA fallback en el puerto `PORT` (3001).
-
-## Todo en Docker
-
-```bash
-docker compose up --build
-```
-
-Levanta `mongo` (volumen `mongo-data` persistente) y `server` (imagen multi-stage `node:20-alpine`, usuario no-root) sirviendo la app completa en `http://localhost:3001`.
-
-```bash
-npm run docker:down   # detener todo
-```
-
-## Tests
-
-```bash
-npm test
-```
-
-Vitest cubre la lógica pura del juego:
-- `rules.ts`: distribución con banco limitado, descartes tras el 7, proporciones de intercambio con banco/puertos.
-- `setup.ts`: validación de la tabla de construcción, derivación de los hexes de producción (merge por número+recurso, desierto con ladrón, posición del ladrón preservada al editar) y reparto de recursos de inicio con banco limitado.
-
-## Funcionalidad
-
-- **Cuentas y perfil**: registro/login (JWT + bcrypt), perfil con avatar, nombre visible, color preferido y estadísticas (partidas, victorias, insignias). Modo invitado sin fricción.
-- **Salas**: crear / unirse por código / reconectar desde `localStorage` (sesión de sala independiente del JWT).
-- **Lobby**: código compartible, selección de color (sin repetir), reordenar turnos (o sorteo por dados), encargado del banco, toggle Extensión 5–6, y **registro de construcciones iniciales** (cada jugador registra sus 2 poblados con las fichas número+recurso que tocan). El host ve el progreso y solo puede iniciar cuando todos completaron.
-- **Inicio de partida**: reparto automático de recursos — **todos los poblados registrados dan 1 carta por cada ficha que tocan** — y derivación de los hexes de producción a partir de los registros (el ladrón arranca en el desierto).
-- **Juego**: barra de turno con **marcador propio (nombre, color y puntos)**, mano privada, acciones (construir con **confirmación de compra**, intercambiar, terminar turno), panel del banco (teclado 2–12, deshacer, **entrega manual de cartas con notificación pública anti-trampas**), **Tabla de construcción** personal y colapsable (los poblados/ciudades entran SOLO comprándolos: el poblado crea su slot y la ciudad pide elegir qué poblado sube; aquí solo se editan las fichas), sección **"Cartas de desarrollo"** con preview ilustrado, estado público de jugadores, log cronológico. El **banco es ilimitado**: nunca bloquea entregas (contadores informativos).
-- **Intercambios entre jugadores**: el rechazo es individual — la oferta solo se oculta para quien la rechazó y sigue activa para el resto hasta que alguien la acepta o todos la rechazan.
-- **Reglas que el servidor hace cumplir**: distribución con banco limitado, secuencia del 7 completa (descarte + ladrón + robo aleatorio), intercambio banco/puertos (4:1, 3:1, 2:1) y entre jugadores, cartas de desarrollo completas (Caballero, Monopolio, Año de la abundancia, Construcción de caminos; no jugables el turno en que se compran), insignias (Ejército más grande automático, Camino más largo manual), victoria a 10 declarada en tu turno.
-- **Cartas de Punto de victoria**: no suman al marcador al comprarse; el dueño las **usa** cuando quiere (incluso el mismo turno) y solo entonces el punto se vuelve público para toda la mesa. Cada carta de desarrollo tiene **preview con descripción** antes de jugarla.
-- **Extensión 5–6**: hasta 6 jugadores (verde y café), banco 24, mazo 34, Fase de Construcción Especial entre turnos.
-- **Al terminar**: el resultado se guarda en MongoDB (`matches`) y las stats de los usuarios registrados se actualizan atómicamente; los invitados quedan en el historial sin cuenta.
-
-## Privacidad y seguridad
-
-- Las manos de recurso y los tipos de cartas de desarrollo son **privados**: el servidor envía una vista personalizada por socket (los demás solo ven conteos).
-- Contraseñas hasheadas con **bcrypt** (sal incluida); el `passwordHash` nunca sale del servidor; no se loguean contraseñas ni tokens.
-- `JWT_SECRET` por variable de entorno; `.env` está en `.gitignore`.
-- Toda entrega manual del banco genera notificación pública + entrada en el log (anti-trampas).
-
-## Licencia
-
-Privado.
+Private.
