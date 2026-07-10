@@ -1,6 +1,6 @@
 # context.md — Catán Assistant (referencia rápida por sesión)
 
-> Lee este archivo al inicio de cada sesión de Claude Code. Describe **qué es la app, cómo está construida y dónde vive cada cosa**, para no tener que redescubrir el proyecto cada vez. El plan de trabajo está en `plan.md`; el prompt original (la visión completa) en `prompt-claude-code-catan.md`. Cuando algo de aquí deje de ser cierto, **actualiza este archivo**.
+> Lee este archivo al inicio de cada sesión de Claude Code. Describe **qué es la app, cómo está construida y dónde vive cada cosa**, para no tener que redescubrir el proyecto cada vez. El plan de trabajo está en `docs/internal_prompts/plan.md`; el prompt original (la visión completa) en `docs/internal_prompts/prompt-claude-code-catan.md`. Cuando algo de aquí deje de ser cierto, **actualiza este archivo**.
 
 ---
 
@@ -62,11 +62,14 @@ Todo lo siguiente está **implementado y funcionando** salvo lo marcado como fut
 catan-assistant/
   package.json            # scripts raíz: dev, build, start, test, docker:*
   docker-compose.yml
-  prompt-claude-code-catan.md  # visión original completa
-  plan.md                 # plan de desarrollo y fases (delta sobre lo ya hecho)
-  context.md              # ESTE archivo
-  cambios.txt             # cambios pendientes solicitados por el usuario
-  docs/                   # briefs de UX y reportes (ver §8)
+  README.md               # doc pública (INGLÉS): funcionalidad, arquitectura, URL en vivo, diagramas
+  docs/                   # (reorganizado) — ver §8
+    documentation/        # docs PÚBLICAS: development-setup.md, walkthrough.md (recorrido visual),
+                          #   catan_assistant_*_en.png (diagramas de arquitectura)
+    screenshots/          # capturas numeradas del recorrido (NN-nombre.png; referenciadas por walkthrough.md)
+    internal_prompts/     # docs INTERNAS: context.md (ESTE archivo), plan.md, cambios.txt (cambios
+                          #   solicitados), prompt-claude-code-catan.md, caballeros-plan.md, briefs y
+                          #   planes por tanda (cambios-*-plan*.md), qa-caballeros.md, etc.
   .claude/agents/         # definiciones de los 6 subagentes del proyecto
   server/
     src/
@@ -169,6 +172,14 @@ Aditiva: con el toggle apagado el juego se comporta EXACTAMENTE como el base. Co
 
 ## 8. Documentación de apoyo (docs/)
 
+> **`docs/` se reorganizó (julio 2026)** en tres carpetas: `documentation/` (público), `screenshots/` (capturas) e `internal_prompts/` (interno). **Todos los archivos listados abajo viven ahora en `docs/internal_prompts/`** salvo los públicos que se indican. El `README.md` de la raíz se reescribió en inglés (funcionalidad + arquitectura + URL en vivo `catan-assistant.eviniegra.software` + los 2 diagramas).
+
+**Públicos (`docs/documentation/`):**
+- `walkthrough.md` — recorrido visual de la app pantalla por pantalla (home invitado/logueado, perfil, amigos, lobby y una partida completa) con 56 capturas anotadas (en `docs/screenshots/`, nombradas `NN-nombre.png`).
+- `development-setup.md` — requisitos, configuración, instalación, correr local y con Docker, tests (salió del README).
+- `catan_assistant_container_architecture_en.png` y `catan_assistant_privacy_boundary_broadcast_en.png` — diagramas de arquitectura (contenedores + frontera de privacidad), generados desde `internal_prompts/prompt-diagrama-arquitectura.md`.
+
+**Internos (`docs/internal_prompts/`):**
 - `ux-brief-mvp.md`, `ux-brief-phase2.md`, `ux-brief-phase3-delta.md` — briefs de UX por fase.
 - `brief-cambios.md`, `brief-cambios-v2.md`, `brief-cambios-v3.md` — briefs de iteraciones de cambios.
 - `contrast-verification.md` — verificación de contraste WCAG.

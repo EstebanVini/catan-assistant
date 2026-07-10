@@ -1,22 +1,152 @@
-Cambios Ciudades y caballeros.
-(estos cambios únicamente cubren la extensión de Caballeros y Ciudades)
+========================================================================
+CAMBIO SOLICITADO (verbatim del usuario)
+========================================================================
+Cambios Juego base:
 
-Bugs:
+En el lobby de la partida cualquier jugador puede seleccionar "mis puertos"
+y les da el puerto por defecto sin seleccionar un poblado a cuál poblado
+agregar ese puerto. Este es un bug porque cualquier jugador puede ponerse
+el puerto que quiera y además tener pueblos con 3 fichas de recursos. Lo que
+debería ser es que en el lobby, en cualquiera de los pueblos iniciales, haya
+una opción de agregar un puerto (tal como en la partida) y que si se agrega
+un puerto a cualquier poblado, solo sea posible agregar 1 o 2 fichas de
+recursos a ese poblado.
 
-El ícono de ciencia se ve demasiado pequeño en todos lados, se ve desproporcionado a los de comercio y política, la imágen es un poco más pequeña así que ajústala para que quede del mismo tamaño
+Clasificación: BUG (prioridad alta). Tanda: "6ª tanda — juego base".
+Rama de trabajo: main. Un commit por cambio verificado.
 
-No sirve correctamente la carta "grúa", si hace el descuento pero en la tabla de calendario de ciudad no aparece que puedes hacer la mejora por 1 recurso menos y además no se activa el botón para hacer la mejora
+========================================================================
+ANÁLISIS DE CAUSA RAÍZ
+========================================================================
+El dominio YA modela el puerto por construcción y su límite de fichas:
+  - state.ts: `Building { ..., spots: BuildingSpot[] /*0..3, 0..2 si tiene
+    puerto*/, port?: PortType | null }`.
+  - setup.ts `validateBuildings`: ya aplica `maxSpots = b.port ? 2 : 3` y
+    rechaza el registro si un poblado con puerto excede 2 fichas.
+  - La TABLA DE CONSTRUCCIÓN en partida (ConstructionTable.tsx) ya expone el
+    patrón correcto: un botón "Sin puerto / editar" por poblado que abre
+    `PortPickerSheet`; `confirmPort` fija `b.port`, recorta a 2 fichas si
+    hace falta, y deriva `player.ports` de los edificios.
 
-La carta "obispo" tiene que resolverse automáticamente. Al jugar esa carta el jugador debería poder elegir a qué ficha mover al ladrón y recibir un recurso del jugador al que le puso al ladrón (o si está activada la regla extra y lo mueve al desierto o a una ficha vacía, recibe una carta del banco
+El bug vive SOLO en el LOBBY, que usa un mecanismo paralelo y desligado:
+  - LobbyScreen.tsx: botón "Mis puertos (N)" → `PortsModal` (checkboxes de
+    puertos arbitrarios) → `setPorts(p)` → socket `player:setPorts`.
+  - handlers.ts `player:setPorts`: fija `player.ports = ports` DIRECTO, sin
+    tocar los edificios ni el tope de fichas.
+  Resultado: cualquiera se auto-asigna el puerto que quiera Y conserva
+  poblados con 3 fichas. Además, la derivación en `player:setBuildings`
+  (línea ~658) solo sobrescribe `player.ports` cuando hay ≥1 puerto en los
+  edificios (`if (buildingPorts.length > 0)`), así que quitar el último
+  puerto vía edificios no limpia `player.ports` (bug secundario).
 
-El acueducto no debería funcionar cuando sale 7
+Principio de la solución: **los edificios son la única fuente de verdad de
+los puertos**. El lobby debe editar el puerto POR POBLADO (como en partida)
+y el tope de 1–2 fichas se refleja en la UI; `player.ports` se deriva SIEMPRE
+de los edificios en el servidor. El selector suelto "Mis puertos" se elimina.
 
-No está funcionando la regla extra de hacer tratos vacíos, no deja mandar tratos vacíos ni para dar ni para recibir. 
+========================================================================
+DISEÑO DEL FIX
+========================================================================
+BACKEND (lo implementa el orquestador — convención §10 de context.md):
+ S1. handlers.ts `player:setBuildings`: derivar SIEMPRE
+     `player.ports = player.buildings.filter(b => b.port).map(...)`
+     (quitar el guard `if (buildingPorts.length > 0)`), tanto en lobby como
+     en partida. Así los puertos son 100% función de los edificios.
+ S2. handlers.ts: eliminar el handler `player:setPorts` (ya no hay fuente
+     de puertos independiente de los edificios). `validateBuildings` ya
+     valida el tope (0–2 con puerto); no requiere cambios.
+ S3. setup.test.ts: tests que fijen la conducta corregida:
+       - `validateBuildings` rechaza un poblado con puerto y 3 fichas; acepta
+         0/1/2 fichas con puerto.
+       - Derivación de puertos desde edificios (poblado con puerto → aparece
+         en la lista; sin puerto → lista vacía).
+     Objetivo: la suite (vitest) queda verde y cubre la regla.
 
-La carta "puerto comercial" no funciona, debería funcionar en automático
+FRONTEND (agentes; consumen el contrato Socket.IO):
+ F1. Extraer `PortPickerSheet` (y `PORT_SHORT`) de ConstructionTable.tsx a un
+     módulo propio `client/src/components/PortPickerSheet.tsx` para poder
+     reusarlo desde InitialBuildSetup SIN import circular (ConstructionTable
+     ya importa `SpotPickerSheet` desde InitialBuildSetup). ConstructionTable
+     pasa a importarlo del nuevo módulo.
+ F2. InitialBuildSetup.tsx (lobby): por cada poblado de salida, mostrar el
+     mismo botón/badge de puerto que la tabla de construcción y abrir
+     `PortPickerSheet`. Al fijar un puerto: recortar `spots` a 2 y ocultar/
+     deshabilitar "+ Agregar ficha" cuando `spots.length >= (port ? 2 : 3)`.
+     Persistir vía el `commit()` existente (`player:setBuildings`) — NADA de
+     `setPorts`. Respetar C&K (poblado + ciudad de salida) y el modo
+     "sin recursos".
+ F3. LobbyScreen.tsx: eliminar el botón "Mis puertos", el estado `portsOpen`,
+     el `PortsModal`/`PortRow` y el uso de `setPorts`.
+ F4. ConstructionTable.tsx: quitar la llamada redundante `setPorts(derivedPorts)`
+     de `confirmPort` (los puertos ya se derivan en el servidor desde
+     `player:setBuildings`). store.ts/types: eliminar la acción `setPorts` y
+     el emit `player:setPorts` si quedan sin uso.
 
+========================================================================
+TAREAS POR AGENTE (según sus habilidades — .claude/agents/)
+========================================================================
+[orquestador / backend]  S1–S3 (handlers.ts, setup.test.ts). Verifica con
+    `cd server && npm test` y `npm run build`. Convención §10: el backend
+    Node/Socket.IO lo implementa Claude principal.
 
-La carta "Saboteador" tampoco funciona. Al jugara todos los jugadores con más o igual de puntos de victoria que tú tienes que descartar todas sus cartas
+[ux-architect]  Design brief corto para "puerto por poblado en el lobby":
+    interacción (reusar el patrón de la tabla de construcción), el tope de
+    1–2 fichas y su feedback, y los casos extremos: agregar puerto con 3
+    fichas ya registradas (recortar a 2 + avisar), quitar el puerto (re-habilita
+    3ª ficha), poblado con puerto sin fichas, C&K (poblado y ciudad de salida),
+    modo "sin recursos". Entrega el brief al ui-engineer. NO escribe código.
 
+[ui-engineer]  Implementa F1–F4 completo y funcional (código sin truncar,
+    verifica package.json/Tailwind v3, sin emojis nuevos, targets ≥44px,
+    reusa `PortPickerSheet`). Cablea el tope de fichas en la UI del lobby.
 
-Revisa todas las cartas que se resuelven en mesa e intenta integrarlas para que se resuelvan en automático
+[ux-writer]  Copy del nuevo control de puerto en el lobby y su ayuda: label
+    del badge ("Sin puerto" / "Puerto Ladrillo"…), microcopy del tope
+    ("Un poblado sobre un puerto toca 1 o 2 fichas"), y aviso al recortar la
+    3ª ficha. Consistencia de términos (puerto / poblado / ficha). Formato
+    Antes/Después/Por qué.
+
+[visual-designer]  Consistencia visual del badge de puerto del lobby con la
+    tabla de construcción y con el sistema de cards del lobby (bordes/colores
+    sky para "con puerto", surface para "sin puerto"). Cambios quirúrgicos.
+
+[motion-engineer]  Micro-interacción del tope: feedback sutil cuando el puerto
+    recorta la 3ª ficha o cuando "+ Agregar ficha" se desactiva (reusar clases
+    anim-* existentes; solo transform/opacity; respetar prefers-reduced-motion).
+    Puede concluir "cubierto por el patrón existente" si no aporta.
+
+[qa-auditor]  Audita InitialBuildSetup.tsx, PortPickerSheet.tsx y LobbyScreen.tsx
+    tras el cambio: a11y (focus trap y labels del sheet, roles, contraste),
+    responsive/touch targets, anti-patterns (nota el emoji ⚓ preexistente),
+    y que el tope se respete en la UI. Reporte P0–P3; corrige P0/P1.
+
+========================================================================
+ORQUESTACIÓN (secuencial — mismos archivos, para evitar conflictos)
+========================================================================
+  1) ux-architect → brief
+  2) [backend] S1–S3 (orquestador)  +  ui-engineer → F1–F4
+  3) verificar: server vitest + client tsc/build ; commit del fix a main
+  4) ux-writer → visual-designer → motion-engineer → qa-auditor (pasadas
+     acotadas sobre los mismos archivos, en serie)
+  5) verificar de nuevo ; commit del pulido si hubo cambios
+  6) actualizar context.md (§8/§11 changelog) ; commit
+
+========================================================================
+VERIFICACIÓN
+========================================================================
+- `cd server && npm test` (vitest) verde, incluyendo los nuevos tests S3.
+- `cd server && npm run build` (tsc) y `cd client && npm run build` (tsc+vite)
+  sin errores (atrapa la eliminación de `setPorts`/`player:setPorts`).
+- Revisión manual del flujo del lobby: agregar puerto a un poblado limita a 2
+  fichas; quitarlo re-habilita 3; ya no existe "Mis puertos" suelto; los
+  puertos que ve `TradeModal`/`PublicPlayersPanel` provienen de los edificios.
+
+========================================================================
+CRITERIOS DE ÉXITO
+========================================================================
+- En el lobby, el puerto se agrega DESDE un poblado de salida (no hay selector
+  global). Un poblado con puerto acepta como máximo 2 fichas de recurso.
+- Es imposible tener un poblado con puerto y 3 fichas (UI + servidor).
+- `player.ports` se deriva exclusivamente de los edificios (sin `player:setPorts`).
+- Suite verde + builds verdes. Sin regresiones en la tabla de construcción de
+  partida (que ya usaba el patrón correcto).
