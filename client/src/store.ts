@@ -18,7 +18,6 @@ import {
   PersistedSession,
   PlayerColor,
   PlayerView,
-  PortType,
   Resource,
   TradeItemKind,
   User,
@@ -148,7 +147,6 @@ interface StoreState {
   // Tabla de construcción (lobby y partida): reemplaza la lista completa de
   // MIS construcciones; el server deriva los hexes de producción.
   setBuildings: (buildings: Building[]) => void;
-  setPorts: (ports: PortType[]) => void;
   // Cambio A: confirma que un poblado nuevo (pendiente de registro y sin
   // fichas) no toca ningún recurso, liberando el bloqueo de fin de turno.
   ackNoResources: (buildingId: string) => void;
@@ -468,7 +466,6 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setBuildings: (buildings) =>
     socket.emit('player:setBuildings', { buildings }),
-  setPorts: (ports) => socket.emit('player:setPorts', { ports }),
   ackNoResources: (buildingId) =>
     socket.emit('building:ackNoResources', { buildingId }),
 

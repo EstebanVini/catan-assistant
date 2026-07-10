@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
-import { Building, Hex, PlayerColor, RESOURCES, Resource } from '../types';
+import { Building, Hex, PlayerColor, PortType, RESOURCES, Resource } from '../types';
 import { RESOURCE_NAMES, RESOURCE_NAMES_LOWER } from '../lib/spanish';
 import { ResourceIcon } from './ResourceIcon';
 import { ColorChip } from './ColorChip';
+import { PortPickerSheet, PORT_SHORT } from './PortPickerSheet';
 import { BuildingGlyph } from '../assets/icons';
 import { useModalA11y } from '../lib/useModalA11y';
 import { safeVibrate } from '../lib/motion';
@@ -55,6 +56,8 @@ export function InitialBuildSetup(): JSX.Element | null {
     return server && server.length === 2 ? server : defaultBuilds();
   });
   const [sheet, setSheet] = useState<SheetState | null>(null);
+  // Índice de la card cuyo puerto se está editando (bottom-sheet), o null.
+  const [portSheet, setPortSheet] = useState<0 | 1 | null>(null);
   // Pop sutil del chip recién agregado/editado.
   const [popKey, setPopKey] = useState<string | null>(null);
 
@@ -186,6 +189,32 @@ export function InitialBuildSetup(): JSX.Element | null {
     setSheet(null);
   }
 
+  // Asigna (o quita) el puerto de una card de salida. Un poblado/ciudad con
+  // puerto toca máximo 2 fichas, así que al asignar uno recortamos la 3ª ficha
+  // si existía y avisamos. Quitar el puerto (port = null) reabre la 3ª ficha
+  // sin tocar las que ya haya. El server deriva player.ports desde estos
+  // edificios (`player:setBuildings`); NO se sincroniza aparte.
+  function confirmPort(buildIdx: 0 | 1, port: PortType | null): void {
+    let trimmed = false;
+    const next = builds.map((b, i) => {
+      if (i !== buildIdx) return b;
+      const newB: Building = { ...b, port: port ?? undefined };
+      if (port && newB.spots.length > 2) {
+        newB.spots = newB.spots.slice(0, 2);
+        trimmed = true;
+      }
+      return newB;
+    });
+    commit(next);
+    if (trimmed) {
+      pushToast(
+        'info',
+        'Un poblado con puerto toca máximo 2 fichas. Quitamos la última ficha que registraste.'
+      );
+    }
+    setPortSheet(null);
+  }
+
   const localComplete = builds.every((b) => b.spots.length >= 1);
   const missing = builds
     .map((b, i) => (b.spots.length === 0 ? missingLabel(i as 0 | 1) : null))
@@ -243,6 +272,8 @@ export function InitialBuildSetup(): JSX.Element | null {
         {builds.map((b, rawIdx) => {
           const idx = rawIdx as 0 | 1;
           const meta = cardMeta(idx);
+          // Un poblado/ciudad con puerto toca máximo 2 fichas; sin puerto, 3.
+          const maxSpots = b.port ? 2 : 3;
           return (
             <div
               key={b.id}
@@ -256,6 +287,27 @@ export function InitialBuildSetup(): JSX.Element | null {
                   {meta.label}
                 </p>
               </div>
+
+              {/* Puerto por construcción (mismo patrón que la Tabla de
+                  construcción en partida). Si esta card tiene puerto solo
+                  puede tocar 2 fichas. */}
+              <button
+                type="button"
+                onClick={() => setPortSheet(idx)}
+                className={
+                  'mt-1.5 flex w-full items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left transition-colors active:bg-white/[0.08] ' +
+                  (b.port
+                    ? 'border-sky-500/40 bg-sky-500/10 text-sky-200'
+                    : 'border-white/10 bg-surface-2 text-neutral-400')
+                }
+              >
+                <span className="text-base leading-none">⚓</span>
+                <span className="text-[11px] font-medium">
+                  {b.port ? PORT_SHORT[b.port] : 'Sin puerto'}
+                </span>
+                <span className="ml-auto text-[10px] opacity-60">editar</span>
+              </button>
+
               {b.spots.length === 0 ? (
                 <p className="mt-1.5 rounded-md border border-dashed border-white/15 px-2.5 py-2.5 text-center text-[11px] text-neutral-400">
                   Sin fichas todavía
@@ -323,13 +375,18 @@ export function InitialBuildSetup(): JSX.Element | null {
                   })}
                 </div>
               )}
-              {b.spots.length < 3 ? (
+              {b.spots.length < maxSpots ? (
                 <button
                   type="button"
                   onClick={() => setSheet({ buildIdx: idx, spotIdx: null })}
                   className="mt-2 min-h-[44px] w-full rounded-lg border border-white/12 bg-surface-2 px-3 py-2 text-xs font-medium text-neutral-100 transition-colors active:bg-white/10"
                 >
                   + Agregar ficha
+                  {b.port ? (
+                    <span className="ml-1 text-[10px] text-neutral-400">
+                      (máx. 2 con puerto)
+                    </span>
+                  ) : null}
                 </button>
               ) : null}
             </div>
@@ -383,6 +440,15 @@ export function InitialBuildSetup(): JSX.Element | null {
           onConfirm={(n, r, h) =>
             confirmSpot(sheet.buildIdx, sheet.spotIdx, n, r, h)
           }
+        />
+      ) : null}
+
+      {portSheet !== null ? (
+        <PortPickerSheet
+          current={builds[portSheet]?.port ?? null}
+          buildLabel={cardMeta(portSheet).label}
+          onClose={() => setPortSheet(null)}
+          onConfirm={(port) => confirmPort(portSheet, port)}
         />
       ) : null}
     </section>

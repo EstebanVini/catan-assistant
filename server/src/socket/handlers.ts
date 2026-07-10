@@ -654,11 +654,11 @@ export function registerHandlers(io: Server, socket: Socket): void {
         return b !== undefined && b.spots.length === 0;
       });
     }
-    // Sincronizar puertos derivados de los edificios con puerto registrado.
-    const buildingPorts = player.buildings.filter((b) => b.port).map((b) => b.port as PortType);
-    if (buildingPorts.length > 0) {
-      player.ports = buildingPorts;
-    }
+    // Los puertos son función EXCLUSIVA de los edificios con puerto registrado
+    // (única fuente de verdad, en lobby y en partida). Se derivan SIEMPRE: así
+    // quitar el último puerto de un edificio también limpia player.ports. El
+    // tope de fichas (0–2 con puerto) ya lo impone validateBuildings.
+    player.ports = player.buildings.filter((b) => b.port).map((b) => b.port as PortType);
     // Derivar los hexes también en el lobby: así el selector de fichas puede
     // ofrecer "agrupar con una ficha ya registrada en la mesa".
     if (!playing) {
@@ -791,15 +791,10 @@ export function registerHandlers(io: Server, socket: Socket): void {
   // (Los antiguos handlers hex:* desaparecieron: los hexes ahora se derivan
   // de las tablas de construcción vía player:setBuildings.)
 
-  socket.on('player:setPorts', ({ ports }: { ports: PortType[] }) => {
-    const state = getRoom(socket.data.code ?? '');
-    if (!state) return;
-    const player = findPlayer(state, socket.data.playerId ?? '');
-    if (!player) return;
-    pushSnapshot(state);
-    player.ports = ports;
-    broadcastState(io, state);
-  });
+  // (El handler `player:setPorts` se eliminó: los puertos ya no se fijan por
+  // separado. Son 100% derivados de los edificios con puerto vía
+  // `player:setBuildings` — el puerto se agrega POR POBLADO tanto en el lobby
+  // (InitialBuildSetup) como en la partida (ConstructionTable).)
 
   // === Tirada ===
   socket.on('turn:rollNumber', ({ number }: { number: number }) => {

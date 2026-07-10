@@ -55,6 +55,52 @@ describe('validateBuildings (edición libre de la tabla)', () => {
   });
 });
 
+describe('tope de fichas por puerto (bug del lobby "Mis puertos")', () => {
+  // Un poblado sobre un puerto ocupa un borde costero: toca 1–2 hexes de tierra,
+  // nunca 3. La regla la impone validateBuildings (maxSpots = port ? 2 : 3) y la
+  // UI del lobby debe reflejarla; aquí fijamos la conducta pura.
+  function withPort(b: Building, port: Building['port']): Building {
+    return { ...b, port };
+  }
+
+  it('un poblado con puerto acepta 0, 1 o 2 fichas', () => {
+    expect(validateBuildings([withPort(building([]), '3:1')]).ok).toBe(true);
+    expect(validateBuildings([withPort(building([[6, 'ore']]), 'brick')]).ok).toBe(true);
+    expect(validateBuildings([withPort(building([[6, 'ore'], [9, 'wool']]), 'brick')]).ok).toBe(true);
+  });
+
+  it('un poblado con puerto RECHAZA 3 fichas; sin puerto sí las acepta', () => {
+    const conPuerto = withPort(building([[6, 'ore'], [9, 'wool'], [4, 'grain']]), '3:1');
+    expect(validateBuildings([conPuerto]).ok).toBe(false);
+    // Sin puerto, 3 fichas es válido (control).
+    expect(validateBuildings([building([[6, 'ore'], [9, 'wool'], [4, 'grain']])]).ok).toBe(true);
+  });
+
+  it('acepta los puertos válidos (3:1 y cada recurso 2:1) y rechaza uno inválido', () => {
+    for (const port of ['3:1', 'brick', 'lumber', 'wool', 'grain', 'ore'] as const) {
+      expect(validateBuildings([withPort(building([[6, 'ore']]), port)]).ok).toBe(true);
+    }
+    expect(
+      validateBuildings([withPort(building([[6, 'ore']]), 'diamond' as Building['port'])]).ok
+    ).toBe(false);
+  });
+
+  it('validateInitialBuildings: un poblado de salida con puerto acepta 2 fichas pero no 3', () => {
+    expect(
+      validateInitialBuildings([
+        withPort(building([[6, 'ore'], [9, 'wool']]), 'brick'),
+        building([[4, 'grain']]),
+      ]).ok
+    ).toBe(true);
+    expect(
+      validateInitialBuildings([
+        withPort(building([[6, 'ore'], [9, 'wool'], [4, 'grain']]), 'brick'),
+        building([[5, 'lumber']]),
+      ]).ok
+    ).toBe(false);
+  });
+});
+
 describe('applyInitialSetup', () => {
   it('siembra hexes uniendo por número+recurso y reparte recursos de TODOS los poblados', () => {
     const bank = fullBank(false);

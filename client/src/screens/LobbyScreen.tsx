@@ -6,12 +6,10 @@ import {
   EXTENSION_COLORS,
   FriendEntry,
   PlayerColor,
-  PortType,
   PublicPlayer,
-  RESOURCES,
 } from '../types';
 import { ColorChip } from '../components/ColorChip';
-import { COLOR_NAMES, RESOURCE_NAMES, joinList } from '../lib/spanish';
+import { COLOR_NAMES, joinList } from '../lib/spanish';
 import { useModalA11y } from '../lib/useModalA11y';
 import { InitialBuildSetup, CheckIcon } from '../components/InitialBuildSetup';
 import { Avatar } from '../components/Avatar';
@@ -29,7 +27,6 @@ export function LobbyScreen(): JSX.Element | null {
   const rollOrderByDice = useStore((s) => s.rollOrderByDice);
   const startGame = useStore((s) => s.startGame);
   const leaveRoom = useStore((s) => s.leaveRoom);
-  const setPorts = useStore((s) => s.setPorts);
   const toasts = useStore((s) => s.toasts);
   const setSeedResources = useStore((s) => s.setSeedResources);
   const setExtraRules = useStore((s) => s.setExtraRules);
@@ -38,7 +35,6 @@ export function LobbyScreen(): JSX.Element | null {
   const authToken = useStore((s) => s.authToken);
   const inviteFriend = useStore((s) => s.inviteFriend);
   const getOnlineFriendIds = useStore((s) => s.getOnlineFriendIds);
-  const [portsOpen, setPortsOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   // Confirmación de expulsión: jugador objetivo (id + nombre) o null.
   const [kickTarget, setKickTarget] = useState<{ id: string; name: string } | null>(
@@ -465,16 +461,11 @@ export function LobbyScreen(): JSX.Element | null {
             );
           })}
         </div>
-        <button
-          type="button"
-          onClick={() => setPortsOpen(true)}
-          className="mt-3 min-h-[40px] w-full rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-xs"
-        >
-          Mis puertos ({me.ports.length})
-        </button>
       </section>
 
-      {/* Fase 3: la tarea principal del lobby una vez elegido el color. */}
+      {/* Fase 3: la tarea principal del lobby una vez elegido el color.
+          Los puertos se registran POR poblado/ciudad de salida dentro de este
+          componente (badge ⚓), no con un selector suelto. */}
       <InitialBuildSetup />
 
       {isHost ? (
@@ -788,17 +779,6 @@ export function LobbyScreen(): JSX.Element | null {
         </div>
       </div>
 
-      {portsOpen ? (
-        <PortsModal
-          ports={me.ports}
-          onClose={() => setPortsOpen(false)}
-          onSubmit={(p) => {
-            setPorts(p);
-            setPortsOpen(false);
-          }}
-        />
-      ) : null}
-
       {/* §2 — Confirmación de expulsión (alertdialog rojo). */}
       {kickTarget ? (
         <KickConfirm
@@ -848,105 +828,6 @@ function Tag({
     >
       {children}
     </span>
-  );
-}
-
-function PortsModal({
-  ports,
-  onClose,
-  onSubmit,
-}: {
-  ports: PortType[];
-  onClose: () => void;
-  onSubmit: (p: PortType[]) => void;
-}): JSX.Element {
-  const [selected, setSelected] = useState<Set<PortType>>(new Set(ports));
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useModalA11y(dialogRef, onClose);
-  function toggle(p: PortType) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(p)) next.delete(p);
-      else next.add(p);
-      return next;
-    });
-  }
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 sm:items-center"
-      onClick={onClose}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ports-modal-title"
-        aria-describedby="ports-modal-desc"
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-2xl border border-white/10 bg-neutral-900 p-4 shadow-2xl"
-      >
-        <h3 id="ports-modal-title" className="text-base font-semibold">
-          Mis puertos
-        </h3>
-        <p id="ports-modal-desc" className="mt-1 text-xs text-neutral-400">
-          Marca los puertos que tienes en el tablero. Te dan mejor proporción al
-          intercambiar.
-        </p>
-        <div className="mt-3 space-y-2">
-          <PortRow
-            label="Puerto 3:1 (cualquier recurso)"
-            checked={selected.has('3:1')}
-            onChange={() => toggle('3:1')}
-          />
-          {RESOURCES.map((r) => (
-            <PortRow
-              key={r}
-              label={`Puerto 2:1 ${RESOURCE_NAMES[r]}`}
-              checked={selected.has(r)}
-              onChange={() => toggle(r)}
-            />
-          ))}
-        </div>
-        <div className="mt-4 flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-[44px] flex-1 rounded-lg border border-white/10 bg-surface-3 px-3 py-2 text-sm"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={() => onSubmit(Array.from(selected))}
-            className="min-h-[44px] flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-neutral-900"
-          >
-            Guardar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PortRow({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: () => void;
-}): JSX.Element {
-  return (
-    <label className="flex cursor-pointer items-center justify-between rounded-lg border border-white/10 bg-surface-3 px-3 py-2.5">
-      <span className="text-sm">{label}</span>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="h-5 w-5 accent-emerald-500"
-      />
-    </label>
   );
 }
 
