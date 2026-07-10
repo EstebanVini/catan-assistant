@@ -99,7 +99,7 @@ sessions — accounts, match history, stats and friendships. The server **degrad
 gracefully**: if MongoDB is down, you can still play in guest mode (only accounts
 and result persistence are disabled).
 
-![Container architecture — actors, Client SPA/PWA, single-process Node server (HTTP+WS edge, auth REST, real-time layer, in-memory state, pure domain, persistence) and MongoDB](docs/catan_assistant_container_architecture_en.png)
+![Container architecture — actors, Client SPA/PWA, single-process Node server (HTTP+WS edge, auth REST, real-time layer, in-memory state, pure domain, persistence) and MongoDB](docs/documentation/catan_assistant_container_architecture_en.png)
 
 ### Single process & deployment
 
@@ -110,7 +110,7 @@ and result persistence are disabled).
   the Node server (`:3001`) and listens on the LAN so you can test from phones.
 - **Docker**: `docker compose up --build` starts MongoDB + the full app
   (multi-stage `node:20-alpine` image, non-root user). See
-  [docs/development-setup.md](docs/development-setup.md).
+  [docs/documentation/development-setup.md](docs/documentation/development-setup.md).
 
 ### Backend
 
@@ -160,7 +160,7 @@ Each player's **hand** and **development cards** are private: the server builds 
 `state:update` individually, so everyone gets their own private hand while others
 see only public counts.
 
-![Privacy boundary — the in-memory GameState passes through views.ts, which emits each player a personalized state:update with their private hand and only public counts for others](docs/catan_assistant_privacy_boundary_broadcast_en.png)
+![Privacy boundary — the in-memory GameState passes through views.ts, which emits each player a personalized state:update with their private hand and only public counts for others](docs/documentation/catan_assistant_privacy_boundary_broadcast_en.png)
 
 ## Project structure
 
@@ -213,12 +213,12 @@ catan-assistant/
 
 ## Documentation
 
-- [docs/development-setup.md](docs/development-setup.md) — requirements,
+- [docs/documentation/development-setup.md](docs/documentation/development-setup.md) — requirements,
   configuration, installation, running locally and with Docker, tests.
-- [docs/prompt-diagrama-arquitectura.md](docs/prompt-diagrama-arquitectura.md) —
+- [docs/internal_prompts/prompt-diagrama-arquitectura.md](docs/internal_prompts/prompt-diagrama-arquitectura.md) —
   the architecture-diagram prompt the diagrams above were generated from.
-- Architecture diagrams: [container architecture](docs/catan_assistant_container_architecture_en.png)
-  · [privacy boundary & broadcast](docs/catan_assistant_privacy_boundary_broadcast_en.png).
+- Architecture diagrams: [container architecture](docs/documentation/catan_assistant_container_architecture_en.png)
+  · [privacy boundary & broadcast](docs/documentation/catan_assistant_privacy_boundary_broadcast_en.png).
 - `docs/` also holds the UX briefs, development plans and QA reports.
 
 ## License
