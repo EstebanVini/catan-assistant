@@ -213,6 +213,9 @@ catan-assistant/
 
 ## Documentation
 
+- [docs/documentation/walkthrough.md](docs/documentation/walkthrough.md) — a
+  screen-by-screen visual tour of the app (home, profile, friends, lobby and a
+  full in-game session), illustrated with annotated screenshots.
 - [docs/documentation/development-setup.md](docs/documentation/development-setup.md) — requirements,
   configuration, installation, running locally and with Docker, tests.
 - [docs/internal_prompts/prompt-diagrama-arquitectura.md](docs/internal_prompts/prompt-diagrama-arquitectura.md) —
