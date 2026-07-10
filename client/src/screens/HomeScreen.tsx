@@ -6,6 +6,7 @@ import { useModalA11y } from '../lib/useModalA11y';
 import { Avatar } from '../components/Avatar';
 import { FriendsPanel } from '../components/FriendsPanel';
 import { getFriends } from '../api';
+import { INSTRUCTIONS_ENTRY } from './instructionsContent';
 
 type Modal = null | 'create' | 'join' | 'account' | 'logoutConfirm';
 
@@ -244,6 +245,60 @@ export function HomeScreen(): JSX.Element {
             </span>
           </button>
         ) : null}
+
+        {/* Entrada al instructivo "Cómo jugar". Baja jerarquía (surface-1, sin
+            emerald): informativo, no una acción principal. Visible SIEMPRE, para
+            invitado y logueado, por eso no se condiciona a authUser. Mismo patrón
+            de card-botón que "Amigos" (círculo de ícono + título + subtítulo +
+            chevron). */}
+        <button
+          type="button"
+          onClick={() => setHomeView('instructions')}
+          aria-label={INSTRUCTIONS_ENTRY.ariaLabel}
+          className="flex min-h-[56px] w-full items-center gap-3 rounded-xl border border-white/12 bg-surface-1 px-4 py-3 text-left transition-all active:scale-[0.99] active:bg-white/[0.06]"
+        >
+          <span
+            aria-hidden
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-white/10 bg-surface-3 text-neutral-300"
+          >
+            <svg width={20} height={20} viewBox="0 0 24 24">
+              <path
+                d="M12 6 C9.8 4.6 6.4 4.6 4 5.3 L4 18.4 C6.4 17.7 9.8 17.7 12 19.1 C14.2 17.7 17.6 17.7 20 18.4 L20 5.3 C17.6 4.6 14.2 4.6 12 6 Z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.6}
+                strokeLinejoin="round"
+              />
+              <path
+                d="M12 6 L12 19.1"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.6}
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-base font-semibold text-neutral-100">
+              {INSTRUCTIONS_ENTRY.title}
+            </span>
+            <span className="block text-xs text-neutral-400">
+              {INSTRUCTIONS_ENTRY.subtitle}
+            </span>
+          </span>
+          <span aria-hidden className="flex-shrink-0 text-neutral-500">
+            <svg width={18} height={18} viewBox="0 0 24 24">
+              <path
+                d="M9 6 L15 12 L9 18"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </button>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-white/5 py-3 text-[11px] text-neutral-400">

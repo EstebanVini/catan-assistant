@@ -5,6 +5,7 @@ import { LobbyScreen } from './screens/LobbyScreen';
 import { GameScreen } from './screens/GameScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
+import { InstructionsScreen } from './screens/InstructionsScreen';
 import { WinnerScreen } from './components/WinnerScreen';
 import { NoticeBanner } from './components/NoticeBanner';
 import { getMe } from './api';
@@ -129,8 +130,16 @@ export function App(): JSX.Element {
     screen = <SyncingScreen />;
   } else if (!view || !view.me) {
     if (session || authToken || guestMode) {
+      // "Cómo jugar" es pública (invitado o logueado): no exige `authUser`, a
+      // diferencia del Perfil.
       screen =
-        homeView === 'profile' && authUser ? <ProfileScreen /> : <HomeScreen />;
+        homeView === 'instructions' ? (
+          <InstructionsScreen />
+        ) : homeView === 'profile' && authUser ? (
+          <ProfileScreen />
+        ) : (
+          <HomeScreen />
+        );
     } else {
       screen = <LoginScreen />;
     }

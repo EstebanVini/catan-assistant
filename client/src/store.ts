@@ -78,9 +78,9 @@ interface StoreState {
   authToken: string | null;
   authUser: User | null;
   guestMode: boolean;
-  // Navegación fuera de partida: Home ↔ Perfil, y Login forzado (p. ej.
-  // invitado que decide crear cuenta con sala activa).
-  homeView: 'home' | 'profile';
+  // Navegación fuera de partida: Home ↔ Perfil ↔ Cómo jugar, y Login forzado
+  // (p. ej. invitado que decide crear cuenta con sala activa).
+  homeView: 'home' | 'profile' | 'instructions';
   showLogin: boolean;
 
   // Helpers de sesión
@@ -99,7 +99,7 @@ interface StoreState {
   clearAuthSession: () => void;
   logout: () => void;
   enterGuestMode: () => void;
-  setHomeView: (v: 'home' | 'profile') => void;
+  setHomeView: (v: 'home' | 'profile' | 'instructions') => void;
   setShowLogin: (v: boolean) => void;
   refreshAuthFromStorage: () => void;
 
